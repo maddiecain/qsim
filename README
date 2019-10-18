@@ -1,0 +1,8 @@
+QSim is a Python package for simulating noisy quantum computers. The goal is to build in support for:
+    - Both gate-based and Hamiltonian-based quantum computing
+    - Different noise models
+    - Monte Carlo and exact simulations
+    - Parameter optimization routines in QAOA
+...and perhaps in the distant future:
+    - Intermediate measurements and feedback, as well as post-processing
+    - Beautiful Sphinx documentation
