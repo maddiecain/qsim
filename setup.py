@@ -9,7 +9,7 @@ setup(
     description='Quantum simulation for NISQ computers',
     long_description=long_description,
     author='Leo Zhou, Madelyn Cain',
-    author_email='lzhou@g.harvarad.edu, mcain@g.harvard.edu',
+    author_email='leozhou@g.harvard.edu, mcain@g.harvard.edu',
     packages=['qsim'],
     install_requires=['numpy>=1.16.4'], #external dependencies
     scripts=[
