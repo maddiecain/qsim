@@ -6,6 +6,9 @@ import numpy as np
 
 SIGMA_X_IND, SIGMA_Y_IND, SIGMA_Z_IND = (1,2,3)
 
+def pauli_matrices():
+    return (np.array([[0,1],[1,0]]), np.array([[0,-1j],[1j,0]]), np.array([[1,0],[0,-1]]))
+
 def multiply_single_spin(state, i: int, pauli_ind: int):
     """ Multiply a single pauli operator on the i-th spin of the input wavefunction
 
@@ -29,6 +32,29 @@ def multiply_single_spin(state, i: int, pauli_ind: int):
         out[:,1,:] = -out[:,1,:]
 
     return out.reshape(state.shape, order='F')
+
+
+def operate_single_spin(rho, i: int, operation):
+    """ Apply a single spin operation on a density matrix.
+        Efficient implementation using reshape and transpose
+    """
+    assert len(rho.shape)==2
+
+    IndL = 2**i
+    dim = rho.shape[0]
+
+    # left multiply
+    out = rho.reshape((IndL, 2, -1), order='F')
+    out = out.transpose([1,0,2]).reshape((2,-1), order='F')
+    out = np.dot(operation, out)
+    out = out.reshape((2, IndL, -1), order='F').transpose([1,0,2])
+
+    # right multiply
+    out = out.reshape((dim, IndL, 2, -1), order='F').transpose([0,1,3,2]).reshape((-1,2), order='F')
+    out = np.dot(out, operation.conj().T)
+    out = out.reshape((dim, IndL, -1, 2), order='F').transpose([0,1,3,2]).reshape(out.shape, order='F')
+
+    return out
 
 
 def rotate_single_spin(state, i: int, angle: float, pauli_ind: int):
