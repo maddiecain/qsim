@@ -12,7 +12,4 @@ setup(
     author_email='leozhou@g.harvard.edu, mcain@g.harvard.edu',
     packages=['qsim'],
     install_requires=['numpy>=1.16.4'], #external dependencies
-    scripts=[
-            'scripts/basic',
-           ]
 )
