@@ -90,11 +90,9 @@ def evolve_by_HamB(N, beta, psi_in, flag_z2_sym=False, copy=True):
         psi = psi_in
 
     if not flag_z2_sym:
-        for i in range(N):
-            psi = np.cos(beta)*psi - 1j*np.sin(beta)*qops.multiply_single_spin(psi, i, 1)
+        psi = qops.rotate_all_spin(psi, N, beta, 1)
     else:
-        for i in range(N-1):
-            psi = np.cos(beta)*psi - 1j*np.sin(beta)*qops.multiply_single_spin(psi, i, 1)
+        psi = qops.rotate_all_spin(psi, N-1, beta, 1)
         psi = np.cos(beta)*psi - 1j*np.sin(beta)*np.flipud(psi)
 
     return psi

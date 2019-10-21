@@ -36,8 +36,8 @@ def rotate_single_spin(state, i: int, angle: float, pauli_ind: int):
 
         Input:
             state = input wavefunction (as numpy.ndarray)
-            angle = rotation angle
             i = zero-based index of spin location to apply pauli
+            angle = rotation angle
             pauli_ind = one of (1,2,3) for (X, Y, Z)
     """
 
@@ -62,16 +62,19 @@ def rotate_single_spin(state, i: int, angle: float, pauli_ind: int):
     return out.reshape(state.shape, order='F')
 
 
-def rotate_single_spin_mixed(rho, i: int, angle: float, pauli_ind: int):
-    """ Apply a single spin rotation exp(-1j * angle * pauli) to density
-        matrix representing a mixed state
-
+def rotate_all_spin(state, N: int, angle: float, pauli_ind: int, denop=False):
+    """ Apply spin rotation exp(-1j * angle * pauli) to every spin
         Input:
-            state = input density matrix (as numpy.ndarray)
+            state = input wavefunction or density matrix (as numpy.ndarray)
+            N = number of spins in the system
             angle = rotation angle
-            i = zero-based index of spin location to apply pauli
             pauli_ind = one of (1,2,3) for (X, Y, Z)
+            denop = False (default) if wavefunction, True if density matrix
     """
-    rho = rotate_single_spin(rho, i, angle, pauli_ind).conj().T
-    return rotate_single_spin(rho, i, angle, pauli_ind).conj().T
-    
+    if denop:
+        state = rotate_all_spin(state, N, angle, pauli_ind, denop=False).conj().T
+        return rotate_all_spin(state, N, angle, pauli_ind, denop=False).conj().T
+
+    for i in range(N):
+        state = rotate_single_spin(state, i, angle, pauli_ind)
+    return state
