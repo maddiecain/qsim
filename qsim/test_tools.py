@@ -1,6 +1,7 @@
 import unittest
-from qsim.tools import *
+import tools
 import numpy as np
+
 
 class TestTools(unittest.TestCase):
     def test_int_to_binary(self):
@@ -19,11 +20,12 @@ class TestTools(unittest.TestCase):
         self.assertTrue(np.array_equal(Z(2), np.array([[1, 0, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])))
 
     def test_hadamard(self):
-        self.assertTrue(np.allclose(hadamard(2), np.array([[1, 1, 1, 1], [1, -1, 1, -1], [1, 1, -1, -1], [1, -1, -1, 1]])/2))
+        self.assertTrue(
+            np.allclose(hadamard(2), np.array([[1, 1, 1, 1], [1, -1, 1, -1], [1, 1, -1, -1], [1, -1, -1, 1]]) / 2))
 
     def test_trace(self):
         # Basic test
-        self.assertAlmostEqual(1, trace(np.array([[.5, 0], [0, .5]]), np.array([[1, 1], [1, -1]])/np.sqrt(2)))
+        self.assertAlmostEqual(1, trace(np.array([[.5, 0], [0, .5]]), np.array([[1, 1], [1, -1]]) / np.sqrt(2)))
 
 
 if __name__ == '__main__':

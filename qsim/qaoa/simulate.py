@@ -16,9 +16,8 @@ import numpy as np
 
 SIGMA_X_IND, SIGMA_Y_IND, SIGMA_Z_IND = (1,2,3)
 
-
 def minimizable_qaoa_fun(graph: nx.Graph, flag_z2_sym=True, node_to_index_map=None):
-    r"""
+    """
     Given a graph, return a function f(param) that outputs a tuple (F, Fgrad), where
         F = <C> is the expectation value of objective function with respect
             to the QAOA wavefunction
@@ -53,9 +52,8 @@ def create_ZZ_HamC(graph: nx.Graph, flag_z2_sym=True, node_to_index_map=None):
         HamC += graph[a][b]['weight']*ham_two_local_term(SZ, SZ, node_to_index_map[a], node_to_index_map[b], N)
 
     if flag_z2_sym:
-        return HamC[range(2**(N-1)), 0] # restrict to first half of Hilbert space
-    else:
-        return HamC[:, 0]
+        return HamC[np.arange(2**(N-1)), 0] # restrict to first half of Hilbert space
+    return HamC[:, 0]
 
 
 def ham_two_local_term(op1, op2, ind1, ind2, N):
@@ -81,7 +79,7 @@ def ham_two_local_term(op1, op2, ind1, ind2, N):
 
 
 def multiply_single_spin(psi, N: int, i: int, pauli_ind: int):
-    """ Multiply a single pauli operator on the i-th spin of the input wavefunction
+    r""" Multiply a single pauli operator on the i-th spin of the input wavefunction
 
         Input:
             psi = input wavefunction (as numpy.ndarray)

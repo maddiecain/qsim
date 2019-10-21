@@ -1,5 +1,5 @@
 import unittest
-from qsim.state import State
+from state import State
 import numpy as np
 
 mixed_state = State(np.array([[.5, 0, 1], [0, .25, 0], [1, 0, .25]]))

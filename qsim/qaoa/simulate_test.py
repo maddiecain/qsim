@@ -65,3 +65,4 @@ def test_ising_qaoa_grad():
 
     assert np.abs(F - 1.897011131463) <= 1e-10
     assert np.all(np.abs(Fgrad - [14.287009047096, -0.796709998210]) <= 1e-10)
+test_multiply_single_spin()
