@@ -3,31 +3,6 @@ import networkx as nx
 
 from qsim.qaoa import simulate
 
-def test_multiply_single_spin():
-    N = 6
-    # initialize in |000000>
-    psi0 = np.zeros(2**N)
-    psi0[0] = 1
-
-    # apply sigma_y on the first spin to get 1j|100000>
-    psi1 = simulate.multiply_single_spin(psi0, N, 0, 2)
-    assert psi1[1] == 1j
-
-    # apply sigma_z on the first spin
-    psi2 = simulate.multiply_single_spin(psi1, N, 0, 3)
-    assert np.vdot(psi1,psi2) == -1
-
-    # apply sigma_x on spin 2 through 6
-    for i in range(1,N):
-        psi1 = simulate.multiply_single_spin(psi1, N, i, 1)
-
-    # vector norm should still be 1
-    assert np.vdot(psi1, psi1) == 1
-
-    # should be 1j|111111>
-    assert psi1[-1] == 1j
-
-
 def test_evolve_by_HamB():
     N = 6
 

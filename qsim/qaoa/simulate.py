@@ -14,10 +14,12 @@ Quick start:
 import networkx as nx
 import numpy as np
 
-SIGMA_X_IND, SIGMA_Y_IND, SIGMA_Z_IND = (1,2,3)
+import qsim.ops as qops
+
+
 
 def minimizable_qaoa_fun(graph: nx.Graph, flag_z2_sym=True, node_to_index_map=None):
-    """
+    r"""
     Given a graph, return a function f(param) that outputs a tuple (F, Fgrad), where
         F = <C> is the expectation value of objective function with respect
             to the QAOA wavefunction
@@ -52,8 +54,9 @@ def create_ZZ_HamC(graph: nx.Graph, flag_z2_sym=True, node_to_index_map=None):
         HamC += graph[a][b]['weight']*ham_two_local_term(SZ, SZ, node_to_index_map[a], node_to_index_map[b], N)
 
     if flag_z2_sym:
-        return HamC[np.arange(2**(N-1)), 0] # restrict to first half of Hilbert space
-    return HamC[:, 0]
+        return HamC[range(2**(N-1)), 0] # restrict to first half of Hilbert space
+    else:
+        return HamC[:, 0]
 
 
 def ham_two_local_term(op1, op2, ind1, ind2, N):
@@ -78,31 +81,6 @@ def ham_two_local_term(op1, op2, ind1, ind2, N):
                    np.kron(op2, myeye(N-ind2-1)))))
 
 
-def multiply_single_spin(psi, N: int, i: int, pauli_ind: int):
-    r""" Multiply a single pauli operator on the i-th spin of the input wavefunction
-
-        Input:
-            psi = input wavefunction (as numpy.ndarray)
-            i = zero-based index of spin location to apply pauli
-            pauli_ind = one of (1,2,3) for (X, Y, Z)
-    """
-
-    IndL = 2**i
-    IndR = 2**(N-i-1)
-
-    out = psi.reshape([IndL, 2, IndR], order='F').copy()
-
-    if pauli_ind == SIGMA_X_IND: # sigma_X
-        out = np.flip(out, 1)
-    elif pauli_ind == SIGMA_Y_IND: # sigma_Y
-        out = np.flip(out, 1).astype(complex, copy=False)
-        out[:,0,:] = -1j*out[:,0,:]
-        out[:,1,:] = 1j*out[:,1,:]
-    elif pauli_ind == SIGMA_Z_IND: # sigma_Z
-        out[:,1,:] = -out[:,1,:]
-
-    return out.reshape(2**N, order='F')
-
 
 def evolve_by_HamB(N, beta, psi_in, flag_z2_sym=False, copy=True):
     r"""Use reshape to efficiently implement evolution under B=\sum_i X_i"""
@@ -112,11 +90,9 @@ def evolve_by_HamB(N, beta, psi_in, flag_z2_sym=False, copy=True):
         psi = psi_in
 
     if not flag_z2_sym:
-        for i in range(N):
-            psi = np.cos(beta)*psi - 1j*np.sin(beta)*multiply_single_spin(psi, N, i, 1)
+        psi = qops.rotate_all_spin(psi, N, beta, 1)
     else:
-        for i in range(N-1):
-            psi = np.cos(beta)*psi - 1j*np.sin(beta)*multiply_single_spin(psi, N-1, i, 1)
+        psi = qops.rotate_all_spin(psi, N-1, beta, 1)
         psi = np.cos(beta)*psi - 1j*np.sin(beta)*np.flipud(psi)
 
     return psi
@@ -175,11 +151,11 @@ def ising_qaoa_grad(N, HamC, param, flag_z2_sym=False):
         if not flag_z2_sym:
             psi_temp = np.zeros(2**N, dtype=complex)
             for i in range(N):
-                psi_temp += multiply_single_spin(psi_p[:,2*p-q], N, i, 1)
+                psi_temp += qops.multiply_single_spin(psi_p[:,2*p-q], i, 1)
         else:
             psi_temp = np.zeros(2**(N-1), dtype=complex)
             for i in range(N-1):
-                psi_temp += multiply_single_spin(psi_p[:,2*p-q], N-1, i, 1)
+                psi_temp += qops.multiply_single_spin(psi_p[:,2*p-q], i, 1)
             psi_temp += np.flipud(psi_p[:, 2*p-q])
 
         Fgrad[p+q] = -2*np.imag(np.vdot(psi_p[:, q+1], psi_temp))
