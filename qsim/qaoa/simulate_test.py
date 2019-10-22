@@ -33,10 +33,10 @@ def test_ising_qaoa_grad():
     mygraph.add_edge(3,5,weight=1)
 
     N = mygraph.number_of_nodes()
-    HamC = simulate.create_ZZ_HamC(mygraph, flag_z2_sym=True)
+    HamC = simulate.create_ZZ_HamC(mygraph, flag_z2_sym=False)
 
     # test that the calculated objective function and gradients are correct
-    F, Fgrad = simulate.ising_qaoa_grad(N, HamC, [1,0.5], flag_z2_sym=True)
+    F, Fgrad = simulate.ising_qaoa_grad(N, HamC, [1,0.5], flag_z2_sym=False)
 
     assert np.abs(F - 1.897011131463) <= 1e-10
     assert np.all(np.abs(Fgrad - [14.287009047096, -0.796709998210]) <= 1e-10)
