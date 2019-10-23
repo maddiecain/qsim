@@ -14,8 +14,8 @@ Quick start:
 import networkx as nx
 import numpy as np
 
-import qsim.ops as qops
-
+from qsim.simulate import Simulate
+from qsim import tools, single_qubit
 
 
 def minimizable_qaoa_fun(graph: nx.Graph, flag_z2_sym=True, node_to_index_map=None):
@@ -75,10 +75,7 @@ def ham_two_local_term(op1, op2, ind1, ind2, N):
     else:
         myeye = lambda n : np.eye(np.asarray(op1.shape)**n)
 
-    return np.kron(myeye(ind1), \
-                   np.kron(op1, \
-                   np.kron(myeye(ind2-ind1-1), \
-                   np.kron(op2, myeye(N-ind2-1)))))
+    return np.kron(myeye(ind1), np.kron(op1, np.kron(myeye(ind2-ind1-1), np.kron(op2, myeye(N-ind2-1)))))
 
 
 
@@ -90,9 +87,9 @@ def evolve_by_HamB(N, beta, psi_in, flag_z2_sym=False, copy=True):
         psi = psi_in
 
     if not flag_z2_sym:
-        psi = qops.rotate_all_qubit(psi, N, beta, qops.SIGMA_X_IND)
+        psi = single_qubit.rotate_all_qubit(psi, N, beta, tools.SIGMA_X_IND)
     else:
-        psi = qops.rotate_all_qubit(psi, N-1, beta, 1)
+        psi = single_qubit.rotate_all_qubit(psi, N-1, beta, 1)
         psi = np.cos(beta)*psi - 1j*np.sin(beta)*np.flipud(psi)
 
     return psi
@@ -151,13 +148,11 @@ def ising_qaoa_grad(N, HamC, param, flag_z2_sym=False):
         if not flag_z2_sym:
             psi_temp = np.zeros(2**N, dtype=complex)
             for i in range(N):
-                psi_temp += qops.multiply_single_qubit(psi_p[:,2*p-q], i,
-                                                       qops.SIGMA_X_IND)
+                psi_temp += single_qubit.multiply_single_qubit(psi_p[:,2*p-q], i, tools.SIGMA_X_IND)
         else:
             psi_temp = np.zeros(2**(N-1), dtype=complex)
             for i in range(N-1):
-                psi_temp += qops.multiply_single_qubit(psi_p[:,2*p-q], i, 
-                                                       qops.SIGMA_X_IND)
+                psi_temp += single_qubit.multiply_single_qubit(psi_p[:,2*p-q], i, tools.SIGMA_X_IND)
             psi_temp += np.flipud(psi_p[:, 2*p-q])
 
         Fgrad[p+q] = -2*np.imag(np.vdot(psi_p[:, q+1], psi_temp))
@@ -217,3 +212,21 @@ def qaoa_expectation_and_variance_fun(
     N = graph.number_of_nodes()
     return lambda param : ising_qaoa_expectation_and_variance(
             N, HamC, param, flag_z2_sym)
+
+class SimulateQAOA(Simulate):
+    def __init__(self, state, graph, p, gamma, beta, noise_model = None):
+        self.state = state
+        self.graph = graph
+        self.noise_model = noise_model
+        self.p = p
+        self.gamma = gamma
+        self.beta = beta
+
+    def run(self):
+        for i in range(p):
+            if self.noise_model:
+                pass
+
+
+
+

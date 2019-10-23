@@ -1,4 +1,4 @@
-from qsim.ops.single_qubit import (
+"""from qsim.tools.single_qubit import (
     multiply_single_qubit,
     rotate_single_qubit,
     rotate_all_qubit,
@@ -9,4 +9,4 @@ from qsim.ops.single_qubit import (
     SIGMA_Z_IND,
     SX, SY, SZ,
     PAULI_MATRICES,
-)
+)"""

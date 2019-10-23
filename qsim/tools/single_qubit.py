@@ -3,15 +3,10 @@ Single qubit operations
 """
 
 import numpy as np
+from .tools import SX, SY, SZ, SIGMA_X_IND, SIGMA_Y_IND, SIGMA_Z_IND
 
-SIGMA_X_IND, SIGMA_Y_IND, SIGMA_Z_IND = (1,2,3)
-
-SX = np.array([[0,  1],  [1,  0]])
-SY = np.array([[0,-1j],  [1j, 0]])
-SZ = np.array([[1,  0],  [0, -1]])
-
-PAULI_MATRICES = (SX, SY, SZ)
-
+__all__ = ['multiply_single_qubit', 'multiply_single_qubit_mixed', 'operate_single_qubit_mixed',
+           'rotate_single_qubit', 'rotate_all_qubit']
 
 def multiply_single_qubit(state, i: int, pauli_ind: int):
     """ Multiply a single pauli operator on the i-th qubit of the input wavefunction
@@ -106,7 +101,7 @@ def rotate_single_qubit(state, i: int, angle: float, pauli_ind: int):
 
     out = state.reshape((-1, 2, IndL), order='F').copy()
 
-    if pauli_ind == SIGMA_X_IND: # sigma_X        
+    if pauli_ind == SIGMA_X_IND: # sigma_X
         out = out.astype(complex, copy=False)
         rot = np.array([[np.cos(angle), -1j*np.sin(angle)],
                         [-1j*np.sin(angle), np.cos(angle)]]);

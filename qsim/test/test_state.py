@@ -1,10 +1,10 @@
 import unittest
-from state import State
+from qsim.state import State
 import numpy as np
 
 mixed_state = State(np.array([[.5, 0, 1], [0, .25, 0], [1, 0, .25]]))
 pure_state = State(np.array([[1, 0, 0], [0, 0, 0], [0, 0, 0]]))
-invalid_state =  State(np.array([[-1, 0, 0], [0, 0, 0], [0, 0, 0]]))
+invalid_state = State(np.array([[-1, 0, 0], [0, 0, 0], [0, 0, 0]]))
 
 class TestState(unittest.TestCase):
     def test_is_pure_state(self):

@@ -1,5 +1,4 @@
 import numpy as np
-from . import tools
 
 class State(object):
     """Contains information about the system density matrix"""
