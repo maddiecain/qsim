@@ -90,9 +90,9 @@ def evolve_by_HamB(N, beta, psi_in, flag_z2_sym=False, copy=True):
         psi = psi_in
 
     if not flag_z2_sym:
-        psi = qops.rotate_all_spin(psi, N, beta, 1)
+        psi = qops.rotate_all_qubit(psi, N, beta, qops.SIGMA_X_IND)
     else:
-        psi = qops.rotate_all_spin(psi, N-1, beta, 1)
+        psi = qops.rotate_all_qubit(psi, N-1, beta, 1)
         psi = np.cos(beta)*psi - 1j*np.sin(beta)*np.flipud(psi)
 
     return psi
@@ -151,11 +151,13 @@ def ising_qaoa_grad(N, HamC, param, flag_z2_sym=False):
         if not flag_z2_sym:
             psi_temp = np.zeros(2**N, dtype=complex)
             for i in range(N):
-                psi_temp += qops.multiply_single_spin(psi_p[:,2*p-q], i, 1)
+                psi_temp += qops.multiply_single_qubit(psi_p[:,2*p-q], i,
+                                                       qops.SIGMA_X_IND)
         else:
             psi_temp = np.zeros(2**(N-1), dtype=complex)
             for i in range(N-1):
-                psi_temp += qops.multiply_single_spin(psi_p[:,2*p-q], i, 1)
+                psi_temp += qops.multiply_single_qubit(psi_p[:,2*p-q], i, 
+                                                       qops.SIGMA_X_IND)
             psi_temp += np.flipud(psi_p[:, 2*p-q])
 
         Fgrad[p+q] = -2*np.imag(np.vdot(psi_p[:, q+1], psi_temp))
