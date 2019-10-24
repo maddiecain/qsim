@@ -123,7 +123,7 @@ def rotate_single_qubit(state, i: int, angle: float, pauli_ind: int):
     return out.reshape(state.shape, order='F')
 
 
-def rotate_all_qubit(state, N: int, angle: float, pauli_ind: int, denop=False):
+def rotate_all_qubits(state, N: int, angle: float, pauli_ind: int, denop=False):
     """ Apply qubit rotation exp(-1j * angle * pauli) to every qubit
         Input:
             state = input wavefunction or density matrix (as numpy.ndarray)
@@ -133,8 +133,8 @@ def rotate_all_qubit(state, N: int, angle: float, pauli_ind: int, denop=False):
             denop = False (default) if wavefunction, True if density matrix
     """
     if denop:
-        state = rotate_all_qubit(state, N, angle, pauli_ind, denop=False).conj().T
-        return rotate_all_qubit(state, N, angle, pauli_ind, denop=False).conj().T
+        state = rotate_all_qubits(state, N, -angle, pauli_ind, denop=False).conj().T
+        return rotate_all_qubits(state, N, -angle, pauli_ind, denop=False).conj().T
 
     for i in range(N):
         state = rotate_single_qubit(state, i, angle, pauli_ind)

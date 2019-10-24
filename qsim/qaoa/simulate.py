@@ -90,9 +90,9 @@ def evolve_by_HamB(N, beta, psi_in, flag_z2_sym=False, copy=True):
         psi = psi_in
 
     if not flag_z2_sym:
-        psi = qops.rotate_all_qubit(psi, N, beta, qops.SIGMA_X_IND)
+        psi = qops.rotate_all_qubits(psi, N, beta, qops.SIGMA_X_IND)
     else:
-        psi = qops.rotate_all_qubit(psi, N-1, beta, 1)
+        psi = qops.rotate_all_qubits(psi, N-1, beta, qops.SIGMA_X_IND)
         psi = np.cos(beta)*psi - 1j*np.sin(beta)*np.flipud(psi)
 
     return psi
