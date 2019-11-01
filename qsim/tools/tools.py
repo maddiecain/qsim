@@ -22,6 +22,10 @@ def tensor_product(a, b):
     # Full tensor product of tensors a and b
     return np.kron(a, b)
 
+def outer_product(a, b):
+    # Full tensor product of tensors a and b
+    return np.outer(a, b.conj())
+
 def X(n = 1):
     # Returns X^{\otimes N}
     x = np.array([[0, 1], [1, 0]])
@@ -56,3 +60,6 @@ def trace(a, b = None):
     if b is None:
         return np.trace(a)
     return np.trace(b.T.conjugate()@a@b)
+
+def is_orthonormal(B):
+    return np.array_equal(np.linalg.inv(B) @ B, np.identity(B.shape[-1]))

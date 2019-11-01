@@ -27,6 +27,8 @@ class TestTools(unittest.TestCase):
         # Basic test
         self.assertAlmostEqual(1, tools.trace(np.array([[.5, 0], [0, .5]]), np.array([[1, 1], [1, -1]]) / np.sqrt(2)))
 
+    def test_is_orthonormal(self):
+        self.assertTrue(tools.is_orthonormal(np.array([[1, 0], [0, 1]])))
 
 if __name__ == '__main__':
     unittest.main()

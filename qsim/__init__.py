@@ -1,3 +1,3 @@
 from .tools import tools
-from .tools import single_qubit
+from .tools import operations
 

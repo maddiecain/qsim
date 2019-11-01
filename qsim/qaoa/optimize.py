@@ -1,6 +1,6 @@
 import networkx as nx
 import numpy as np
-from scipy.optimize import minimize
+from scipy.optimize import minimize, OptimizeResult
 
 from qsim.qaoa import simulate
 
@@ -63,10 +63,10 @@ def optimize_instance_interp_heuristic(graph: nx.Graph, p_max=10, param_guess_at
         start = timer()
         if param0 is not None:
             results = minimize(qaoa_fun, param0, jac=True, method='BFGS')
-        else: # run with 10 random guesses of parameters and keep best one
-              # will only apply to the lowest depth (p=0 here)
+        else: # Run with 10 random guesses of parameters and keep best one
+              # Will only apply to the lowest depth (p=0 here)
 
-            # first run with a guess known to work most of the time
+            # First run with a guess known to work most of the time
             results = minimize(qaoa_fun, [np.ones(p+1)*np.pi/8, -np.ones(p+1)*np.pi/8], jac=True, method='BFGS')
 
             for _ in range(1,10):
@@ -83,7 +83,7 @@ def optimize_instance_interp_heuristic(graph: nx.Graph, p_max=10, param_guess_at
         Fvals[p] = results.fun
         params[p] = fix_param_gauge(results.x, degree_parity=parity)
 
-    return [OptimizationResult(p=p,
+    return [OptimizeResult(p=p,
                                f_val=f_val,
                                gammas=param[:p],
                                betas=param[p:],
@@ -102,18 +102,18 @@ def fix_param_gauge(param, gamma_period=np.pi, beta_period=np.pi/2, degree_parit
 
     gammas = np.array(param[:p]) / gamma_period
     betas = -np.array(param[p:]) / beta_period
-    # we expect gamma to be positive and beta to be negative, so flip sign of beta for now and flip it back later
+    # We expect gamma to be positive and beta to be negative, so flip sign of beta for now and flip it back later
 
-    # reduce the parameters to be between [0, 1] * period
+    # Reduce the parameters to be between [0, 1] * period
     gammas = gammas % 1
     betas = betas % 1
 
-    # use time-reversal symmetry to make first gamma small
+    # Use time-reversal symmetry to make first gamma small
     if (gammas[0] > 0.25 and gammas[0] < 0.5) or gammas[0] > 0.75:
         gammas = -gammas % 1
         betas = -betas % 1
 
-    # further simplification if all nodes have same degree parity
+    # Further simplification if all nodes have same degree parity
     if degree_parity == EVEN_DEGREE_ONLY: # Every node has even degree
         gamma_period = np.pi/2
         gammas = (gammas * 2) % 1
@@ -132,7 +132,7 @@ def fix_param_gauge(param, gamma_period=np.pi, beta_period=np.pi/2, degree_parit
         elif delta <= -0.5:
             gammas[i] += 1
 
-        #  try to impose smoothness of betas
+        #  Try to impose smoothness of betas
         delta = betas[i] - betas[i-1]
         if delta >= 0.5:
             betas[i] -= 1
