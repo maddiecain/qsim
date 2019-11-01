@@ -69,17 +69,16 @@ class TestState(unittest.TestCase):
         psi0[0] = 1
         state0 = State(psi0, 6, is_ket = True)
         state1 = State(psi0, 6, is_ket = True)
+
         # Rotate by exp(-1i*pi/4*sigma_y) every qubit to get |++++++>
-
         for i in range(state0.N):
-            state0.single_qubit_rotation(i, np.pi / 4, 2)
-
+            state0.single_qubit_rotation(i, np.pi/4, tools.SY)
         self.assertAlmostEqual(np.vdot(state0.state, np.ones(2**state0.N)/2**(state0.N/2)), 1)
 
         # Apply exp(-1i*pi/4*sigma_x)*exp(-1i*pi/4*sigma_z) on every qubit to get exp(-1j*N*pi/4)*|000000>
         for i in range(state0.N):
-            state0.single_qubit_rotation(i, np.pi / 4, 3)
-            state0.single_qubit_rotation(i, np.pi / 4, 1)
+            state0.single_qubit_rotation(i, np.pi / 4, tools.SZ)
+            state0.single_qubit_rotation(i, np.pi / 4, tools.SX)
 
         self.assertTrue(np.abs(np.vdot(state1.state, state0.state)*np.exp(1j*np.pi/4*state1.N) - 1) <= 1e-10)
 

@@ -7,7 +7,7 @@ class State(object):
     """
     def __init__(self, state, N, is_ket = True):
         # Cast into complex type
-        self.state = state.astype(np.complex64, copy = False)
+        self.state = state.astype(np.complex128, copy = False)
         self.is_ket = is_ket
         self.N = N
 
@@ -98,7 +98,7 @@ class State(object):
                 angle = rotation angle
                 op = unitary pauli operator or basis pauli index
         """
-        rot = np.array([[np.cos(angle), 0], [np.cos(angle)]]) + op * np.sin(angle)
+        rot = np.array([[np.cos(angle), 0], [0, np.cos(angle)]]) - op * 1j * np.sin(angle)
         self.single_qubit_operation(i, rot, is_pauli=False)
 
     def all_qubit_rotation(self, angle: float, op):
@@ -141,7 +141,7 @@ class State(object):
             n = eigenvectors.shape[0]
             outcomes = np.matmul(np.reshape(eigenvectors.conj(), (n, n, 1)), np.reshape(eigenvectors, (n, 1, n)))@state
             probs = np.trace(outcomes, axis1 = -2, axis2 = -1)
-            i = np.random.choice(operator.shape[0], p=probs)
+            i = np.random.choice(operator.shape[0], p=np.absolute(probs))
             return eigenvalues[i], outcomes[i]/probs
 
 
