@@ -24,3 +24,4 @@ def two_local_term(op1, op2, ind1, ind2, N):
         myeye = lambda n: np.eye(np.asarray(op1.shape) ** n)
 
     return np.kron(myeye(ind1), np.kron(op1, np.kron(myeye(ind2 - ind1 - 1), np.kron(op2, myeye(N - ind2 - 1)))))
+

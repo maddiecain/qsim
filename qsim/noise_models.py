@@ -1,18 +1,15 @@
-import qsim.tools.operations
+from qsim.state import State
 from typing import Tuple
 
 
-def multi_qubit_noise(N: int, p: float, single_qubit_noise):
+def multi_qubit_noise(s: State, p: float, single_qubit_noise):
     """Helper function to generate a system noise channel given a single qubit noise channel
     and noise rate. single_qubit_noise is a function that takes in an entire density matrix, a
     noise rate, and a qubit to act on, and returns the updated density matrix."""
-    def noisy_output(rho, rate):
-        for i in range(N):
-            rho = noise_single_qubit(rho, i, p)
-        return rho
-    return lambda rho: noisy_output(rho, p)
+    for i in range(s.N):
+        single_qubit_noise(s, i, p)
 
-def depolarize_single_qubit(rho, i: int, p: float):
+def depolarize_single_qubit(s: State, i: int, p: float):
     """ Perform depolarizing channel on the i-th qubit of an input density matrix
     
         Input:
@@ -20,12 +17,12 @@ def depolarize_single_qubit(rho, i: int, p: float):
             i = zero-based index of qubit location to apply pauli
             p = probability of depolarization, between 0 and 1
     """
-    return (1-p)*rho + p/3*(qsim.operations.multiply_single_qubit_mixed(rho, i, 1)
-                            + qsim.operations.multiply_single_qubit_mixed(rho, i, 2)
-                            + qsim.operations.multiply_single_qubit_mixed(rho, i, 3))
+    s.state = (1-p)*s.state + p/3*(s.single_qubit_operation(i, 1, is_pauli=True)
+                            + s.single_qubit_operation(i, 2, is_pauli=True)
+                            + s.single_qubit_operation(i, 3, is_pauli=True))
 
 
-def pauli_channel_single_qubit(rho, i: int, ps: Tuple[float]):
+def pauli_channel_single_qubit(s: State, i: int, ps: Tuple[float]):
     """ Perform general Pauli channel on the i-th qubit of an input density matrix
 
         Input:
@@ -41,6 +38,6 @@ def pauli_channel_single_qubit(rho, i: int, ps: Tuple[float]):
     """
     assert len(ps) == 3
 
-    return (1-sum(ps))*rho + (ps[0] * qsim.tools.single_qubit.multiply_single_qubit_mixed(rho, i, 1)
-                              + ps[1] * qsim.tools.single_qubit.multiply_single_qubit_mixed(rho, i, 2)
-                              + ps[2] * qsim.tools.single_qubit.multiply_single_qubit_mixed(rho, i, 3))
+    s.state = (1-sum(ps))*s.state + (ps[0] * s.single_qubit_operation(i, 1, is_pauli = True)
+                              + ps[1] * s.single_qubit_operation(i, 2, is_pauli=True)
+                              + ps[2] * s.single_qubit_operation(i, 3, is_pauli=True))

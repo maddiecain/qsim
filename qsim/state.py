@@ -93,6 +93,7 @@ class State(object):
                 out = out.reshape((2 ** (self.N + i), -1, 2), order='F').transpose([0, 2, 1])
 
             self.state = out.reshape(self.state.shape, order='F')
+        return self.state
 
     def single_qubit_rotation(self, i: int, angle: float, op):
         """ Apply a single qubit rotation exp(-1j * angle * op) to wavefunction
@@ -104,6 +105,7 @@ class State(object):
         """
         rot = np.array([[np.cos(angle), 0], [0, np.cos(angle)]]) - op * 1j * np.sin(angle)
         self.single_qubit_operation(i, rot, is_pauli=False)
+        return self.state
 
     def double_qubit_operation(i, j, op, is_pauli=False):
         # op is a 4x4 matrix
@@ -120,6 +122,7 @@ class State(object):
             end = self.N
         for i in range(end):
             self.single_qubit_rotation(i, angle, op)
+        return self.state
 
     def all_qubit_operation(self, op, is_pauli=False, end=None):
         """ Apply qubit operation to every qubit
@@ -130,6 +133,7 @@ class State(object):
             end = self.N
         for i in range(end):
             self.single_qubit_operation(i, op, is_pauli)
+        return self.state
 
     def expectation(self, operator):
         """Operator is an Operator-class object"""
