@@ -4,6 +4,7 @@ from qsim.ops.single_qubit import (
     rotate_all_qubits,
     multiply_single_qubit_mixed,
     operate_single_qubit_mixed,
+    rotation_matrix,
     SIGMA_X_IND,
     SIGMA_Y_IND,
     SIGMA_Z_IND,

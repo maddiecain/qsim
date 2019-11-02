@@ -79,17 +79,30 @@ def operate_single_qubit_mixed(rho, i: int, operation):
     IndL = 2**i
     dim = rho.shape[0]
 
-    # left multiply
+    # right multiply
     out = rho.reshape((-1, 2, IndL), order='F').transpose([1,0,2])
-    out = np.dot(operation, out.reshape((2,-1), order='F'))
+    out = np.dot(operation.conj().T, out.reshape((2,-1), order='F'))
     out = out.reshape((2, -1, IndL), order='F').transpose([1,0,2])
 
-    # right multiply
+    # left multiply
     out = out.reshape((-1, 2, IndL*dim), order='F').transpose([0,2,1])
-    out = np.dot(out.reshape((-1,2), order='F'), operation.conj().T)
+    out = np.dot(out.reshape((-1,2), order='F'), operation)
     out = out.reshape((-1, IndL*dim, 2), order='F').transpose([0,2,1])
 
     return out.reshape(rho.shape, order='F')
+
+
+def rotation_matrix(angle: float, pauli_ind: int):
+    if pauli_ind == SIGMA_X_IND: # sigma_X   
+        return np.array([[np.cos(angle), -1j*np.sin(angle)],
+                        [-1j*np.sin(angle), np.cos(angle)]])
+    elif pauli_ind == SIGMA_Y_IND: # sigma_Y
+        return np.array([[np.cos(angle), -np.sin(angle)],
+                        [np.sin(angle), np.cos(angle)]])
+    elif pauli_ind == SIGMA_Z_IND: # sigma_Z
+        return np.diag([np.exp(-1j*angle), np.exp(1j*angle)])
+    else:
+        raise ValueError('Invalid pauli_ind')
 
 
 def rotate_single_qubit(state, i: int, angle: float, pauli_ind: int):
@@ -106,14 +119,8 @@ def rotate_single_qubit(state, i: int, angle: float, pauli_ind: int):
 
     out = state.reshape((-1, 2, IndL), order='F').copy()
 
-    if pauli_ind == SIGMA_X_IND: # sigma_X        
-        out = out.astype(complex, copy=False)
-        rot = np.array([[np.cos(angle), -1j*np.sin(angle)],
-                        [-1j*np.sin(angle), np.cos(angle)]]);
-        out = np.einsum('ij, hjk->hik', rot, out)
-    elif pauli_ind == SIGMA_Y_IND: # sigma_Y
-        rot = np.array([[np.cos(angle), -np.sin(angle)],
-                        [np.sin(angle), np.cos(angle)]]);
+    if pauli_ind == SIGMA_X_IND or pauli_ind == SIGMA_Y_IND: # sigma_X or Y
+        rot = rotation_matrix(angle, pauli_ind)
         out = np.einsum('ij, hjk->hik', rot, out)
     elif pauli_ind == SIGMA_Z_IND: # sigma_Z
         out = out.astype(complex, copy=False)
