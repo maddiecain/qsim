@@ -6,6 +6,8 @@ EVEN_DEGREE_ONLY, ODD_DEGREE_ONLY = 0, 1
 # TODO: Fix the dependence on the parameter space function on the specific parameters
 # Perhaps make them take in the parameters and periods
 # Write a separate function to determine the beta period from the parity
+
+
 def fix_param_gauge(param, gamma_period=np.pi, beta_period=np.pi/2, degree_parity=None):
     """ Use symmetries to reduce redundancies in the parameter space
     This is useful for the interp heuristic that relies on smoothness of parameters
@@ -15,7 +17,7 @@ def fix_param_gauge(param, gamma_period=np.pi, beta_period=np.pi/2, degree_parit
     p = len(param) // 2
 
     gammas = np.array(param[:p]) / gamma_period
-    betas = -np.array(param[p:]) / beta_period
+    betas = -np.array(param[p:2*p]) / beta_period
     # We expect gamma to be positive and beta to be negative, so flip sign of beta for now and flip it back later
 
     # Reduce the parameters to be between [0, 1] * period
@@ -52,4 +54,4 @@ def fix_param_gauge(param, gamma_period=np.pi, beta_period=np.pi/2, degree_parit
         elif delta <= -0.5:
             betas[i] += 1
 
-    return np.concatenate((gammas*gamma_period, -betas*beta_period)).tolist()
+    return np.concatenate((gammas*gamma_period, -betas*beta_period, param[2*p:]*np.pi)).tolist()

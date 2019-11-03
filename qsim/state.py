@@ -50,10 +50,6 @@ class State(object):
         """
         self.state = single_qubit_rotation(self.state, i, angle, op, is_ket=self.is_ket)
 
-    def double_qubit_operation(self, i, j, op, is_pauli=False):
-        # op is a 4x4 matrix
-        pass
-
     def all_qubit_rotation(self, angle: float, op):
         # TODO: Change this to a k-qubit rotation
         """ Apply rotation exp(-1j * angle * pauli) to every qubit

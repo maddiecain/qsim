@@ -18,71 +18,9 @@ from timeit import default_timer as timer
 from qsim.state import State
 from qsim import tools, operations
 from qsim.qaoa import optimize
+from qsim.qaoa import variational_parameters
 
 EVEN_DEGREE_ONLY, ODD_DEGREE_ONLY = 0, 1
-
-"""
-What do we actually want out of a simulation class? What are the heavy uses of this code?
-Important functions:
-    - Given parameters, start state, Hamiltonian, and noise model, simulate the performance on the full density
-    matrix
-    - Given the Hamiltonian and depth, find the optimal parameters
-I'd like this to be as general as possible - Take in Hamiltonians, associate a variational parameter with
-each. 
-"""
-
-"""Unitaries is a dictionary formatted in the following way:
-    For each unitary to apply, associate a zero-indexed number that represents the order to apply in a given
-    cycle. That should be the dictionary key. Then there should be sub-keys:
-        - '
-        - 'evolve': function that takes in variational parameter and state and acts on that state like
-        e^{-i*v*H}, where v is the variational parameter and H is the Hamiltonian
-"""
-
-
-class VariationalParameter(object):
-    def __init__(self, evolve, multiply, param=None):
-        self.evolve = evolve
-        self.multiply = multiply
-        self.param = param
-
-
-class HamiltonianB(VariationalParameter):
-    def __init__(self, param=None):
-        super().__init__(self.evolve_B, self.multiply_B, param)
-
-    def multiply_B(self, s: State):
-        out = np.zeros(s.state.shape, dtype=np.complex128)
-        for i in range(s.N):
-            if s.is_ket:
-                out = out + operations.single_qubit_operation(s.state, i, tools.SIGMA_X_IND, is_pauli=True, is_ket=s.is_ket)
-            else:
-                state = s.state
-                state = state.reshape((2 ** i, 2, -1), order='F').copy()
-                state = np.flip(state, 1)
-                state = state.reshape(s.state.shape, order='F')
-                out = out + state
-        s.state = out
-
-    def evolve_B(self, s: State, beta):
-        r"""Use reshape to efficiently implement evolution under B=\sum_i X_i"""
-        s.all_qubit_rotation(beta, tools.SX)
-
-
-class HamiltonianC(VariationalParameter):
-    def __init__(self, C, param=None):
-        super().__init__(self.evolve_C, self.multiply_C, param)
-        self.C = C
-
-    def evolve_C(self, s, gamma):
-        if s.is_ket:
-            s.state = np.exp(-1j * gamma * self.C) * s.state
-        else:
-            s.state = np.exp(-1j * gamma * self.C) * s.state * np.exp(1j * gamma * self.C).T
-
-    def multiply_C(self, s: State):
-        s.state = self.C * s.state
-
 
 class SimulateQAOA(object):
     def __init__(self, graph: nx.Graph, p, m, variational_operators=None, noise_model=None,
@@ -154,7 +92,6 @@ class SimulateQAOA(object):
             for i in range(m):
                 if self.is_ket:
                     self.variational_operators[i].evolve(s, param[j][i])
-                    #self.noise_channel(s, param[j][i])
                     memo[:, j * m + i + 1] = np.squeeze(s.state.T)
                 else:
                     # Goes through memo, evolves every density matrix in it, and adds one more in the j*m+i+1 position
@@ -187,7 +124,6 @@ class SimulateQAOA(object):
             for k in range(p):
                 for l in range(m):
                     self.variational_operators[m-l-1].evolve(s, -1 * param[p-k-1][m-l-1])
-                    #self.noise_channel(s, param[p-k-1][m-l-1])
                     memo[:, (p + k) * m + 2 + l] = np.squeeze(s.state.T)
 
         # Evaluating objective function
@@ -226,7 +162,6 @@ class SimulateQAOA(object):
             return np.real(np.vdot(s.state, self.C * s.state))
         else:
             return np.real(np.squeeze(tools.trace(self.C * s.state)))
-
 
     def find_optimal_params(self, init_param_guess=None, verbose=False):
         r"""

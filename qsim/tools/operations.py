@@ -6,7 +6,7 @@ import numpy as np
 from qsim import tools
 
 __all__ = ['two_local_term', 'single_qubit_operation', 'single_qubit_rotation', 'all_qubit_rotation',
-           'all_qubit_operation', 'double_qubit_operation']
+           'all_qubit_operation']
 
 
 def two_local_term(op1, op2, ind1, ind2, N):

@@ -6,6 +6,7 @@ from qsim.qaoa import simulate
 from qsim import noise_models
 from qsim.state import State
 from qsim import tools
+from qsim.qaoa import variational_parameters
 
 g = nx.Graph()
 
@@ -30,10 +31,10 @@ N = 6
 psi0 = np.zeros((2 ** N, 1))
 psi0[0, 0] = 1
 
-sim.variational_operators = [simulate.HamiltonianC(sim.C), simulate.HamiltonianB()]
-sim_noisy.variational_operators = [simulate.HamiltonianC(sim.C), simulate.HamiltonianB()]
-sim_optimize.variational_operators = [simulate.HamiltonianC(sim.C), simulate.HamiltonianB()]
-sim_noisy_optimize.variational_operators = [simulate.HamiltonianC(sim.C), simulate.HamiltonianB()]
+sim.variational_operators = [variational_parameters.HamiltonianC(sim.C), variational_parameters.HamiltonianB()]
+sim_noisy.variational_operators = [variational_parameters.HamiltonianC(sim.C), variational_parameters.HamiltonianB()]
+sim_optimize.variational_operators = [variational_parameters.HamiltonianC(sim.C), variational_parameters.HamiltonianB()]
+sim_noisy_optimize.variational_operators = [variational_parameters.HamiltonianC(sim.C), variational_parameters.HamiltonianB()]
 
 
 class TestSimulate(unittest.TestCase):

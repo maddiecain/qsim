@@ -1,6 +1,6 @@
 from typing import Tuple
 from qsim.tools import operations
-
+import numpy as np
 
 def multi_qubit_noise(s, p: float, single_qubit_noise):
     """Helper function to generate a system noise channel given a single qubit noise channel
@@ -46,7 +46,7 @@ def pauli_channel_single_qubit(s, i: int, ps: Tuple[float]):
 
 def amplitude_channel_single_qubit(s, i: int, p):
     # Define Kraus operators
-    K0 = np.array([[1, 0], [0, np.sqrt(1-p)])]
+    K0 = np.array([[1, 0], [0, np.sqrt(1-p)]])
     K1 = np.array([[0, np.sqrt(p)], [0, 0]])
 
     return operations.single_qubit_operation(s.state, i, K0, is_pauli=False, is_ket=False) + \
