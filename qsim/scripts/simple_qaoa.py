@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import networkx as nx
 import plot
+from qsim import noise_models
 from qsim.qaoa import simulate, optimize
 
 # Construct a known graph
@@ -19,9 +20,8 @@ G.add_edge(3, 5, weight=1)
 # Uncomment to visualize graph
 # plot.draw_graph(G)
 
-N = G.number_of_nodes()
-HamC = simulate.create_ZZ_HamC(G, flag_z2_sym=False)
+sim = simulate.SimulateQAOA(G, 10, 2, is_ket=False, noisy=True,
+                            noise_model=noise_models.depolarize_single_qubit)
 
 # Test that the calculated objective function and gradients are correct
-
 print(optimize.optimize_instance_interp_heuristic(G,  verbose = True))

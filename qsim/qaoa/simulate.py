@@ -16,7 +16,6 @@ import numpy as np
 from timeit import default_timer as timer
 
 from qsim.state import State
-from qsim.simulate import Simulate
 from qsim import tools, operations
 from qsim.qaoa import optimize
 
@@ -49,41 +48,25 @@ class VariationalParameter(object):
 
 
 class HamiltonianB(VariationalParameter):
-    def __init__(self, param=None, flag_z2_sym=False):
+    def __init__(self, param=None):
         super().__init__(self.evolve_B, self.multiply_B, param)
-        self.flag_z2_sym = flag_z2_sym
 
-    def multiply_B(self, s):
-        # TODO: Check that this works with flag_z2_sym
-        s_state = s.state
-        s_temp = np.zeros(s.state.shape, dtype=np.complex128)
-        if not self.flag_z2_sym:
-            for i in range(s.N):
-                if s.is_ket:
-                    s.single_qubit_operation(i, tools.SIGMA_X_IND, is_pauli=True)
-                else:
-                    s.state=s.state.reshape((2**i, 2, -1), order='F').copy()
-                    s.state=np.flip(s.state, 1)
-                    s.state=s.state.reshape(s_state.shape, order='F')
-                s_temp += s.state
-                s.state = s_state
-        else:
-            for i in range(s.N - 1):
-                s.single_qubit_operation(i, tools.SIGMA_X_IND, is_pauli=True)
-                s_temp += s.state
-                s.state = s_state
-        s.state = s_temp
-        if self.flag_z2_sym:
-            s.state += np.flipud(s_state)
+    def multiply_B(self, s: State):
+        out = np.zeros(s.state.shape, dtype=np.complex128)
+        for i in range(s.N):
+            if s.is_ket:
+                out = out + operations.single_qubit_operation(s.state, i, tools.SIGMA_X_IND, is_pauli=True, is_ket=s.is_ket)
+            else:
+                state = s.state
+                state = state.reshape((2 ** i, 2, -1), order='F').copy()
+                state = np.flip(state, 1)
+                state = state.reshape(s.state.shape, order='F')
+                out = out + state
+        s.state = out
 
     def evolve_B(self, s: State, beta):
         r"""Use reshape to efficiently implement evolution under B=\sum_i X_i"""
-        if not self.flag_z2_sym:
-            s.all_qubit_rotation(beta, tools.SX)
-        else:
-            s.all_qubit_rotation(beta, tools.SX, end=self.N - 1)
-            # TODO: check that this line works for density matrices and not just kets
-            s.state = np.cos(beta) * s.state - 1j * np.sin(beta) * np.flipud(s.state)
+        s.all_qubit_rotation(beta, tools.SX)
 
 
 class HamiltonianC(VariationalParameter):
@@ -101,32 +84,28 @@ class HamiltonianC(VariationalParameter):
         s.state = self.C * s.state
 
 
-class SimulateQAOA(Simulate):
-    def __init__(self, graph: nx.Graph, p, m, variational_params=None, noise_model=None, flag_z2_sym=False,
-                noisy=False, error_probability=0.001, is_ket = True):
-        super().__init__(noise_model)
+class SimulateQAOA(object):
+    def __init__(self, graph: nx.Graph, p, m, variational_operators=None, noise_model=None,
+                error_probability=0.001, error_function=None, is_ket = True):
         self.graph = graph
-        self.variational_params = variational_params
+        self.variational_operators = variational_operators
         self.N = self.graph.number_of_nodes()
-        self.noisy = noisy
         # Single qubit noise model (to be applied to all qubits)
         self.noise_model = noise_model
         # Depth of circuit
         self.p = p
         self.m = m
-        self.flag_z2_sym = flag_z2_sym
         # Hidden parameter
         self.C = self.create_C()
-        self.error_probability = lambda param: np.minimum(np.absolute(error_probability*param), .5)
+        self.error_probability = error_probability
+        self.error_function = error_function
+        if self.error_function is None:
+            self.error_function = lambda p: self.error_probability
         self.is_ket = is_ket
 
     def create_C(self, node_to_index_map = None):
         r"""
         Generate a vector corresponding to the diagonal of the C Hamiltonian.
-
-        Setting flag_z2_sym to True means we're only working in the X^\otimes N = +1
-        symmetric sector which reduces the Hilbert space dimension by a factor of 2.
-        (default: True to save memory)
         """
         C = np.zeros([2 ** self.N, 1])
         SZ = np.asarray([[1], [-1]])
@@ -137,15 +116,12 @@ class SimulateQAOA(Simulate):
         for a, b in self.graph.edges:
             C += self.graph[a][b]['weight'] * operations.two_local_term(SZ, SZ, node_to_index_map[a],
                                                                         node_to_index_map[b], self.N)
-        if self.flag_z2_sym:
-            return C[:2 ** (self.N - 1), :]  # Restrict to first half of Hilbert space
-        else:
-            return C
+        return C
 
-    def noise_channel(self, s, p):
-        if self.noisy:
+    def noise_channel(self, s: State, param):
+        if not self.noise_model is None:
             for i in range(self.N):
-                self.noise_model(s, i, self.error_probability(p))
+                s.state = self.noise_model(s.state, i, self.error_function(param))
 
     def variational_grad(self, param):
         """Calculate the objective function F and its gradient exactly
@@ -163,30 +139,21 @@ class SimulateQAOA(Simulate):
 
         # Preallocate space for storing mp+2 copies of wavefunction - necessary for efficient computation of analytic
         # gradient
-        if self.flag_z2_sym:
-            # Memo should have size m*p+2
-            if self.is_ket:
-                memo = np.zeros([2 ** (self.N - 1), 2 * m * p + 2], dtype=np.complex128)
-                memo[:, 0] = np.ones(2 ** self.N - 1) / 2 ** ((self.N - 1) / 2)  # Initial state
-            else:
-                memo = np.zeros([2 ** (self.N - 1), 2 ** (self.N - 1), m * p + 1], dtype=np.complex128)
-                memo[..., 0] = tools.outer_product(np.ones(2 ** self.N - 1) / 2 ** ((self.N - 1) / 2),
-                                                   np.ones(2 ** self.N - 1) / 2 ** ((self.N - 1) / 2))
+        psi = np.ones(2 ** self.N) / 2 ** (self.N / 2)
+        if self.is_ket:
+            memo = np.zeros([2 ** self.N, 2 * m * p + 2], dtype=np.complex128)
+            memo[:, 0] = psi
+            s = State(np.array([psi]).T, self.N, is_ket=self.is_ket)
         else:
-            if self.is_ket:
-                memo = np.zeros([2 ** self.N, 2 * m * p + 2], dtype=np.complex128)
-                memo[:, 0] = np.ones(2 ** self.N) / 2 ** (self.N / 2)
-            else:
-                memo = np.zeros([2 ** self.N, 2 ** self.N, m * p + 1], dtype=np.complex128)
-                memo[..., 0] = tools.outer_product(np.ones(2 ** self.N) /
-                                                   2 ** (self.N / 2), np.ones(2 ** self.N) / 2 ** (self.N / 2))
+            memo = np.zeros([2 ** self.N, 2 ** self.N, m * p + 1], dtype=np.complex128)
+            memo[..., 0] = tools.outer_product(psi, psi)
+            s = State(memo[..., 0], self.N, is_ket=self.is_ket)
 
-        s = State(np.array([memo[..., 0]]).T, self.N, is_ket=self.is_ket)
         # Evolving forward
         for j in range(p):
             for i in range(m):
                 if self.is_ket:
-                    self.variational_params[i].evolve(s, param[j][i])
+                    self.variational_operators[i].evolve(s, param[j][i])
                     #self.noise_channel(s, param[j][i])
                     memo[:, j * m + i + 1] = np.squeeze(s.state.T)
                 else:
@@ -195,12 +162,12 @@ class SimulateQAOA(Simulate):
                     s0_prenoise=State(memo[..., 0], self.N, is_ket=self.is_ket)
                     for k in range(m * j + i + 1):
                         s = State(memo[..., k], self.N, is_ket=self.is_ket)
-                        self.variational_params[i].evolve(s, param[j][i])
+                        self.variational_operators[i].evolve(s, param[j][i])
                         if k==0:
                             s0_prenoise.state=memo[..., 0]
                         self.noise_channel(s, param[j][i])
                         memo[..., k] = s.state
-                    self.variational_params[i].multiply(s0_prenoise)
+                    self.variational_operators[i].multiply(s0_prenoise)
                     self.noise_channel(s0_prenoise, param[j][i])
                     memo[..., m * j + i + 1] = s0_prenoise.state
 
@@ -219,7 +186,7 @@ class SimulateQAOA(Simulate):
         if self.is_ket:
             for k in range(p):
                 for l in range(m):
-                    self.variational_params[m-l-1].evolve(s, -1 * param[p-k-1][m-l-1])
+                    self.variational_operators[m-l-1].evolve(s, -1 * param[p-k-1][m-l-1])
                     #self.noise_channel(s, param[p-k-1][m-l-1])
                     memo[:, (p + k) * m + 2 + l] = np.squeeze(s.state.T)
 
@@ -236,7 +203,7 @@ class SimulateQAOA(Simulate):
                 # TODO: Make this work for a non-diagonal C
                 if self.is_ket:
                     s = State(np.array([memo[:, m * (2 * p - q) + 1 - r]]).T, self.N, is_ket=self.is_ket)
-                    self.variational_params[r].multiply(s)
+                    self.variational_operators[r].multiply(s)
                     Fgrad[q * m + r] = -2 * np.imag(np.vdot(memo[:, q * m + r], np.squeeze(s.state.T)))
                 else:
                     Fgrad[q * m + r] = 2 * np.imag(np.trace(memo[..., q * m + r + 1]))
@@ -244,15 +211,21 @@ class SimulateQAOA(Simulate):
         return F, Fgrad
 
     def run(self):
+        psi = np.ones((2 ** self.N, 1)) / 2 ** (self.N / 2)
         if self.is_ket:
-            s = State(np.ones((2 ** self.N, 1)) / 2 ** (self.N / 2), self.N, is_ket=self.is_ket)
+            s = State(psi, self.N, is_ket=self.is_ket)
         else:
-            s = State(tools.outer_product(np.ones((2 ** self.N, 1))/2**(self.N/2), np.ones((2 ** self.N, 1))/2**(self.N/2)), self.N, is_ket=self.is_ket)
+            s = State(tools.outer_product(psi, psi), self.N, is_ket=self.is_ket)
         for i in range(self.p):
             for j in range(self.m):
-                self.variational_params[j].evolve(s, self.variational_params[j].param[i])
-                self.noise_channel(s, self.variational_params[j].param[i])
-        return np.squeeze(np.real(np.vdot(s.state, self.C * s.state)))
+                self.variational_operators[j].evolve(s, self.variational_operators[j].param[i])
+                self.noise_channel(s, self.variational_operators[j].param[i])
+        # Return the expected value of the cost function
+        # Note that the state's defined expectation function won't work here due to the shape of C
+        if self.is_ket:
+            return np.real(np.vdot(s.state, self.C * s.state))
+        else:
+            return np.real(np.squeeze(tools.trace(self.C * s.state)))
 
 
     def find_optimal_params(self, init_param_guess=None, verbose=False):

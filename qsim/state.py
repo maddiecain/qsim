@@ -1,29 +1,30 @@
 import numpy as np
 from qsim import tools
-
+from qsim.tools.operations import *
 
 class State(object):
     """Contains information about the system density matrix
     is_ket: bool
     """
 
-    def __init__(self, state, N, is_ket=True):
+    def __init__(self, state, N, is_ket=False):
         # Cast into complex type
+        # If is_ket, should be dimension (2**N, 1)
         self.state = state.astype(np.complex128, copy=False)
         self.is_ket = is_ket
         self.N = N
 
-    def is_ket_state(self):
+    def is_pure_state(self):
         return np.array_equal(self.state @ self.state, self.state) or self.is_ket
 
     def is_valid_dmatrix(self):
         return (np.allclose(np.imag(np.linalg.eigvals(self.state)), np.zeros(2**self.N)) and
                 np.all(np.real(np.linalg.eigvals(self.state)) >= -1e-10) and
-                np.absolute(np.trace(self.state)) == 1) or self.is_ket
+                np.absolute(np.trace(self.state)) == 1) or (self.is_ket and np.linalg.norm(self.state) == 1)
 
     def change_basis(self, state, B):
-        """B is the new basis. B is assumed to be orthonormal. The original basis is assumed
-        to be the standard basis."""
+        """B is the new basis, where the new basis vectors are the columns. B is assumed to be orthonormal.
+        The original basis is assumed to be the standard basis."""
         if self.is_ket:
             return B.T.conj() @ state
         else:
@@ -38,109 +39,44 @@ class State(object):
                 operation = 2x2 single-qubit operator to be applied OR a pauli index {0, 1, 2}
                 is_pauli = Boolean indicating if op is a pauli index
         """
-
-        def single_qubit_pauli(self, i: int, pauli_ind: int):
-            """ Multiply a single pauli operator on the i-th qubit of the input wavefunction
-
-                Input:
-                    state = input wavefunction or density matrix (as numpy.ndarray)
-                    i = zero-based index of qubit location to apply pauli
-                    pauli_ind = one of (1,2,3) for (X, Y, Z)
-                    is_ket = Boolean dictating whether the input is a density matrix (True) or not (False)
-            """
-            ind = 2 ** i
-            if self.is_ket:
-                # Note index start from the right (sN,...,s3,s2,s1)
-                out = self.state.reshape((ind, 2, -1), order='F').copy()
-
-                if pauli_ind == tools.SIGMA_X_IND:  # Sigma_X
-                    out = np.flip(out, 1)
-                elif pauli_ind == tools.SIGMA_Y_IND:  # Sigma_Y
-                    out = np.flip(out, 1)
-                    out[:, 0, :] = -1j * out[:, 0, :]
-                    out[:, 1, :] = 1j * out[:, 1, :]
-                elif pauli_ind == tools.SIGMA_Z_IND:  # Sigma_Z
-                    out[:, 1, :] = -out[:, 1, :]
-
-                self.state = out.reshape(self.state.shape, order='F')
-            else:
-                out = self.state.reshape((ind, 2, 2 ** (self.N - 1), 2, -1), order='F').copy()
-                if pauli_ind == tools.SIGMA_X_IND:  # Sigma_X
-                    out = np.flip(out, (1, 3))
-                elif pauli_ind == tools.SIGMA_Y_IND:  # Sigma_Y
-                    out = np.flip(out, (1, 3))
-                    out[:, 1, :, 0, :] = -out[:, 1, :, 0, :]
-                    out[:, 0, :, 1, :] = -out[:, 0, :, 1, :]
-                elif pauli_ind == tools.SIGMA_Z_IND:  # Sigma_Z
-                    out[:, 1, :, 0, :] = -out[:, 1, :, 0, :]
-                    out[:, 0, :, 1, :] = -out[:, 0, :, 1, :]
-
-                self.state = out.reshape(self.state.shape, order='F')
-
-        if is_pauli:
-            single_qubit_pauli(self, i, op)
-        else:
-            ind = 2 ** i
-            # Left multiply
-            out = self.state.reshape((ind, 2, -1), order='F').transpose([1, 0, 2])
-            out = np.dot(op, out.reshape((2, -1), order='F'))
-            out = out.reshape((2, ind, -1), order='F').transpose([1, 0, 2])
-
-            if not self.is_ket:
-                # Right multiply
-                out = out.reshape((2 ** (self.N + i), 2, -1), order='F').transpose([0, 2, 1])
-                out = np.dot(out.reshape((-1, 2), order='F'), op.conj().T)
-                out = out.reshape((2 ** (self.N + i), -1, 2), order='F').transpose([0, 2, 1])
-
-            self.state = out.reshape(self.state.shape, order='F')
-        return self.state
+        self.state = single_qubit_operation(self.state, i, op, is_pauli=is_pauli, is_ket=self.is_ket)
 
     def single_qubit_rotation(self, i: int, angle: float, op):
         """ Apply a single qubit rotation exp(-1j * angle * op) to wavefunction
             Input:
-                state = input wavefunction (as numpy.ndarray)
                 i = zero-based index of qubit location to apply pauli
                 angle = rotation angle
                 op = unitary pauli operator or basis pauli index
         """
-        rot = np.array([[np.cos(angle), 0], [0, np.cos(angle)]]) - op * 1j * np.sin(angle)
-        self.single_qubit_operation(i, rot, is_pauli=False)
-        return self.state
+        self.state = single_qubit_rotation(self.state, i, angle, op, is_ket=self.is_ket)
 
-    def double_qubit_operation(i, j, op, is_pauli=False):
+    def double_qubit_operation(self, i, j, op, is_pauli=False):
         # op is a 4x4 matrix
         pass
 
-    def all_qubit_rotation(self, angle: float, op, end=None):
+    def all_qubit_rotation(self, angle: float, op):
         # TODO: Change this to a k-qubit rotation
         """ Apply rotation exp(-1j * angle * pauli) to every qubit
             Input:
                 angle = rotation angle
                 op = operation on a single qubit
         """
-        if end is None:
-            end = self.N
-        for i in range(end):
-            self.single_qubit_rotation(i, angle, op)
-        return self.state
+        self.state = all_qubit_rotation(self.state, angle, op, is_ket=self.is_ket)
 
-    def all_qubit_operation(self, op, is_pauli=False, end=None):
+    def all_qubit_operation(self, op, is_pauli=False):
         """ Apply qubit operation to every qubit
             Input:
                 op = one of (1,2,3) for (X, Y, Z)
         """
-        if end is None:
-            end = self.N
-        for i in range(end):
-            self.single_qubit_operation(i, op, is_pauli)
-        return self.state
+        self.state = all_qubit_operation(self.state, op, is_pauli=is_pauli, is_ket=self.is_ket)
 
     def expectation(self, operator):
-        """Operator is an Operator-class object"""
+        """Operator is a numpy array. Current support only for operator.shape==self.state.shape."""
+        print(self.state, operator)
         if self.is_ket:
             return self.state.conj().T @ operator @ self.state
         else:
-            tools.trace(self.state @ operator)
+            return tools.trace(self.state @ operator)
 
     def measurement_outcomes(self, operator):
         eigenvalues, eigenvectors = np.linalg.eig(operator)
@@ -201,13 +137,11 @@ class TwoQubitCode(State):
         rot = np.cos(angle) * np.identity(4) - op * 1j * np.sin(angle)
         self.single_qubit_operation(i, rot, is_pauli=False)
 
-    def all_qubit_rotation(self, angle: float, op, end=None):
-        if end is None:
-            end = self.N
-        for i in range(end):
+    def all_qubit_rotation(self, angle: float, op):
+        for i in range(self.N):
             self.single_qubit_rotation(i, angle, op)
 
-    def all_qubit_operation(self, op, is_pauli=False, end=None):
+    def all_qubit_operation(self, op, is_pauli=False):
         if end is None:
             end = self.N
         for i in range(end):

@@ -19,10 +19,10 @@ g.add_edge(1, 5, weight=1)
 g.add_edge(2, 5, weight=1)
 g.add_edge(3, 5, weight=1)
 
-sim = simulate.SimulateQAOA(g, 1, 2, flag_z2_sym=False, is_ket=False)
-sim_noisy = simulate.SimulateQAOA(g, 1, 2, noisy=True, noise_model=noise_models.depolarize_single_qubit, is_ket=False)
-sim_optimize = simulate.SimulateQAOA(g, 6, 2, flag_z2_sym=False, is_ket=False)
-sim_noisy_optimize = simulate.SimulateQAOA(g, 6, 2, noisy=True, noise_model=noise_models.depolarize_single_qubit,
+sim = simulate.SimulateQAOA(g, 1, 2, is_ket=False)
+sim_noisy = simulate.SimulateQAOA(g, 1, 2,  noise_model=noise_models.depolarize_single_qubit, is_ket=False)
+sim_optimize = simulate.SimulateQAOA(g, 6, 2,  is_ket=False)
+sim_noisy_optimize = simulate.SimulateQAOA(g, 6, 2, noise_model=noise_models.depolarize_single_qubit,
                                            error_probability=.001, is_ket=False)
 
 N = 6
@@ -30,10 +30,10 @@ N = 6
 psi0 = np.zeros((2 ** N, 1))
 psi0[0, 0] = 1
 
-sim.variational_params = [simulate.HamiltonianC(sim.C), simulate.HamiltonianB()]
-sim_noisy.variational_params = [simulate.HamiltonianC(sim.C), simulate.HamiltonianB()]
-sim_optimize.variational_params = [simulate.HamiltonianC(sim.C), simulate.HamiltonianB()]
-sim_noisy_optimize.variational_params = [simulate.HamiltonianC(sim.C), simulate.HamiltonianB()]
+sim.variational_operators = [simulate.HamiltonianC(sim.C), simulate.HamiltonianB()]
+sim_noisy.variational_operators = [simulate.HamiltonianC(sim.C), simulate.HamiltonianB()]
+sim_optimize.variational_operators = [simulate.HamiltonianC(sim.C), simulate.HamiltonianB()]
+sim_noisy_optimize.variational_operators = [simulate.HamiltonianC(sim.C), simulate.HamiltonianB()]
 
 
 class TestSimulate(unittest.TestCase):
@@ -42,14 +42,14 @@ class TestSimulate(unittest.TestCase):
         state1 = State(tools.outer_product(psi0, psi0), N, is_ket=False)
 
         # Evolve by e^{-i (\pi/2) \sum_i X_i}
-        sim.variational_params[1].evolve(state0, np.pi / 2)
+        sim.variational_operators[1].evolve(state0, np.pi / 2)
 
         # Should get (-1j)^N |111111>
         self.assertTrue(np.vdot(state0.state, state0.state) == 1)
         self.assertTrue(state0.state[-1] == (-1j) ** 6)
 
         # Evolve by e^{-i (\pi/2) \sum_i X_i}
-        sim.variational_params[1].evolve(state1, np.pi / 2)
+        sim.variational_operators[1].evolve(state1, np.pi / 2)
 
         # Should get (-1j)^N |111111>
         self.assertTrue(state1.is_valid_dmatrix())
@@ -58,7 +58,7 @@ class TestSimulate(unittest.TestCase):
     def test_multiply_B(self):
         state0 = State(psi0, N, is_ket=True)
 
-        sim.variational_params[1].multiply(state0)
+        sim.variational_operators[1].multiply(state0)
         psi1 = np.zeros((2 ** N, 1))
         for i in range(N):
             psi1[2 ** i, 0] = 1
@@ -101,23 +101,24 @@ class TestSimulate(unittest.TestCase):
 
     def test_run(self):
         # p = 1 density matrix
-        sim.variational_params[0].param = np.array([[1]])
-        sim.variational_params[1].param = np.array([[0.5]])
+        sim.variational_operators[0].param = np.array([[1]])
+        sim.variational_operators[1].param = np.array([[0.5]])
         self.assertAlmostEqual(sim.run(), 1.897011131463)
 
         # See how things look with noise
-        sim_noisy.variational_params[0].param = np.array([[1]])
-        sim_noisy.variational_params[1].param = np.array([[0.5]])
-        self.assertAlmostEqual(sim_noisy.run(), 1.87430949)
+        sim_noisy.variational_operators[0].param = np.array([[1]])
+        sim_noisy.variational_operators[1].param = np.array([[0.5]])
+        self.assertAlmostEqual(sim_noisy.run(), 1.88857778)
 
+        # Higher depth circuit
         gammas = np.array([[0.17332659181015764, 1.091473300662595, 0.7719939217625529, 0.05322040660876185, 1.103646670462646,
                  0.28187402270267076]]).T
         betas = np.array([[-1.3657952653481733, -1.7104025614326148, -2.047579754894323, -1.464823733400459, -2.228623944977355,
                 -2.9730309886756365]]).T
 
-        sim_noisy.variational_params[0].param = gammas
-        sim_noisy.variational_params[1].param = betas
-        print(sim_noisy.run())
+        sim_noisy.variational_operators[0].param = gammas
+        sim_noisy.variational_operators[1].param = betas
+        self.assertAlmostEqual(sim_noisy.run(), 2.065356423346786)
 
     def test_find_optimal_params(self):
         print('Noiseless:', sim_optimize.find_optimal_params())
