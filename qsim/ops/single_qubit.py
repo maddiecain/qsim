@@ -74,20 +74,34 @@ def operate_single_qubit_mixed(rho, i: int, operation):
             i = zero-based index of qubit location to apply pauli
             operation = 2x2 single-qubit operator to be applied
     """
+
+    return operate_single_particle_mixed(rho, i, operation, d=2)
+
+
+def operate_single_particle_mixed(rho, i: int, operation, d=2):
+    """ Apply a single-particle operation on the input density matrix.
+        Efficient implementation using reshape and transpose.
+        
+        Input:
+            rho = input density matrix (as numpy.ndarray)
+            i = zero-based index of qubit location to apply pauli
+            operation = d x d single-qubit operator to be applied
+            d = particle dimension (default d=2)
+    """
     assert len(rho.shape)==2
 
-    IndL = 2**i
+    IndL = d**i
     dim = rho.shape[0]
 
     # right multiply
-    out = rho.reshape((-1, 2, IndL), order='F').transpose([1,0,2])
-    out = np.dot(operation.conj().T, out.reshape((2,-1), order='F'))
-    out = out.reshape((2, -1, IndL), order='F').transpose([1,0,2])
+    out = rho.reshape((-1, d, IndL), order='F').transpose([0,2,1])
+    out = np.dot(out.reshape((-1, d), order='F'), operation.conj().T)
+    out = out.reshape((-1, IndL, d), order='F').transpose([0,2,1])
 
     # left multiply
-    out = out.reshape((-1, 2, IndL*dim), order='F').transpose([0,2,1])
-    out = np.dot(out.reshape((-1,2), order='F'), operation)
-    out = out.reshape((-1, IndL*dim, 2), order='F').transpose([0,2,1])
+    out = out.reshape((-1, d, IndL*dim), order='F').transpose([1,0,2])
+    out = np.dot(operation, out.reshape((d, -1), order='F'))
+    out = out.reshape((d, -1, IndL*dim), order='F').transpose([1,0,2])
 
     return out.reshape(rho.shape, order='F')
 

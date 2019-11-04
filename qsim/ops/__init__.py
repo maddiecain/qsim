@@ -5,6 +5,7 @@ from qsim.ops.single_qubit import (
     multiply_single_qubit_mixed,
     operate_single_qubit_mixed,
     rotation_matrix,
+    operate_single_particle_mixed,
     SIGMA_X_IND,
     SIGMA_Y_IND,
     SIGMA_Z_IND,
