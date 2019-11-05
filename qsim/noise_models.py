@@ -1,5 +1,5 @@
 from typing import Tuple
-from qsim.tools import operations
+from qsim.tools import operations, tools
 import numpy as np
 
 def multi_qubit_noise(s, p: float, single_qubit_noise):
@@ -18,9 +18,9 @@ def depolarize_single_qubit(s, i: int, p: float):
             i = zero-based index of qubit location to apply pauli
             p = probability of depolarization, between 0 and 1
     """
-    return s * (1 - p) + p / 3 * (operations.single_qubit_operation(s, i, 0, is_pauli=True) +
-                                        operations.single_qubit_operation(s, i, 1, is_pauli=True) +
-                                        operations.single_qubit_operation(s, i, 2, is_pauli=True))
+    return s * (1 - p) + p / 3 * (operations.single_qubit_operation(s, i, tools.SIGMA_X_IND, is_pauli=True) +
+                                        operations.single_qubit_operation(s, i, tools.SIGMA_Y_IND, is_pauli=True) +
+                                        operations.single_qubit_operation(s, i, tools.SIGMA_Z_IND, is_pauli=True))
 
 
 def pauli_channel_single_qubit(s, i: int, ps: Tuple[float]):
@@ -39,9 +39,9 @@ def pauli_channel_single_qubit(s, i: int, ps: Tuple[float]):
     """
     assert len(ps) == 3
 
-    return (1 - sum(ps)) * s + (ps[0] * operations.single_qubit_operation(i, 1, is_pauli=True)
-                                + ps[1] * operations.single_qubit_operation(i, 2, is_pauli=True)
-                                + ps[2] * operations.single_qubit_operation(i, 3, is_pauli=True))
+    return (1 - sum(ps)) * s + (ps[0] * operations.single_qubit_operation(i, tools.SIGMA_X_IND, is_pauli=True)
+                                + ps[1] * operations.single_qubit_operation(i, tools.SIGMA_Y_IND, is_pauli=True)
+                                + ps[2] * operations.single_qubit_operation(i, tools.SIGMA_Z_IND, is_pauli=True))
 
 
 def amplitude_channel_single_qubit(s, i: int, p):
@@ -49,5 +49,5 @@ def amplitude_channel_single_qubit(s, i: int, p):
     K0 = np.array([[1, 0], [0, np.sqrt(1-p)]])
     K1 = np.array([[0, np.sqrt(p)], [0, 0]])
 
-    return operations.single_qubit_operation(s.state, i, K0, is_pauli=False, is_ket=False) + \
-           operations.single_qubit_operation(s.state, i, K1, is_pauli=False, is_ket=False)
+    return operations.single_qubit_operation(s, i, K0, is_pauli=False, is_ket=False) + \
+           operations.single_qubit_operation(s, i, K1, is_pauli=False, is_ket=False)

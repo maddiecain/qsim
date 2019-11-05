@@ -68,7 +68,6 @@ class State(object):
 
     def expectation(self, operator):
         """Operator is a numpy array. Current support only for operator.shape==self.state.shape."""
-        print(self.state, operator)
         if self.is_ket:
             return self.state.conj().T @ operator @ self.state
         else:
@@ -101,6 +100,9 @@ class State(object):
             i = np.random.choice(operator.shape[0], p=np.absolute(probs))
             return eigenvalues[i], outcomes[i] / probs
 
+    def multiply(self, operator):
+        self.state = tools.multiply(self.state, operator, is_ket=self.is_ket)
+
 
 class TwoQubitCode(State):
     def __init__(self, state, N, is_ket=True):
@@ -110,7 +112,6 @@ class TwoQubitCode(State):
     def single_qubit_operation(self, i: int, op, is_pauli=False):
         # i indexes the logical qubit
         # The logical qubit starts at index 2 ** (2*i)
-
         if is_pauli:
             if op == tools.SIGMA_X_IND:
                 # SX_i SX_{i+1}
@@ -125,9 +126,6 @@ class TwoQubitCode(State):
                 super().single_qubit_operation(2 * i, tools.SIGMA_Z_IND, is_pauli=is_pauli)
                 super().single_qubit_operation(2 * i + 1, tools.SIGMA_Z_IND, is_pauli=is_pauli)
 
-        else:
-            # TODO: Implement this based off of the double qubit operation for a general state
-            super().double_qubit_operation(2 * i, 2 * i + 1, op)
 
     def single_qubit_rotation(self, i: int, angle: float, op):
         rot = np.cos(angle) * np.identity(4) - op * 1j * np.sin(angle)
@@ -135,10 +133,8 @@ class TwoQubitCode(State):
 
     def all_qubit_rotation(self, angle: float, op):
         for i in range(self.N):
-            self.single_qubit_rotation(i, angle, op)
+            self.single_qubit_rotation(2*i, angle, op)
 
     def all_qubit_operation(self, op, is_pauli=False):
-        if end is None:
-            end = self.N
-        for i in range(end):
-            self.single_qubit_operation(i, op, is_pauli=is_pauli)
+        for i in range(self.N):
+            self.single_qubit_operation(2*i, op, is_pauli=is_pauli)

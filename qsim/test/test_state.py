@@ -125,6 +125,8 @@ class TestState(unittest.TestCase):
 
         # Apply single qubit operation to dmatrix
         state0.single_qubit_operation(1, tools.SY)
+        print(state0.state, rho2)
+
         self.assertTrue(np.linalg.norm(state0.state - rho2) <= 1e-10)
 
         # Test on ket

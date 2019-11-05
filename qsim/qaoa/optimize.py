@@ -54,4 +54,4 @@ def fix_param_gauge(param, gamma_period=np.pi, beta_period=np.pi/2, degree_parit
         elif delta <= -0.5:
             betas[i] += 1
 
-    return np.concatenate((gammas*gamma_period, -betas*beta_period, param[2*p:]*np.pi)).tolist()
+    return np.concatenate((gammas*gamma_period, -betas*beta_period, param[2*p:])).tolist()

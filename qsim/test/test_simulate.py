@@ -26,7 +26,7 @@ sim_optimize = simulate.SimulateQAOA(g, 6, 2,  is_ket=False)
 sim_noisy_optimize = simulate.SimulateQAOA(g, 6, 2, noise_model=noise_models.depolarize_single_qubit,
                                            error_probability=.001, is_ket=False)
 
-N = 6
+N = 10
 # Initialize in |000000>
 psi0 = np.zeros((2 ** N, 1))
 psi0[0, 0] = 1
