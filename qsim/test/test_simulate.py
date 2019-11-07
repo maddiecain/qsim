@@ -80,6 +80,8 @@ class TestSimulate(unittest.TestCase):
                                                         -3.35531478])) <= 1e-5))
 
     def test_run(self):
+        sim.p = 1
+        sim_noisy.p = 1
         # p = 1 density matrix
         self.assertAlmostEqual(sim.run([1, .5]), 1.897011131463)
         self.assertAlmostEqual(sim_ket.run([1, .5]), 1.897011131463)
