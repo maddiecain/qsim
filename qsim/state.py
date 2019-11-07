@@ -18,9 +18,12 @@ class State(object):
         return np.array_equal(self.state @ self.state, self.state) or self.is_ket
 
     def is_valid_dmatrix(self):
-        return (np.allclose(np.imag(np.linalg.eigvals(self.state)), np.zeros(2**self.N)) and
+        if self.is_ket:
+            return np.linalg.norm(self.state) == 1
+        else:
+            return (np.allclose(np.imag(np.linalg.eigvals(self.state)), np.zeros(2**self.N)) and
                 np.all(np.real(np.linalg.eigvals(self.state)) >= -1e-10) and
-                np.absolute(np.trace(self.state)) == 1) or (self.is_ket and np.linalg.norm(self.state) == 1)
+                np.isclose(np.absolute(np.trace(self.state)),1))
 
     def change_basis(self, state, B):
         """B is the new basis, where the new basis vectors are the columns. B is assumed to be orthonormal.

@@ -53,7 +53,7 @@ class HamiltonianC(VariationalParameter):
 
 
 class HamiltonianPauli(VariationalParameter):
-    def __init__(self, pauli: int, param = None, error=False):
+    def __init__(self, pauli: int, param=None, error=False):
         super().__init__(self.evolve_pauli, self.multiply_pauli, param=param, error=error)
         self.pauli = pauli
         if self.pauli == tools.SIGMA_X_IND:

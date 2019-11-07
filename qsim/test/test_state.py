@@ -23,61 +23,63 @@ class TestState(unittest.TestCase):
 
     def test_measurement(self):
         a = np.array([[0, 1], [1, 0]])
-        self.assertTrue(np.absolute(pure_state.measurement(a)[0])==1)
+        self.assertTrue(np.absolute(pure_state.measurement(a)[0]) == 1)
         b = np.array([[1, 0], [0, 1]])
-        self.assertTrue(np.absolute(mixed_state.measurement(b)[0])==1)
+        self.assertTrue(np.absolute(mixed_state.measurement(b)[0]) == 1)
 
     def test_single_qubit_pauli(self):
         # Tests single qubit operation given a pauli index
-        N = 3
+        N = 6
         # Initialize in |000000>
         psi0 = np.zeros((2 ** N, 1))
         psi0[0][0] = 1
         state0 = State(psi0, N, is_ket=True)
 
-        # Apply sigma_y on the first qubit to get 1j|000010>
+        # Apply sigma_y on the second qubit to get 1j|010000>
         state0.single_qubit_operation(1, tools.SY, is_pauli=False)
-        self.assertTrue(state0.state[2, 0] == 1j)
+        self.assertTrue(state0.state[2 ** (N - 2), 0] == 1j)
 
-        # Apply sigma_z on the first qubit, state is -1j|000010>
+        # Apply sigma_z on the second qubit, state is -1j|010000>
         state0.single_qubit_operation(1, tools.SZ, is_pauli=False)
-        self.assertTrue(state0.state[2, 0] == -1j)
+        self.assertTrue(state0.state[2 ** (N - 2), 0] == -1j)
 
         # Apply sigma_x on qubit 0 through 3
-        for i in [0, 2]:
-            state0.single_qubit_operation(i, tools.SX, is_pauli=False)
+        for i in range(N):
+            if i != 1:
+                state0.single_qubit_operation(i, tools.SX, is_pauli=False)
 
         # Vector is still normalized
         self.assertTrue(np.vdot(state0.state, state0.state) == 1)
 
-        # Should be -1j|111111>
+        # Should be 1j|111111>
         self.assertTrue(state0.state[-1, 0] == -1j)
 
-        psi1 = tools.tensor_product(np.array([1, 1]), np.array([1, 0])) / 2 ** (1 / 2)
+        # Density matrix test
+        psi1 = np.array([tools.tensor_product(np.array([1, 1]), np.array([1, 0])) / 2 ** (1 / 2)]).T
         state1 = State(tools.outer_product(psi1, psi1), 2, is_ket=False)
 
         # Apply sigma_Y to first qubit
-        psi2 = np.kron([1, -1], [1, 0]) * -1j / 2 ** (1 / 2)
+        psi2 = np.array([np.kron([1, -1], [1, 0]) * -1j / 2 ** (1 / 2)]).T
         rho2 = tools.outer_product(psi2, psi2)
 
-        state1.single_qubit_operation(1, tools.SY, is_pauli=False)
+        state1.single_qubit_operation(0, tools.SY, is_pauli=False)
         self.assertTrue(np.linalg.norm(state1.state - rho2) <= 1e-10)
 
         # TEST PAULI
         state0 = State(psi0, N, is_ket=True)
 
-        # Apply sigma_y on the first qubit to get 1j|000010>
+        # Apply sigma_y on the second qubit to get 1j|010000>
         state0.single_qubit_operation(1, tools.SIGMA_Y_IND, is_pauli=True)
-        #print(state0.state)
-        self.assertTrue(state0.state[2, 0] == 1j)
+        self.assertTrue(state0.state[2 ** (N - 2), 0] == 1j)
 
-        # Apply sigma_z on the first qubit, state is -1j|000010>
+        # Apply sigma_z on the second qubit, state is -1j|010000>
         state0.single_qubit_operation(1, tools.SIGMA_Z_IND, is_pauli=True)
-        self.assertTrue(state0.state[2, 0] == -1j)
+        self.assertTrue(state0.state[2 ** (N - 2), 0] == -1j)
 
-        # Apply sigma_x on qubit 0 through 4
-        for i in [0, 2]:
-            state0.single_qubit_operation(i, tools.SIGMA_X_IND, is_pauli=True)
+        # Apply sigma_x on qubits
+        for i in range(N):
+            if i != 1:
+                state0.single_qubit_operation(i, tools.SIGMA_X_IND, is_pauli=True)
 
         # Vector is still normalized
         self.assertTrue(np.vdot(state0.state, state0.state) == 1)
@@ -85,14 +87,15 @@ class TestState(unittest.TestCase):
         # Should be -1j|111111>
         self.assertTrue(state0.state[-1, 0] == -1j)
 
-        psi1 = tools.tensor_product(np.array([1, 1]), np.array([1, 0])) / 2 ** (1 / 2)
+        # Test pauli operations with density matrices
+        psi1 = np.array([tools.tensor_product(np.array([1, 1]), np.array([1, 0])) / 2 ** (1 / 2)]).T
         state1 = State(tools.outer_product(psi1, psi1), 2, is_ket=False)
 
         # Apply sigma_Y to first qubit
-        psi2 = np.kron([1, -1], [1, 0]) * -1j / 2 ** (1 / 2)
+        psi2 = np.array([np.kron([1, -1], [1, 0]) * -1j / 2 ** (1 / 2)]).T
         rho2 = tools.outer_product(psi2, psi2)
 
-        state1.single_qubit_operation(1, tools.SIGMA_Y_IND, is_pauli=True)
+        state1.single_qubit_operation(0, tools.SIGMA_Y_IND, is_pauli=True)
         self.assertTrue(np.linalg.norm(state1.state - rho2) <= 1e-10)
 
     def test_single_qubit_rotation(self):
@@ -115,22 +118,20 @@ class TestState(unittest.TestCase):
         self.assertTrue(np.abs(np.vdot(state1.state, state0.state) * np.exp(1j * np.pi / 4 * state1.N) - 1) <= 1e-10)
 
     def test_single_qubit_operation(self):
-        psi = tools.tensor_product(np.array([1, 1]), np.array([1, 0])) / 2 ** (1 / 2)
+        psi = np.array([tools.tensor_product(np.array([1, 1]), np.array([1, 0])) / 2 ** (1 / 2)]).T
         state0 = State(tools.outer_product(psi, psi), 2, is_ket=False)
-        state1 = State(np.array([psi]), 2, is_ket=True)
+        state1 = State(psi, 2, is_ket=True)
 
         # Apply sigma_Y to first qubit
-        psi2 = np.kron([1, -1], [1, 0]) * -1j / 2 ** (1 / 2)
+        psi2 = np.array([np.kron([1, -1], [1, 0]) * -1j / 2 ** (1 / 2)]).T
         rho2 = tools.outer_product(psi2, psi2)
 
         # Apply single qubit operation to dmatrix
-        state0.single_qubit_operation(1, tools.SY)
-        print(state0.state, rho2)
-
+        state0.single_qubit_operation(0, tools.SY)
         self.assertTrue(np.linalg.norm(state0.state - rho2) <= 1e-10)
 
         # Test on ket
-        state1.single_qubit_operation(1, tools.SY)
+        state1.single_qubit_operation(0, tools.SY)
         self.assertTrue(np.linalg.norm(state1.state - psi2) <= 1e-10)
 
 

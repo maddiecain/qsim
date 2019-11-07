@@ -27,8 +27,8 @@ def tensor_product(a, b):
 
 
 def outer_product(a, b):
-    # Full tensor product of tensors a and b
-    return np.outer(a, b.conj())
+    # Full tensor product of tensors a and b, returns |a><b|
+    return a @ b.conj().T
 
 
 def X(n=1):

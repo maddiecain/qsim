@@ -28,7 +28,7 @@ def two_local_term(op1, op2, ind1, ind2, N):
     return np.kron(myeye(ind1), np.kron(op1, np.kron(myeye(ind2 - ind1 - 1), np.kron(op2, myeye(N - ind2 - 1)))))
 
 
-def single_qubit_operation(state, i: int, op, is_pauli=False, is_ket=False):
+def single_qubit_operation(state, i: int, op, is_pauli=False, is_ket=False, d=2):
     """ Apply a single qubit operation on the input state.
         Efficient implementation using reshape and transpose.
 
@@ -38,6 +38,7 @@ def single_qubit_operation(state, i: int, op, is_pauli=False, is_ket=False):
             is_pauli = Boolean indicating if op is a pauli index
     """
     N = int(np.log2(state.shape[0]))
+
     def single_qubit_pauli(state, i: int, pauli_ind: int, is_ket=False):
         """ Multiply a single pauli operator on the i-th qubit of the input wavefunction
 
@@ -50,7 +51,7 @@ def single_qubit_operation(state, i: int, op, is_pauli=False, is_ket=False):
         ind = 2 ** i
         if is_ket:
             # Note index start from the right (sN,...,s3,s2,s1)
-            out = state.reshape((ind, 2, -1), order='F').copy()
+            out = state.reshape((-1, 2, ind), order='F').copy()
             if pauli_ind == tools.SIGMA_X_IND:  # Sigma_X
                 out = np.flip(out, 1)
             elif pauli_ind == tools.SIGMA_Y_IND:  # Sigma_Y
@@ -62,7 +63,7 @@ def single_qubit_operation(state, i: int, op, is_pauli=False, is_ket=False):
 
             state = out.reshape(state.shape, order='F')
         else:
-            out = state.reshape((ind, 2, 2 ** (N - 1), 2, -1), order='F').copy()
+            out = state.reshape((-1, 2, 2 ** (N - 1), 2, ind), order='F').copy()
             if pauli_ind == tools.SIGMA_X_IND:  # Sigma_X
                 out = np.flip(out, (1, 3))
             elif pauli_ind == tools.SIGMA_Y_IND:  # Sigma_Y
@@ -77,19 +78,24 @@ def single_qubit_operation(state, i: int, op, is_pauli=False, is_ket=False):
         return state
 
     if is_pauli:
+        assert d == 2
         return single_qubit_pauli(state, i, op, is_ket=is_ket)
     else:
-        ind = 2 ** i
-        # Left multiply
-        out = state.reshape((ind, 2, -1), order='F').transpose([1, 0, 2])
-        out = np.dot(op, out.reshape((2, -1), order='F'))
-        out = out.reshape((2, ind, -1), order='F').transpose([1, 0, 2])
-
-        if not is_ket:
+        ind = d ** i
+        if is_ket:
+            # Left multiply
+            out = state.reshape((-1, d, ind), order='F').transpose([1, 0, 2])
+            out = np.dot(op, out.reshape((d, -1), order='F'))
+            out = out.reshape((d, -1, ind), order='F').transpose([1, 0, 2])
+        else:
+            # Left multiply
+            out = state.reshape((2 ** (N - i - 1), d, -1), order='F').transpose([1, 0, 2])
+            out = np.dot(op, out.reshape((d, -1), order='F'))
+            out = out.reshape((d, 2 ** (N - i - 1), -1), order='F').transpose([1, 0, 2])
             # Right multiply
-            out = out.reshape((2 ** (N + i), 2, -1), order='F').transpose([0, 2, 1])
-            out = np.dot(out.reshape((-1, 2), order='F'), op.conj().T)
-            out = out.reshape((2 ** (N + i), -1, 2), order='F').transpose([0, 2, 1])
+            out = out.reshape(-1, d, ind, order='F').transpose([0, 2, 1])
+            out = np.dot(out.reshape((-1, d), order='F'), op.conj().T)
+            out = out.reshape((-1, ind, d), order='F').transpose([0, 2, 1])
 
         state = out.reshape(state.shape, order='F')
     return state

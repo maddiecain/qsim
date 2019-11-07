@@ -27,32 +27,25 @@ for e in G.edges:
 # plot.draw_graph(G)
 
 p = 1
-sim = simulate.SimulateQAOA(G, p, 2, is_ket=False, noise_model=noise_models.amplitude_channel_single_qubit,
-                            error_probability=.05)
+sim = simulate.SimulateQAOA(G, p, 2, is_ket=False)
 # Set the default variational operators
-sim.variational_operators = [variational_parameters.HamiltonianC(sim.C, error=True),
-                             variational_parameters.HamiltonianB(error=True)]
+sim.variational_params = [variational_parameters.HamiltonianC(sim.C),
+                             variational_parameters.HamiltonianB()]
 
-sim_penalty = simulate.SimulateQAOA(G, p, 3, is_ket=False, noise_model=noise_models.amplitude_channel_single_qubit,
-                                    error_probability=.05)
+sim_penalty = simulate.SimulateQAOA(G, p, 3, is_ket=False)
 # Set the default variational operators with X^\otimesN
-sim_penalty.variational_operators = [variational_parameters.HamiltonianC(sim.C, error=True),
-                                     variational_parameters.HamiltonianB(error=False),
-                                     variational_parameters.HamiltonianPauli(tools.SIGMA_X_IND, error=True)]
-sim_penalty.brute_find_parameters()
-sim.brute_find_parameters()
+sim_penalty.variational_params = [variational_parameters.HamiltonianC(sim.C),
+                                     variational_parameters.HamiltonianB(),
+                                     variational_parameters.HamiltonianPauli(tools.SIGMA_X_IND)]
+sim.noise = [noise_models.AmplitudeDampingNoise(.05), noise_models.AmplitudeDampingNoise(.05)]
+sim_penalty.noise = [noise_models.AmplitudeDampingNoise(.05), noise_models.Noise(), noise_models.AmplitudeDampingNoise(.05)]
 
-#sim_penalty.find_parameters()
-#sim.find_parameters()
-#print(sim.run_error([.3, -.3]))
-#print(sim_penalty.run_error([.3, -.3, .2]))
+sim_penalty.find_parameters_brute(n=20)
+sim.find_parameters_brute(n=20)
 
 # in the case of p1=1, m=2, plot the cost function for all beta, gamma
 n_sample=200
-#gammarange=np.linspace(0, 2*np.pi, n_sample)
-#betarange=np.linspace(0, 2*np.pi, n_sample)
 alpharange=np.linspace(-1*np.pi, np.pi, n_sample)
-cost_function_values=[sim_penalty.run_error([3.92699277, 4.31984419, alpha]) for alpha in alpharange]
-#print(cost_function_values)
+cost_function_values=[sim_penalty.run([0.78539567, 1.17825878, alpha]) for alpha in alpharange]
 plt.plot(alpharange, cost_function_values)
 plt.show()

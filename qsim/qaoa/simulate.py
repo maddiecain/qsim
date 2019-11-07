@@ -23,22 +23,15 @@ EVEN_DEGREE_ONLY, ODD_DEGREE_ONLY = 0, 1
 
 
 class SimulateQAOA(object):
-    def __init__(self, graph: nx.Graph, p, m, variational_operators=None, noise_model=None,
-                 error_probability=0.001, error_function=None, is_ket=True):
+    def __init__(self, graph: nx.Graph, p, m, variational_params=None, noise=None, is_ket=True, node_to_index_map=None):
         self.graph = graph
-        self.variational_operators = variational_operators
+        self.variational_params = variational_params
+        self.noise = noise
         self.N = self.graph.number_of_nodes()
-        # Single qubit noise model (to be applied to all qubits)
-        self.noise_model = noise_model
         # Depth of circuit
         self.p = p
         self.m = m
-        # Hidden parameter
-        self.C = self.create_C()
-        self.error_probability = error_probability
-        self.error_function = error_function
-        if self.error_function is None:
-            self.error_function = lambda p: self.error_probability
+        self.C = self.create_C(node_to_index_map=node_to_index_map)
         self.is_ket = is_ket
 
     def create_C(self, node_to_index_map=None):
@@ -56,10 +49,12 @@ class SimulateQAOA(object):
                                                                         node_to_index_map[b], self.N)
         return C
 
-    def noise_channel(self, s: State, param):
-        if not self.noise_model is None:
-            for i in range(self.N):
-                s.state = self.noise_model(s.state, i, self.error_function(param))
+    def cost_function(self, s: State):
+        # Returns <C>
+        if self.is_ket:
+            return np.real(np.vdot(s.state, self.C * s.state))
+        else:
+            return np.real(np.squeeze(tools.trace(self.C * s.state)))
 
     def variational_grad(self, param):
         """Calculate the objective function F and its gradient exactly
@@ -76,39 +71,40 @@ class SimulateQAOA(object):
         param = param.reshape(m, p).T
         # Preallocate space for storing mp+2 copies of wavefunction - necessary for efficient computation of analytic
         # gradient
-        psi = np.ones(2 ** self.N) / 2 ** (self.N / 2)
+        psi = np.ones((2 ** self.N, 1)) / 2 ** (self.N / 2)
         if self.is_ket:
             memo = np.zeros([2 ** self.N, 2 * m * p + 2], dtype=np.complex128)
-            memo[:, 0] = psi
-            s = State(np.array([psi]).T, self.N, is_ket=self.is_ket)
+            memo[:, 0] = np.squeeze(psi.T)
+            s = State(psi, self.N, is_ket=self.is_ket)
         else:
             memo = np.zeros([2 ** self.N, 2 ** self.N, m * p + 1], dtype=np.complex128)
-            memo[..., 0] = tools.outer_product(psi, psi)
+            memo[..., 0] = np.squeeze(tools.outer_product(psi, psi))
             s = State(memo[..., 0], self.N, is_ket=self.is_ket)
 
+        tester=State(memo[..., 0], self.N, is_ket=self.is_ket)
         # Evolving forward
         for j in range(p):
             for i in range(m):
                 if self.is_ket:
-                    self.variational_operators[i].evolve(s, param[j][i])
+                    self.variational_params[i].evolve(s, param[j][i])
                     memo[:, j * m + i + 1] = np.squeeze(s.state.T)
                 else:
+                    self.variational_params[i].evolve(tester, param[j][i])
                     # Goes through memo, evolves every density matrix in it, and adds one more in the j*m+i+1 position
                     # corresponding to H_i*p
                     s0_prenoise = State(memo[..., 0], self.N, is_ket=self.is_ket)
                     for k in range(m * j + i + 1):
                         s = State(memo[..., k], self.N, is_ket=self.is_ket)
-                        self.variational_operators[i].evolve(s, param[j][i])
+                        self.variational_params[i].evolve(s, param[j][i])
                         if k == 0:
-                            s0_prenoise.state = memo[..., 0]
-                        self.noise_channel(s, param[j][i])
+                            s0_prenoise.state = s.state
+                        self.noise[i].all_qubit_channel(s)
                         memo[..., k] = s.state
-                    self.variational_operators[i].multiply(s0_prenoise)
-                    self.noise_channel(s0_prenoise, param[j][i])
+                    self.variational_params[i].multiply(s0_prenoise)
+                    self.noise[i].all_qubit_channel(s0_prenoise)
                     memo[..., m * j + i + 1] = s0_prenoise.state
 
         # Multiply by C
-        # TODO: Make this work for a non-diagonal C
         if self.is_ket:
             memo[:, m * p + 1] = np.squeeze(self.C.T) * memo[:, m * p]
             s.state = np.array([memo[:, m * p + 1]]).T
@@ -122,7 +118,7 @@ class SimulateQAOA(object):
         if self.is_ket:
             for k in range(p):
                 for l in range(m):
-                    self.variational_operators[m - l - 1].evolve(s, -1 * param[p - k - 1][m - l - 1])
+                    self.variational_params[m - l - 1].evolve(s, -1 * param[p - k - 1][m - l - 1])
                     memo[:, (p + k) * m + 2 + l] = np.squeeze(s.state.T)
 
         # Evaluating objective function
@@ -138,14 +134,14 @@ class SimulateQAOA(object):
                 # TODO: Make this work for a non-diagonal C
                 if self.is_ket:
                     s = State(np.array([memo[:, m * (2 * p - q) + 1 - r]]).T, self.N, is_ket=self.is_ket)
-                    self.variational_operators[r].multiply(s)
+                    self.variational_params[r].multiply(s)
                     Fgrad[q * m + r] = -2 * np.imag(np.vdot(memo[:, q * m + r], np.squeeze(s.state.T)))
                 else:
                     Fgrad[q * m + r] = 2 * np.imag(np.trace(memo[..., q * m + r + 1]))
 
         return F, Fgrad
 
-    def run(self):
+    def run(self, param):
         psi = np.ones((2 ** self.N, 1)) / 2 ** (self.N / 2)
         if self.is_ket:
             s = State(psi, self.N, is_ket=self.is_ket)
@@ -153,38 +149,17 @@ class SimulateQAOA(object):
             s = State(tools.outer_product(psi, psi), self.N, is_ket=self.is_ket)
         for i in range(self.p):
             for j in range(self.m):
-                self.variational_operators[j].evolve(s, self.variational_operators[j].param[i])
-                self.noise_channel(s, self.variational_operators[j].param[i])
+                self.variational_params[j].evolve(s, param[j * self.p + i])
+                self.noise[j].all_qubit_channel(s)
         # Return the expected value of the cost function
         # Note that the state's defined expectation function won't work here due to the shape of C
-        if self.is_ket:
-            return np.real(np.vdot(s.state, self.C * s.state))
-        else:
-            return np.real(np.squeeze(tools.trace(self.C * s.state)))
-
-    def run_error(self, param):
-        psi = np.ones((2 ** self.N, 1)) / 2 ** (self.N / 2)
-        if self.is_ket:
-            s = State(psi, self.N, is_ket=self.is_ket)
-        else:
-            s = State(tools.outer_product(psi, psi), self.N, is_ket=self.is_ket)
-        for i in range(self.p):
-            for j in range(self.m):
-                self.variational_operators[j].evolve(s, param[j*self.p+i])
-                if self.variational_operators[j].error:
-                    self.noise_channel(s, param[j*self.p+i])
-        # Return the expected value of the cost function
-        # Note that the state's defined expectation function won't work here due to the shape of C
-        if self.is_ket:
-            return np.real(np.vdot(s.state, self.C * s.state))
-        else:
-            return np.real(np.squeeze(tools.trace(self.C * s.state)))
+        return self.cost_function(s)
 
     def find_initial_parameters(self, init_param_guess=None, verbose=False, print_results=True):
         r"""
         Given a graph, find QAOA parameters that minimizes C=\sum_{<ij>} w_{ij} Z_i Z_j
 
-        Uses the interpolation-based heuristic from arXiv:1812.01041
+        Uses the interpolation-based heuristic from arXiv:1812.01041. THIS IS ONLY VALID FOR VANILLA QAOA
 
         Input:
             p_max: maximum p you want to optimize to (optional, default p_max=10)
@@ -221,23 +196,26 @@ class SimulateQAOA(object):
                 # Interpolate to find the next parameter
                 xp = np.linspace(0, 1, p)
                 xp1 = np.linspace(0, 1, p + 1)
-                param0 = np.concatenate([np.interp(xp1, xp, params[p - 1][n*p:(n+1)*p]) for n in range(self.m)])
+                param0 = np.concatenate([np.interp(xp1, xp, params[p - 1][n * p:(n + 1) * p]) for n in range(self.m)])
 
             start = timer()
             if param0 is not None:
-                results = minimize(lambda param: self.variational_grad(param)[0], param0, jac=None, method='BFGS', tol=.01)
+                results = minimize(lambda param: self.variational_grad(param)[0], param0, jac=None, method='BFGS',
+                                   tol=.01)
             else:  # Run with 10 random guesses of parameters and keep best one
                 # Will only apply to the lowest depth (p=0 here)
                 # First run with a guess known to work most of the time
                 param0 = np.ones((p + 1) * self.m) * np.pi / 8
-                param0[p:2*p] = param0[p:2*p] * -1
-                results = minimize(lambda param: self.variational_grad(param)[0], param0, jac=None, method='BFGS', tol=.01)
+                param0[p:2 * p] = param0[p:2 * p] * -1
+                results = minimize(lambda param: self.variational_grad(param)[0], param0, jac=None, method='BFGS',
+                                   tol=.01)
 
                 for _ in range(1, 10):
                     # Some reasonable random guess
-                    param0 = np.ones((p+1)*self.m)*np.random.rand((p+1)*self.m)*np.pi/2
-                    param0[p:2*p] = param0[0:p]*-1/4
-                    test_results = minimize(lambda param: self.variational_grad(param)[0], param0, jac=None, method='BFGS', tol=.01)
+                    param0 = np.ones((p + 1) * self.m) * np.random.rand((p + 1) * self.m) * np.pi / 2
+                    param0[p:2 * p] = param0[0:p] * -1 / 4
+                    test_results = minimize(lambda param: self.variational_grad(param)[0], param0, jac=None,
+                                            method='BFGS', tol=.01)
                 if test_results.fun < results.fun:  # found a better minimum
                     results = test_results
 
@@ -254,35 +232,24 @@ class SimulateQAOA(object):
                 print('p:', p)
                 print('f_val:', f_val)
                 print('params:', np.array(param).reshape(self.m, -1))
-                print('approximation_ratio:', f_val/min_c[0])
+                print('approximation_ratio:', f_val / min_c[0])
 
         return [OptimizeResult(p=p,
                                f_val=f_val,
                                params=np.array(param).reshape(self.m, -1),
-                               approximation_ratio=f_val/min_c)
+                               approximation_ratio=f_val / min_c)
                 for p, f_val, param in zip(np.arange(1, self.p + 1), Fvals, params)]
 
-    def brute_find_parameters(self, print_results=True):
+    def find_parameters_brute(self, n=20, print_results=True):
         r"""
-        Given a graph, find QAOA parameters that minimizes C=\sum_{<ij>} w_{ij} Z_i Z_j
-
-        Uses the interpolation-based heuristic from arXiv:1812.01041
-
-        Input:
-            p_max: maximum p you want to optimize to (optional, default p_max=10)
-
-        Output: is given in dictionary format {p: (F_p, param_p)}
-            p = depth/level of QAOA, goes from 1 to p_max
-            F_p = <C> achieved by the optimum found at depth p
-            param_p = 2*p parameters for the QAOA at depth p
+        Given a graph, find QAOA parameters that minimizes C=\sum_{<ij>} w_{ij} Z_i Z_j by brute-force methods
+        by evaluating on a grid
         """
+        # Ranges of values to search over
+        ranges = [(0, np.pi)] * self.m
+        # Set a reasonable grid size
 
-        # Start the optimization process incrementally from p = 1 to p_max
-        ranges = [(0, np.pi)]*self.m
-        #ranges[1] = (0, np.pi)
-        #ranges = ranges*self.p
-
-        results = brute(self.run_error, ranges, full_output=True)
+        results = brute(self.run, ranges, Ns=n, full_output=True)
         min_c = min(self.C)
 
         if print_results:
@@ -291,7 +258,7 @@ class SimulateQAOA(object):
             print('params:', np.array(results[0]).reshape(self.m, -1))
             print('approximation_ratio:', np.real(results[1]) / min_c[0])
 
-    def find_parameters(self, init_param_guess=None, verbose=False, print_results=True):
+    def find_parameters_minimize(self, init_param_guess=None, print_results=True):
         """a graph, find QAOA parameters that minimizes C=\sum_{<ij>} w_{ij} Z_i Z_j
 
         Uses the interpolation-based heuristic from arXiv:1812.01041
@@ -305,12 +272,12 @@ class SimulateQAOA(object):
             param_p = 2*p parameters for the QAOA at depth p
         """
         # Start the optimization process incrementally from p = 1 to p_max
-        #param0 = np.ones(self.p * self.m) * np.pi / 8
-        param0 = np.concatenate((np.linspace(0.1, 0.5, self.p),
-                                 np.linspace(-0.5, -0.1, self.p),
-                                 np.zeros(self.p*(self.m-2))))
+        if init_param_guess is None:
+            init_param_guess = np.concatenate((np.linspace(0.1, 0.5, self.p),
+                                               np.linspace(-0.5, -0.1, self.p),
+                                               np.zeros(self.p * (self.m - 2))))
 
-        results = minimize(lambda param: self.variational_grad(param)[0], param0)
+        results = minimize(lambda param: self.variational_grad(param)[0], init_param_guess)
         min_c = min(self.C)
 
         if print_results:
