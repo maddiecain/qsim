@@ -2,6 +2,7 @@ import numpy as np
 from qsim import tools
 from qsim.tools.operations import *
 
+
 class State(object):
     """Contains information about the system density matrix
     is_ket: bool
@@ -13,6 +14,10 @@ class State(object):
         self.state = state.astype(np.complex128, copy=False)
         self.is_ket = is_ket
         self.N = N
+        # Define Pauli matrices
+        self.SX = tools.SX
+        self.SY = tools.SY
+        self.SZ = tools.SZ
 
     def is_pure_state(self):
         return np.array_equal(self.state @ self.state, self.state) or self.is_ket
@@ -21,9 +26,9 @@ class State(object):
         if self.is_ket:
             return np.linalg.norm(self.state) == 1
         else:
-            return (np.allclose(np.imag(np.linalg.eigvals(self.state)), np.zeros(2**self.N)) and
-                np.all(np.real(np.linalg.eigvals(self.state)) >= -1e-10) and
-                np.isclose(np.absolute(np.trace(self.state)),1))
+            return (np.allclose(np.imag(np.linalg.eigvals(self.state)), np.zeros(2 ** self.N)) and
+                    np.all(np.real(np.linalg.eigvals(self.state)) >= -1e-10) and
+                    np.isclose(np.absolute(np.trace(self.state)), 1))
 
     def change_basis(self, state, B):
         """B is the new basis, where the new basis vectors are the columns. B is assumed to be orthonormal.
@@ -110,34 +115,75 @@ class State(object):
 class TwoQubitCode(State):
     def __init__(self, state, N, is_ket=True):
         # Simple two qubit code with |0>_L = |00>, |1>_L = |11>
-        super().__init__(state, N, is_ket)
+        super().__init__(state, 2 * N, is_ket)
+        self.SX = tools.tensor_product((tools.SX, np.identity(2)))
+        self.SY = tools.tensor_product((tools.SY, tools.SZ))
+        self.SZ = tools.tensor_product((tools.SZ, tools.SZ))
 
     def single_qubit_operation(self, i: int, op, is_pauli=False):
         # i indexes the logical qubit
         # The logical qubit starts at index 2 ** (2*i)
         if is_pauli:
             if op == tools.SIGMA_X_IND:
-                # SX_i SX_{i+1}
-                super().single_qubit_operation(2 * i, tools.SIGMA_X_IND, is_pauli=is_pauli)
+                # I_i SX_{i+1}
                 super().single_qubit_operation(2 * i + 1, tools.SIGMA_X_IND, is_pauli=is_pauli)
             elif op == tools.SIGMA_Y_IND:
-                # SY_i SX_{i+1}
+                # SY_i SZ_{i+1}
                 super().single_qubit_operation(2 * i, tools.SIGMA_Y_IND, is_pauli=is_pauli)
-                super().single_qubit_operation(2 * i + 1, tools.SIGMA_X_IND, is_pauli=is_pauli)
+                super().single_qubit_operation(2 * i + 1, tools.SIGMA_Z_IND, is_pauli=is_pauli)
             elif op == tools.SIGMA_Z_IND:
                 # SZ_i SZ_{i+1}
                 super().single_qubit_operation(2 * i, tools.SIGMA_Z_IND, is_pauli=is_pauli)
                 super().single_qubit_operation(2 * i + 1, tools.SIGMA_Z_IND, is_pauli=is_pauli)
-
+        else:
+            self.state = single_qubit_operation(self.state, i, op, is_pauli=False, is_ket=self.is_ket, d=4)
 
     def single_qubit_rotation(self, i: int, angle: float, op):
         rot = np.cos(angle) * np.identity(4) - op * 1j * np.sin(angle)
         self.single_qubit_operation(i, rot, is_pauli=False)
 
     def all_qubit_rotation(self, angle: float, op):
-        for i in range(self.N):
-            self.single_qubit_rotation(2*i, angle, op)
+        for i in range(int(self.N / 2)):
+            self.single_qubit_rotation(i, angle, op)
 
     def all_qubit_operation(self, op, is_pauli=False):
-        for i in range(self.N):
-            self.single_qubit_operation(2*i, op, is_pauli=is_pauli)
+        for i in range(int(self.N / 2)):
+            self.single_qubit_operation(i, op, is_pauli=is_pauli)
+
+
+class JordanFarhiShor(State):
+    def __init__(self, state, N, is_ket=True):
+        # Simple two qubit code with |0>_L = |00>, |1>_L = |11>
+        super().__init__(state, 4 * N, is_ket)
+        self.SX = tools.tensor_product((tools.SY, np.identity(2), tools.SY, np.identity(2)))
+        self.SY = tools.tensor_product((-1 * np.identity(2), tools.SX, tools.SX, np.identity(2)))
+        self.SZ = tools.tensor_product((tools.SZ, tools.SZ, np.identity(2), np.identity(2)))
+
+    def single_qubit_operation(self, i: int, op, is_pauli=False):
+        # i indexes the logical qubit
+        # The logical qubit is at index 2 ** (4*i)
+        if is_pauli:
+            if op == tools.SIGMA_X_IND:
+                super().single_qubit_operation(4 * i, tools.SIGMA_Y_IND, is_pauli=is_pauli)
+                super().single_qubit_operation(4 * i + 2, tools.SIGMA_Y_IND, is_pauli=is_pauli)
+            elif op == tools.SIGMA_Y_IND:
+                super().single_qubit_operation(4 * i, -1 * np.identity(2), is_pauli=not is_pauli)
+                super().single_qubit_operation(4 * i + 1, tools.SIGMA_X_IND, is_pauli=is_pauli)
+                super().single_qubit_operation(4 * i + 2, tools.SIGMA_X_IND, is_pauli=is_pauli)
+            elif op == tools.SIGMA_Z_IND:
+                super().single_qubit_operation(4 * i, tools.SIGMA_Z_IND, is_pauli=is_pauli)
+                super().single_qubit_operation(4 * i + 1, tools.SIGMA_Z_IND, is_pauli=is_pauli)
+        else:
+            self.state = single_qubit_operation(self.state, i, op, is_pauli=False, is_ket=self.is_ket, d=16)
+
+    def single_qubit_rotation(self, i: int, angle: float, op):
+        rot = np.cos(angle) * np.identity(16) - op * 1j * np.sin(angle)
+        self.single_qubit_operation(i, rot, is_pauli=False)
+
+    def all_qubit_rotation(self, angle: float, op):
+        for i in range(int(self.N / 4)):
+            self.single_qubit_rotation(i, angle, op)
+
+    def all_qubit_operation(self, op, is_pauli=False):
+        for i in range(int(self.N / 4)):
+            self.single_qubit_operation(i, op, is_pauli=is_pauli)

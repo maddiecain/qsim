@@ -76,7 +76,6 @@ def single_qubit_operation(state, i: int, op, is_pauli=False, is_ket=False, d=2)
 
             state = out.reshape(state.shape, order='F')
         return state
-
     if is_pauli:
         assert d == 2
         return single_qubit_pauli(state, i, op, is_ket=is_ket)
@@ -101,7 +100,7 @@ def single_qubit_operation(state, i: int, op, is_pauli=False, is_ket=False, d=2)
     return state
 
 
-def single_qubit_rotation(state, i: int, angle: float, op, is_ket=False):
+def single_qubit_rotation(state, i: int, angle: float, op, is_ket=False, d=2):
     """ Apply a single qubit rotation exp(-1j * angle * op) to wavefunction
         Input:
             state = input wavefunction (as numpy.ndarray)
@@ -110,11 +109,11 @@ def single_qubit_rotation(state, i: int, angle: float, op, is_ket=False):
             op = unitary pauli operator or basis pauli index
     """
     rot = np.array([[np.cos(angle), 0], [0, np.cos(angle)]]) - op * 1j * np.sin(angle)
-    state = single_qubit_operation(state, i, rot, is_pauli=False, is_ket=is_ket)
+    state = single_qubit_operation(state, i, rot, is_pauli=False, is_ket=is_ket, d=d)
     return state
 
 
-def all_qubit_rotation(state, angle: float, op, is_ket=False):
+def all_qubit_rotation(state, angle: float, op, is_ket=False, d=2):
     """ Apply rotation exp(-1j * angle * pauli) to every qubit
         Input:
             angle = rotation angle
@@ -122,7 +121,7 @@ def all_qubit_rotation(state, angle: float, op, is_ket=False):
     """
     N = int(np.log2(state.shape[0]))
     for i in range(N):
-        state = single_qubit_rotation(state, i, angle, op, is_ket=is_ket)
+        state = single_qubit_rotation(state, i, angle, op, is_ket=is_ket, d=d)
     return state
 
 

@@ -1,12 +1,15 @@
 import unittest
-from qsim.state import State
+from qsim.state import State, TwoQubitCode
 import numpy as np
 from qsim import tools
 
 mixed_state = State(np.array([[.75, 0], [0, .25]]), 1, is_ket=False)
 pure_state = State(np.array([[1, 0]]).T, 1, is_ket=True)
 invalid_state = State(np.array([[-1, 0], [0, 0]]), 1, is_ket=False)
-
+psi = np.zeros((2**4, 1))
+psi[0,0] = 1
+logical_state = TwoQubitCode(psi, 2, is_ket=True)
+normal_state = State(psi, 4, is_ket=True)
 
 class TestState(unittest.TestCase):
     def test_is_pure_state(self):
@@ -55,7 +58,7 @@ class TestState(unittest.TestCase):
         self.assertTrue(state0.state[-1, 0] == -1j)
 
         # Density matrix test
-        psi1 = np.array([tools.tensor_product(np.array([1, 1]), np.array([1, 0])) / 2 ** (1 / 2)]).T
+        psi1 = np.array([tools.tensor_product((np.array([1, 1]), np.array([1, 0]))) / 2 ** (1 / 2)]).T
         state1 = State(tools.outer_product(psi1, psi1), 2, is_ket=False)
 
         # Apply sigma_Y to first qubit
@@ -88,7 +91,7 @@ class TestState(unittest.TestCase):
         self.assertTrue(state0.state[-1, 0] == -1j)
 
         # Test pauli operations with density matrices
-        psi1 = np.array([tools.tensor_product(np.array([1, 1]), np.array([1, 0])) / 2 ** (1 / 2)]).T
+        psi1 = np.array([tools.tensor_product((np.array([1, 1]), np.array([1, 0]))) / 2 ** (1 / 2)]).T
         state1 = State(tools.outer_product(psi1, psi1), 2, is_ket=False)
 
         # Apply sigma_Y to first qubit
@@ -118,7 +121,7 @@ class TestState(unittest.TestCase):
         self.assertTrue(np.abs(np.vdot(state1.state, state0.state) * np.exp(1j * np.pi / 4 * state1.N) - 1) <= 1e-10)
 
     def test_single_qubit_operation(self):
-        psi = np.array([tools.tensor_product(np.array([1, 1]), np.array([1, 0])) / 2 ** (1 / 2)]).T
+        psi = np.array([tools.tensor_product((np.array([1, 1]), np.array([1, 0]))) / 2 ** (1 / 2)]).T
         state0 = State(tools.outer_product(psi, psi), 2, is_ket=False)
         state1 = State(psi, 2, is_ket=True)
 
@@ -133,6 +136,23 @@ class TestState(unittest.TestCase):
         # Test on ket
         state1.single_qubit_operation(0, tools.SY)
         self.assertTrue(np.linalg.norm(state1.state - psi2) <= 1e-10)
+
+    def test_logical_qubit(self):
+        logical_state.single_qubit_operation(1, logical_state.SY, is_pauli=False)
+        normal_state.single_qubit_operation(2, tools.SIGMA_Y_IND, is_pauli=True)
+        normal_state.single_qubit_operation(3, tools.SIGMA_Z_IND, is_pauli=True)
+        # Should get out 1j|0010>
+        self.assertTrue(np.allclose(logical_state.state, normal_state.state))
+        logical_state.single_qubit_operation(0, logical_state.SX, is_pauli=False)
+        normal_state.single_qubit_operation(0, tools.SIGMA_X_IND, is_pauli=True)
+        self.assertTrue(np.allclose(logical_state.state, normal_state.state))
+
+        logical_state.all_qubit_rotation(np.pi / 2, logical_state.SX)
+        normal_state.single_qubit_rotation(0, np.pi / 2, normal_state.SX)
+        normal_state.single_qubit_rotation(2, np.pi / 2, normal_state.SX)
+
+        # Should get 1j|0010>
+        self.assertTrue(np.allclose(logical_state.state, normal_state.state))
 
 
 if __name__ == '__main__':
