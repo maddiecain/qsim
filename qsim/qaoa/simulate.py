@@ -15,7 +15,7 @@ import networkx as nx
 import numpy as np
 from timeit import default_timer as timer
 
-from qsim.state import State
+from qsim.state import *
 from qsim import tools, operations
 from qsim.qaoa import optimize
 
@@ -23,7 +23,8 @@ EVEN_DEGREE_ONLY, ODD_DEGREE_ONLY = 0, 1
 
 
 class SimulateQAOA(object):
-    def __init__(self, graph: nx.Graph, p, m, variational_params=None, noise=None, is_ket=True, node_to_index_map=None):
+    def __init__(self, graph: nx.Graph, p, m, variational_params=None, noise=None, is_ket=True, node_to_index_map=None,
+                 code=State):
         self.graph = graph
         self.variational_params = variational_params
         self.noise = noise
@@ -31,6 +32,7 @@ class SimulateQAOA(object):
         # Depth of circuit
         self.p = p
         self.m = m
+        self.code = code
         self.C = self.create_C(node_to_index_map=node_to_index_map)
         self.is_ket = is_ket
 
@@ -38,14 +40,15 @@ class SimulateQAOA(object):
         r"""
         Generate a vector corresponding to the diagonal of the C Hamiltonian.
         """
-        C = np.zeros([2 ** self.N, 1])
-        SZ = np.asarray([[1], [-1]])
+        C = np.zeros([2 ** (self.code.n*self.N), 1])
+
+        SZ = np.expand_dims(np.diagonal(self.code.SZ), axis=0).T
 
         if node_to_index_map is None:
             node_to_index_map = {q: i for i, q in enumerate(self.graph.nodes)}
 
         for a, b in self.graph.edges:
-            C += self.graph[a][b]['weight'] * operations.two_local_term(SZ, SZ, node_to_index_map[a],
+            C = C + self.graph[a][b]['weight'] * operations.two_local_term(SZ, SZ, node_to_index_map[a],
                                                                         node_to_index_map[b], self.N)
         return C
 
@@ -75,13 +78,13 @@ class SimulateQAOA(object):
         if self.is_ket:
             memo = np.zeros([2 ** self.N, 2 * m * p + 2], dtype=np.complex128)
             memo[:, 0] = np.squeeze(psi.T)
-            s = State(psi, self.N, is_ket=self.is_ket)
+            s = self.code(psi, self.N, is_ket=self.is_ket)
         else:
             memo = np.zeros([2 ** self.N, 2 ** self.N, m * p + 1], dtype=np.complex128)
             memo[..., 0] = np.squeeze(tools.outer_product(psi, psi))
-            s = State(memo[..., 0], self.N, is_ket=self.is_ket)
+            s = self.code(memo[..., 0], self.N, is_ket=self.is_ket)
 
-        tester=State(memo[..., 0], self.N, is_ket=self.is_ket)
+        tester = self.code(memo[..., 0], self.N, is_ket=self.is_ket)
         # Evolving forward
         for j in range(p):
             for i in range(m):
@@ -92,9 +95,9 @@ class SimulateQAOA(object):
                     self.variational_params[i].evolve(tester, param[j][i])
                     # Goes through memo, evolves every density matrix in it, and adds one more in the j*m+i+1 position
                     # corresponding to H_i*p
-                    s0_prenoise = State(memo[..., 0], self.N, is_ket=self.is_ket)
+                    s0_prenoise = self.code(memo[..., 0], self.N, is_ket=self.is_ket)
                     for k in range(m * j + i + 1):
-                        s = State(memo[..., k], self.N, is_ket=self.is_ket)
+                        s = self.code(memo[..., k], self.N, is_ket=self.is_ket)
                         self.variational_params[i].evolve(s, param[j][i])
                         if k == 0:
                             s0_prenoise.state = s.state
@@ -110,7 +113,7 @@ class SimulateQAOA(object):
             s.state = np.array([memo[:, m * p + 1]]).T
         else:
             for k in range(m * p + 1):
-                s = State(memo[..., k], self.N, is_ket=self.is_ket)
+                s = self.code(memo[..., k], self.N, is_ket=self.is_ket)
                 s.state = self.C * s.state
                 memo[..., k] = s.state
 
@@ -133,7 +136,7 @@ class SimulateQAOA(object):
             for r in range(m):
                 # TODO: Make this work for a non-diagonal C
                 if self.is_ket:
-                    s = State(np.array([memo[:, m * (2 * p - q) + 1 - r]]).T, self.N, is_ket=self.is_ket)
+                    s = self.code(np.array([memo[:, m * (2 * p - q) + 1 - r]]).T, self.N, is_ket=self.is_ket)
                     self.variational_params[r].multiply(s)
                     Fgrad[q * m + r] = -2 * np.imag(np.vdot(memo[:, q * m + r], np.squeeze(s.state.T)))
                 else:
@@ -142,11 +145,13 @@ class SimulateQAOA(object):
         return F, Fgrad
 
     def run(self, param):
-        psi = np.ones((2 ** self.N, 1)) / 2 ** (self.N / 2)
+        # TODO: have code that generates start state
         if self.is_ket:
-            s = State(psi, self.N, is_ket=self.is_ket)
+            s = self.code(self.code.equal_superposition(self.N), self.N, is_ket=self.is_ket)
         else:
-            s = State(tools.outer_product(psi, psi), self.N, is_ket=self.is_ket)
+            s = self.code(tools.outer_product(self.code.equal_superposition(self.N),
+                                              self.code.equal_superposition(self.N)), self.N, is_ket=self.is_ket)
+
         for i in range(self.p):
             for j in range(self.m):
                 self.variational_params[j].evolve(s, param[j * self.p + i])
@@ -172,7 +177,6 @@ class SimulateQAOA(object):
 
         # Construct function to be passed to scipy.optimize.minimize
         min_c = min(self.C)
-        max_c = max(self.C)
 
         # check if the node degrees are always odd or even
         degree_list = np.array([deg for (node, deg) in self.graph.degree]) % 2
@@ -246,7 +250,7 @@ class SimulateQAOA(object):
         by evaluating on a grid
         """
         # Ranges of values to search over
-        ranges = [(0, np.pi)] * self.m
+        ranges = [(0, np.pi)] * self.m * self.p
         # Set a reasonable grid size
 
         results = brute(self.run, ranges, Ns=n, full_output=True)

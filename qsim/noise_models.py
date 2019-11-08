@@ -1,7 +1,7 @@
 from typing import Tuple
 from qsim.tools import operations, tools
 import numpy as np
-from qsim.state import State
+from qsim.state import *
 
 
 def depolarize_single_qubit(s, i: int, p: float):

@@ -68,14 +68,11 @@ def is_orthonormal(B):
     return np.array_equal(np.linalg.inv(B) @ B, np.identity(B.shape[-1]))
 
 
-def equal_superposition(N: int, basis=np.array([[[1], [0]], [[0], [1]]]), is_ket=False):
+def equal_superposition(N: int, basis=np.array([[[1], [0]], [[0], [1]]])):
     """Basis is an array of dimension (2, 2**n, 1) containing the two basis states of the code
     comprised of n qubits. N is the number of logical qubits"""
-    plus = basis[0] + basis[1]
-    state = tensor_product([plus] * N)
-    if not is_ket:
-        return outer_product(state, state)
-    return state
+    plus = (basis[0] + basis[1])/np.sqrt(2)
+    return tensor_product([plus] * N)
 
 def multiply(state, operator, is_ket=False):
     # Multiplies a state by an operator

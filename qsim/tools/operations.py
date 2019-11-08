@@ -12,20 +12,16 @@ __all__ = ['two_local_term', 'single_qubit_operation', 'single_qubit_rotation', 
 def two_local_term(op1, op2, ind1, ind2, N):
     r"""Utility function for conveniently create a 2-Local term op1 \otimes op2 among N spins"""
     if ind1 > ind2:
-        return ham_two_local_term(op2, op1, ind2, ind1, N)
-
-    if op1.shape != op2.shape or op1.ndim != 2:
-        raise ValueError('ham_two_local_term: invalid operator input')
+        return two_local_term(op2, op1, ind2, ind1, N)
 
     if ind1 < 0 or ind2 > N - 1:
-        raise ValueError('ham_two_local_term: invalid input indices')
+        raise ValueError('two_local_term: invalid input indices')
 
     if op1.shape[0] == 1 or op1.shape[1] == 1:
         myeye = lambda n: np.ones(np.asarray(op1.shape) ** n)
     else:
         myeye = lambda n: np.eye(np.asarray(op1.shape) ** n)
-
-    return np.kron(myeye(ind1), np.kron(op1, np.kron(myeye(ind2 - ind1 - 1), np.kron(op2, myeye(N - ind2 - 1)))))
+    return tools.tensor_product([myeye(ind1), op1, myeye(ind2-ind1-1), op2, myeye(N-ind2-1)])
 
 
 def single_qubit_operation(state, i: int, op, is_pauli=False, is_ket=False, d=2):
@@ -81,6 +77,7 @@ def single_qubit_operation(state, i: int, op, is_pauli=False, is_ket=False, d=2)
         return single_qubit_pauli(state, i, op, is_ket=is_ket)
     else:
         ind = d ** i
+        n = int(np.log2(d))
         if is_ket:
             # Left multiply
             out = state.reshape((-1, d, ind), order='F').transpose([1, 0, 2])
@@ -88,9 +85,9 @@ def single_qubit_operation(state, i: int, op, is_pauli=False, is_ket=False, d=2)
             out = out.reshape((d, -1, ind), order='F').transpose([1, 0, 2])
         else:
             # Left multiply
-            out = state.reshape((2 ** (N - i - 1), d, -1), order='F').transpose([1, 0, 2])
+            out = state.reshape((2 ** (N - n*i - 1), d, -1), order='F').transpose([1, 0, 2])
             out = np.dot(op, out.reshape((d, -1), order='F'))
-            out = out.reshape((d, 2 ** (N - i - 1), -1), order='F').transpose([1, 0, 2])
+            out = out.reshape((d, 2 ** (N - n*i - 1), -1), order='F').transpose([1, 0, 2])
             # Right multiply
             out = out.reshape(-1, d, ind, order='F').transpose([0, 2, 1])
             out = np.dot(out.reshape((-1, d), order='F'), op.conj().T)
