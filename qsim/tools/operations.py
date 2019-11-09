@@ -85,13 +85,13 @@ def single_qubit_operation(state, i: int, op, is_pauli=False, is_ket=False, d=2)
             out = out.reshape((d, -1, ind), order='F').transpose([1, 0, 2])
         else:
             # Left multiply
-            out = state.reshape((2 ** (N - n*i - 1), d, -1), order='F').transpose([1, 0, 2])
+            out = state.reshape((2 ** (N - n*i - n), d, -1), order='F').transpose([1, 0, 2])
             out = np.dot(op, out.reshape((d, -1), order='F'))
-            out = out.reshape((d, 2 ** (N - n*i - 1), -1), order='F').transpose([1, 0, 2])
+            out = out.reshape((d, 2 ** (N - n*i - n), -1), order='F').transpose([1, 0, 2])
             # Right multiply
-            out = out.reshape(-1, d, ind, order='F').transpose([0, 2, 1])
+            out = out.reshape(2**(2*N-n*(i+1)), d, -1, order='F').transpose([0, 2, 1])
             out = np.dot(out.reshape((-1, d), order='F'), op.conj().T)
-            out = out.reshape((-1, ind, d), order='F').transpose([0, 2, 1])
+            out = out.reshape((2**(2*N-n*(i+1)), -1, d), order='F').transpose([0, 2, 1])
 
         state = out.reshape(state.shape, order='F')
     return state

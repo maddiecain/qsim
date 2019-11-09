@@ -4,6 +4,12 @@ import numpy as np
 from qsim.state import *
 
 
+def random_pauli_noise(s, i, m, theta):
+    # Apply the rotation e^{i*theta*(m-hat * pauli vector)} to qubit i
+    pauli = m[0] * State.SX + m[1] * State.SY + m[2] * State.SZ
+    s.state = operations.single_qubit_rotation(s.state, i, theta, pauli, is_ket=s.is_ket)
+
+
 def depolarize_single_qubit(s, i: int, p: float):
     """ Perform depolarizing channel on the i-th qubit of an input density matrix
 

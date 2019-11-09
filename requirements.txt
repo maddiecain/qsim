@@ -1,3 +1,4 @@
+matplotlib
 networkx
 numpy
 scipy

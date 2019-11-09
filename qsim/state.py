@@ -171,7 +171,7 @@ class JordanFarhiShor(State):
     SZ = tools.tensor_product((tools.SZ, tools.SZ, np.identity(2), np.identity(2)))
     n = 4
     basis = np.array([[[1], [0], [0], [1j], [0], [0], [0], [0], [0], [0], [0], [0], [1j], [0], [0], [1]],
-                      [[1], [0], [0], [0], [0], [-1], [1j], [0], [0], [1j], [0], [-1], [0], [0], [0], [1]]]) / 2
+                      [[0], [0], [0], [0], [0], [-1], [1j], [0], [0], [1j], [0], [-1], [0], [0], [0], [0]]]) / 2
 
     def __init__(self, state, N, is_ket=True):
         # Simple two qubit code with |0>_L = |00>, |1>_L = |11>
