@@ -1,6 +1,6 @@
 from setuptools import setup
 
-with open("README", 'r') as f:
+with open("README.md", 'r') as f:
     long_description = f.read()
 
 setup(
@@ -10,6 +10,5 @@ setup(
     long_description=long_description,
     author='Leo Zhou, Madelyn Cain',
     author_email='leozhou@g.harvard.edu, mcain@g.harvard.edu',
-    packages=['qsim'],
-    install_requires=['numpy>=1.16.4'], #external dependencies
+    packages=['qsim']
 )
