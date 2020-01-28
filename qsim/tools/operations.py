@@ -6,7 +6,41 @@ import numpy as np
 from qsim import tools
 
 __all__ = ['two_local_term', 'single_qubit_operation', 'single_qubit_rotation', 'all_qubit_rotation',
-           'all_qubit_operation']
+           'all_qubit_operation', 'two_qubit_operation']
+
+
+def left_multiply(state, i: int, op, is_ket=False, d=2):
+    # TODO: add Pauli operations
+    N = int(np.log2(state.shape[0]))
+
+    ind = d ** i
+    n = int(np.log2(d))
+    if is_ket:
+        # Left multiply
+        out = state.reshape((-1, d, ind), order='F').transpose([1, 0, 2])
+        out = np.dot(op, out.reshape((d, -1), order='F'))
+        out = out.reshape((d, -1, ind), order='F').transpose([1, 0, 2])
+    else:
+        # Left multiply
+        out = state.reshape((2 ** (N - n * i - n), d, -1), order='F').transpose([1, 0, 2])
+        out = np.dot(op, out.reshape((d, -1), order='F'))
+        out = out.reshape((d, 2 ** (N - n * i - n), -1), order='F').transpose([1, 0, 2])
+
+    state = out.reshape(state.shape, order='F')
+    return state
+
+
+def right_multiply(state, i: int, op, d=2):
+    # TODO: add Pauli operations, add is_ket
+    N = int(np.log2(state.shape[0]))
+    n = int(np.log2(d))
+    # Right multiply
+    out = state.reshape((2 ** (2 * N - n * (i + 1)), d, -1), order='F').transpose([0, 2, 1])
+    out = np.dot(out.reshape((-1, d), order='F'), op.conj().T)
+    out = out.reshape((2 ** (2 * N - n * (i + 1)), -1, d), order='F').transpose([0, 2, 1])
+
+    state = out.reshape(state.shape, order='F')
+    return state
 
 
 def two_local_term(op1, op2, ind1, ind2, N):
@@ -21,7 +55,7 @@ def two_local_term(op1, op2, ind1, ind2, N):
         myeye = lambda n: np.ones(np.asarray(op1.shape) ** n)
     else:
         myeye = lambda n: np.eye(np.asarray(op1.shape) ** n)
-    return tools.tensor_product([myeye(ind1), op1, myeye(ind2-ind1-1), op2, myeye(N-ind2-1)])
+    return tools.tensor_product([myeye(ind1), op1, myeye(ind2 - ind1 - 1), op2, myeye(N - ind2 - 1)])
 
 
 def single_qubit_operation(state, i: int, op, is_pauli=False, is_ket=False, d=2):
@@ -72,6 +106,7 @@ def single_qubit_operation(state, i: int, op, is_pauli=False, is_ket=False, d=2)
 
             state = out.reshape(state.shape, order='F')
         return state
+
     if is_pauli:
         assert d == 2
         return single_qubit_pauli(state, i, op, is_ket=is_ket)
@@ -85,13 +120,13 @@ def single_qubit_operation(state, i: int, op, is_pauli=False, is_ket=False, d=2)
             out = out.reshape((d, -1, ind), order='F').transpose([1, 0, 2])
         else:
             # Left multiply
-            out = state.reshape((2 ** (N - n*i - n), d, -1), order='F').transpose([1, 0, 2])
+            out = state.reshape((2 ** (N - n * i - n), d, -1), order='F').transpose([1, 0, 2])
             out = np.dot(op, out.reshape((d, -1), order='F'))
-            out = out.reshape((d, 2 ** (N - n*i - n), -1), order='F').transpose([1, 0, 2])
+            out = out.reshape((d, 2 ** (N - n * i - n), -1), order='F').transpose([1, 0, 2])
             # Right multiply
-            out = out.reshape(2**(2*N-n*(i+1)), d, -1, order='F').transpose([0, 2, 1])
+            out = out.reshape((2 ** (2 * N - n * (i + 1)), d, -1), order='F').transpose([0, 2, 1])
             out = np.dot(out.reshape((-1, d), order='F'), op.conj().T)
-            out = out.reshape((2**(2*N-n*(i+1)), -1, d), order='F').transpose([0, 2, 1])
+            out = out.reshape((2 ** (2 * N - n * (i + 1)), -1, d), order='F').transpose([0, 2, 1])
 
         state = out.reshape(state.shape, order='F')
     return state
@@ -131,3 +166,7 @@ def all_qubit_operation(state, op, is_pauli=False, is_ket=False):
     for i in range(N):
         state = single_qubit_operation(state, i, op, is_pauli=is_pauli, is_ket=is_ket)
     return state
+
+
+def two_qubit_operation(state, i: int, j: int, op, is_pauli=False, is_ket=False, d=2):
+    pass

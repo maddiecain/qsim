@@ -56,12 +56,27 @@ def hadamard(n=1):
     return tensor_product(h)
 
 
-def trace(a, b=None):
+def identity(n=1):
+    return np.identity(2**n)
+
+
+def trace(a, ind=None):
     # Operator a and basis b
-    # If b is None, trace over all indices
-    if b is None:
+    # If ind is None, trace over all indices
+    if ind is None:
         return np.trace(a)
-    return np.trace(b.T.conjugate() @ a @ b)
+    # Put indices in reverse order
+
+    for k in ind:
+        N = int(np.log2(a.shape[-1]))
+        a = np.reshape(a, [2 ** (N - k - 1), 2 ** (k + 1), 2 ** N], order='C')
+        a[:, 2 ** k:2 ** (k + 1), :] = np.roll(a[:, 2 ** k:2 ** (k + 1), :], shift=-2 ** k, axis=2)
+        a = np.reshape(a, [2 ** (2*N-k-1), 2, 2 ** k], order='C')
+        a = np.delete(a, obj=1, axis=1)
+        a = np.reshape(a, [2 ** (2*N-2-2*k), 2, 2 ** (2*k)], order='C')
+        a = np.sum(a, axis=1)
+        a = np.reshape(a, [2 ** (N - 1), 2 ** (N - 1)], order='C')
+    return np.trace(a)
 
 
 def is_orthonormal(B):
@@ -71,8 +86,9 @@ def is_orthonormal(B):
 def equal_superposition(N: int, basis=np.array([[[1], [0]], [[0], [1]]])):
     """Basis is an array of dimension (2, 2**n, 1) containing the two basis states of the code
     comprised of n qubits. N is the number of logical qubits"""
-    plus = (basis[0] + basis[1])/np.sqrt(2)
+    plus = (basis[0] + basis[1]) / np.sqrt(2)
     return tensor_product([plus] * N)
+
 
 def multiply(state, operator, is_ket=False):
     # Multiplies a state by an operator

@@ -28,6 +28,7 @@ amplitude = noise_models.AmplitudeDampingNoise(0.01)
 n = 500
 dt = np.pi/2/n
 p_len = 10
+# Error rate
 rate = np.linspace(1, 10, p_len)
 depolarize_results = np.zeros((p_len, n))
 amplitude_results = np.zeros((p_len, n))
@@ -44,7 +45,7 @@ for j in [depolarize, amplitude]:
             j.all_qubit_channel(s)
             s.all_qubit_rotation(dt, s.SX)
             s_good.all_qubit_rotation(dt, s.SX)
-            penalty.evolve_penalty(s, dt*ep)
+            penalty.evolve(s, dt*ep)
             # Compute fidelity
             if j == depolarize:
                 depolarize_results[k,i] = np.real(tools.trace(s.state @ s_good.state))
