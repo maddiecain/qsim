@@ -5,8 +5,8 @@ from qsim.state import *
 
 
 class LindbladNoise(object):
-    def __init__(self, povm, weights=None):
-        # POVM and weights are lists
+    def __init__(self, povm=np.array([]), weights=None):
+        # POVM and weights are numpy arrays
         self.povm = povm
         if weights is None:
             self.weights = [1] * povm.shape[-1]
@@ -20,8 +20,8 @@ class LindbladNoise(object):
         a = s * (1 - np.sum(self.weights))
         for j in range(len(self.povm)):
             a = a + self.weights[j] * (operations.single_qubit_operation(s, i, self.povm[j], is_pauli=False) -
-                                       1 / 2 * operations.left_multiply(s, i, self.povm[j].conj().T @ self.povm[j]) - 1 / 2 * operations.right_multiply(
-                        s, i, self.povm[j].conj().T @ self.povm[j]))
+                                       1 / 2 * operations.left_multiply(s, i, self.povm[j].conj().T @ self.povm[j]) -
+                                       1 / 2 * operations.right_multiply(s, i, self.povm[j].conj().T @ self.povm[j]))
         return a
 
 

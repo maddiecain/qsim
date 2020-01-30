@@ -53,17 +53,6 @@ for j in [depolarize, amplitude]:
                 amplitude_results[k,i] = np.real(tools.trace(s.state @  s_good.state))
 
 
-"""for j in range(q):
-    for k in range(p_len):
-        psi = JordanFarhiShor.basis[0]
-        s = JordanFarhiShor(tools.outer_product(psi, psi), N, is_ket=False)
-        s_good = JordanFarhiShor(tools.outer_product(psi, psi), N, is_ket=False)
-        for i in range(n):
-            # Apply noise
-            random_pauli_noise(s, rate[k]*dt)
-            # Compute fidelity
-            results[k,i] = np.real(tools.trace(s.state @ s_good.state))
-"""
 # Plots for depolarizing, amplitude damping, and pauli channels
 # Error probability versus final fidelity
 # No rotation, just penalty

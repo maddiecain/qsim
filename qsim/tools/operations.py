@@ -6,7 +6,7 @@ import numpy as np
 from qsim import tools
 
 __all__ = ['two_local_term', 'single_qubit_operation', 'single_qubit_rotation', 'all_qubit_rotation',
-           'all_qubit_operation', 'two_qubit_operation']
+           'all_qubit_operation']
 
 
 def left_multiply(state, i: int, op, is_ket=False, d=2):
@@ -30,21 +30,25 @@ def left_multiply(state, i: int, op, is_ket=False, d=2):
     return state
 
 
-def right_multiply(state, i: int, op, d=2):
-    # TODO: add Pauli operations, add is_ket
+def right_multiply(state, i: int, op, d=2, is_ket = False):
+    # TODO: add Pauli operations
     N = int(np.log2(state.shape[0]))
     n = int(np.log2(d))
     # Right multiply
-    out = state.reshape((2 ** (2 * N - n * (i + 1)), d, -1), order='F').transpose([0, 2, 1])
-    out = np.dot(out.reshape((-1, d), order='F'), op.conj().T)
-    out = out.reshape((2 ** (2 * N - n * (i + 1)), -1, d), order='F').transpose([0, 2, 1])
+    if is_ket:
+        out = state.reshape((2 ** (2 * N - n * (i + 1)), d, -1), order='F').transpose([0, 2, 1])
+        out = np.dot(out.reshape((-1, d), order='F'), op.conj().T)
+        out = out.reshape((2 ** (2 * N - n * (i + 1)), -1, d), order='F').transpose([0, 2, 1])
 
-    state = out.reshape(state.shape, order='F')
-    return state
+        state = out.reshape(state.shape, order='F')
+        return state
+    else:
+        return state @ op
 
 
 def two_local_term(op1, op2, ind1, ind2, N):
-    r"""Utility function for conveniently create a 2-Local term op1 \otimes op2 among N spins"""
+    # TODO: generalize this for logical codes?
+    r"""Utility function to create a 2-Local term op1 \otimes op2 among N spins"""
     if ind1 > ind2:
         return two_local_term(op2, op1, ind2, ind1, N)
 
@@ -168,5 +172,3 @@ def all_qubit_operation(state, op, is_pauli=False, is_ket=False):
     return state
 
 
-def two_qubit_operation(state, i: int, j: int, op, is_pauli=False, is_ket=False, d=2):
-    pass

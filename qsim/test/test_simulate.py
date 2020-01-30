@@ -34,8 +34,8 @@ sim.variational_params = [variational_parameters.HamiltonianC(sim.C), variationa
 sim_ket.variational_params = [variational_parameters.HamiltonianC(sim.C), variational_parameters.HamiltonianB()]
 sim_noisy.variational_params = [variational_parameters.HamiltonianC(sim.C), variational_parameters.HamiltonianB()]
 
-sim.noise = [noise_models.Noise(), noise_models.Noise()]
-sim_ket.noise = [noise_models.Noise(), noise_models.Noise()]
+sim.noise = [noise_models.LindbladNoise(), noise_models.LindbladNoise()]
+sim_ket.noise = [noise_models.LindbladNoise(), noise_models.LindbladNoise()]
 sim_noisy.noise = [noise_models.DepolarizingNoise(.001), noise_models.DepolarizingNoise(.001)]
 
 
@@ -100,9 +100,58 @@ class TestSimulate(unittest.TestCase):
         sim.p = 3
         sim_noisy.p = 3
         print('Noiseless:')
-        sim.find_parameters_minimize()
+        params = sim.find_parameters_minimize()
+        self.assertTrue(np.allclose(params.x, np.array([0.2042597,0.42876983, 0.52240463,-0.50668092,-0.34297845,-0.16922362])))
         print('Noisy:')
-        sim_noisy.find_parameters_minimize()
+        params = sim_noisy.find_parameters_minimize()
+        self.assertTrue(np.allclose(params.x, np.array([0.20340663,  0.42731716 , 0.52019853, -0.50669633, -0.3437759,  -0.17029569])))
+
+    def test_fix_param_gauge(self):
+        """
+        Test to show optimize.fix_param_gauge() can fully reduce redundancies of QAOA parameters
+        """
+        tolerance = 1e-10
+
+        # original parameters (at p=3) in preferred gauge
+        param = np.array([0.2, 0.4, 0.7, -0.6, -0.5, -0.3])
+
+        # copy of parameters
+        param2 = param.copy()
+
+        # test that gammas are periodic in pi
+        param2[:3] += np.random.choice([1, -1], 3) * np.pi
+        param_fixed = sim.fix_param_gauge(param2)
+        self.assertTrue(np.linalg.norm(param - param_fixed) <= tolerance)
+
+        # test that betas are periodic in pi/2
+        param2[3:] += np.random.choice([1, -1], 3) * np.pi / 2
+        param_fixed = sim.fix_param_gauge(param2)
+        self.assertTrue(np.linalg.norm(param - param_fixed) <= tolerance)
+
+        ## Case: ODD_DEGREE_ONLY
+        # test that shifting gamma_i by (n+1/2)*pi and beta_{j>=i} -> -beta_{j>=i}
+        # gives equivalent parameters
+        param2[2] -= np.pi / 2
+        param2[5] = -param2[5]
+        param_fixed = sim.fix_param_gauge(param2, degree_parity=1)
+        self.assertTrue(np.linalg.norm(param - param_fixed) <= tolerance)
+
+        param2[1] += np.pi * 3 / 2
+        param2[4:] = -param2[4:]
+        param_fixed = sim.fix_param_gauge(param2, degree_parity=1)
+        self.assertTrue(np.linalg.norm(param - param_fixed) <= tolerance)
+
+        # test that two inequivalent parameters should not be the same after fixing gauge
+        param2 = param.copy()
+        param2[0] -= np.pi * 3 / 2
+        param_fixed = sim.fix_param_gauge(param2)
+        self.assertTrue(np.linalg.norm(param - param_fixed) > tolerance)
+
+        ## Case: EVEN_DEGREE_ONLY - test parameters are periodic in pi/2
+        param2 = param.copy()
+        param2 += np.random.choice([1, -1], 6) * np.pi / 2
+        param_fixed = sim.fix_param_gauge(param2, degree_parity=0)
+        self.assertTrue(np.linalg.norm(param - param_fixed) <= tolerance)
 
 if __name__ == '__main__':
     unittest.main()

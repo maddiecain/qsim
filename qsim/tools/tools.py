@@ -66,7 +66,9 @@ def trace(a, ind=None):
     if ind is None:
         return np.trace(a)
     # Put indices in reverse order
-
+    ind = list(ind)
+    ind.sort()
+    # Partial trace
     for k in ind:
         N = int(np.log2(a.shape[-1]))
         a = np.reshape(a, [2 ** (N - k - 1), 2 ** (k + 1), 2 ** N], order='C')

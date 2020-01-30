@@ -17,14 +17,10 @@ from timeit import default_timer as timer
 
 from qsim.state import *
 from qsim import tools, operations
-from qsim.qaoa import optimize
-
-EVEN_DEGREE_ONLY, ODD_DEGREE_ONLY = 0, 1
 
 
 class SimulateQAOA(object):
-    def __init__(self, graph: nx.Graph, p, m, variational_params=None, noise=None, is_ket=True, node_to_index_map=None,
-                 code=State):
+    def __init__(self, graph: nx.Graph, p, m, variational_params=None, noise=None, is_ket=True, code=State):
         self.graph = graph
         self.variational_params = variational_params
         self.noise = noise
@@ -33,10 +29,10 @@ class SimulateQAOA(object):
         self.p = p
         self.m = m
         self.code = code
-        self.C = self.create_C(node_to_index_map=node_to_index_map)
+        self.C = self.create_C()
         self.is_ket = is_ket
 
-    def create_C(self, node_to_index_map=None):
+    def create_C(self):
         r"""
         Generate a vector corresponding to the diagonal of the C Hamiltonian.
         """
@@ -44,8 +40,7 @@ class SimulateQAOA(object):
 
         SZ = np.expand_dims(np.diagonal(self.code.SZ), axis=0).T
 
-        if node_to_index_map is None:
-            node_to_index_map = {q: i for i, q in enumerate(self.graph.nodes)}
+        node_to_index_map = {q: i for i, q in enumerate(self.graph.nodes)}
 
         for a, b in self.graph.edges:
             C = C + self.graph[a][b]['weight'] * operations.two_local_term(SZ, SZ, node_to_index_map[a],
@@ -53,7 +48,7 @@ class SimulateQAOA(object):
         return C
 
     def cost_function(self, s: State):
-        # Returns <C>
+        # Returns <s|C|s>
         if self.is_ket:
             return np.real(np.vdot(s.state, self.C * s.state))
         else:
@@ -160,6 +155,55 @@ class SimulateQAOA(object):
         # Note that the state's defined expectation function won't work here due to the shape of C
         return self.cost_function(s)
 
+    def fix_param_gauge(self, param, gamma_period=np.pi, beta_period=np.pi / 2, degree_parity=None):
+        EVEN_DEGREE_ONLY, ODD_DEGREE_ONLY = 0, 1
+        """ Use symmetries to reduce redundancies in the parameter space
+        This is useful for the interp heuristic that relies on smoothness of parameters
+
+        Based on arXiv:1812.01041 and https://github.com/leologist/GenQAOA/
+        """
+        p = len(param) // 2
+
+        gammas = np.array(param[:p]) / gamma_period
+        betas = -np.array(param[p:2 * p]) / beta_period
+        # We expect gamma to be positive and beta to be negative, so flip sign of beta for now and flip it back later
+
+        # Reduce the parameters to be between [0, 1] * period
+        gammas = gammas % 1
+        betas = betas % 1
+
+        # Use time-reversal symmetry to make first gamma small
+        if (gammas[0] > 0.25 and gammas[0] < 0.5) or gammas[0] > 0.75:
+            gammas = -gammas % 1
+            betas = -betas % 1
+
+        # Further simplification if all nodes have same degree parity
+        if degree_parity == EVEN_DEGREE_ONLY:  # Every node has even degree
+            gamma_period = np.pi / 2
+            gammas = (gammas * 2) % 1
+        elif degree_parity == ODD_DEGREE_ONLY:  # Every node has odd degree
+            for i in range(p):
+                if gammas[i] > 0.5:
+                    gammas[i] = gammas[i] - 0.5
+                    betas[i:] = 1 - betas[i:]
+
+        for i in range(1, p):
+            # try to impose smoothness of gammas
+            delta = gammas[i] - gammas[i - 1]
+            if delta >= 0.5:
+                gammas[i] -= 1
+            elif delta <= -0.5:
+                gammas[i] += 1
+
+            #  Try to impose smoothness of betas
+            delta = betas[i] - betas[i - 1]
+            if delta >= 0.5:
+                betas[i] -= 1
+            elif delta <= -0.5:
+                betas[i] += 1
+
+        return np.concatenate((gammas * gamma_period, -betas * beta_period, param[2 * p:])).tolist()
+
     def find_initial_parameters(self, init_param_guess=None, verbose=False, print_results=True):
         r"""
         Given a graph, find QAOA parameters that minimizes C=\sum_{<ij>} w_{ij} Z_i Z_j
@@ -174,6 +218,8 @@ class SimulateQAOA(object):
             F_p = <C> achieved by the optimum found at depth p
             param_p = 2*p parameters for the QAOA at depth p
         """
+
+
 
         # Construct function to be passed to scipy.optimize.minimize
         min_c = min(self.C)
@@ -229,7 +275,7 @@ class SimulateQAOA(object):
                     f'-- p={p + 1}, F = {results.fun:0.3f} / {min_c}, nfev={results.nfev}, time={end - start:0.2f} s')
 
             Fvals[p] = np.real(results.fun)
-            params[p] = optimize.fix_param_gauge(results.x, degree_parity=parity)
+            params[p] = fix_param_gauge(results.x, degree_parity=parity)
 
         if print_results:
             for p, f_val, param in zip(np.arange(1, self.p + 1), Fvals, params):
@@ -261,6 +307,7 @@ class SimulateQAOA(object):
             print('f_val:', np.real(results[1]))
             print('params:', np.array(results[0]).reshape(self.m, -1))
             print('approximation_ratio:', np.real(results[1]) / min_c[0])
+        return results
 
     def find_parameters_minimize(self, init_param_guess=None, print_results=True):
         """a graph, find QAOA parameters that minimizes C=\sum_{<ij>} w_{ij} Z_i Z_j
@@ -289,3 +336,5 @@ class SimulateQAOA(object):
             print('f_val:', np.real(results.fun))
             print('params:', np.array(results.x).reshape(self.m, -1))
             print('approximation_ratio:', np.real(results.fun) / min_c[0])
+
+        return results

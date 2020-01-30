@@ -49,7 +49,7 @@ def h2():
          ham_term('i', 'i', 'x', 'z', 'z') + ham_term('i', 'x', 'i', 'z', 'z') - ham_term('x', 'i', 'i', 'z', 'z') - \
          ham_term('x', 'z', 'z', 'z', 'z') + ham_term('x', 'z', 'z', 'z', 'z') + ham_term('z', 'x', 'z', 'z', 'z') - \
          ham_term('z', 'z', 'x', 'z', 'z')
-    return hd #+ hc + 1j * (hd @ hc - hc @ hd)
+    return hd + hc + 1j * (hd @ hc - hc @ hd)
 
 
 def h3():
@@ -67,7 +67,7 @@ def h4():
     return ham + ham.conj().T
 
 
-hamiltonian = Hamiltonian(h4())
+hamiltonian = Hamiltonian(h2())
 # h2 params: p_len = 5, kappa = 1, n = 100, rate = np.linspace(4, 100, p_len)
 # Number of qubits
 N = 1
@@ -83,8 +83,8 @@ kappa = 1  # np.linspace(0, 10, 10)
 p_error = 1 * dt
 bit_flip = noise_models.PauliNoise((p_error, 0, 0))
 # Dissipative noise rate
-rate = np.linspace(4, 50, p_len)
-corrective = noise_models.ZProjectionNoise((1, 1))
+rate = np.linspace(0, n, p_len)
+corrective = noise_models.AmplitudeDampingNoise(1)
 
 noisy_results = np.zeros((p_len, n))
 ec_results = np.zeros((p_len, n))
@@ -96,7 +96,7 @@ for j in range(p_len):
     ec = ThreeQubitCodeTwoAncillas(tools.outer_product(ideal, ideal), N, is_ket=False)
     # Ideal state for fidelity calculations
     ideal = ThreeQubitCodeTwoAncillas(tools.outer_product(ideal, ideal), N, is_ket=False)
-    corrective.weights = (rate[j] * dt, rate[j] * dt)
+    corrective.p = rate[j] * dt
     for i in range(n):
         # Evolve density matrix
         # Apply bit flip noise
@@ -113,12 +113,13 @@ for j in range(p_len):
 fig, ax = plt.subplots(1, 1)
 fig.suptitle('Dissipative Error Correction on Bit Flip Code', fontsize=14)
 ax.set_ylabel('Fidelity')
-ax.set_xlabel('Normalized Time')
+ax.set_xlabel('Time')
 t = np.linspace(0, 1, n)
+print(ec_results)
 for l in range(p_len):
     ax.plot(t, ec_results[l], label=rate[l] * dt)
-ax.plot(t, noisy_results[0], color='k', label='None')
+ax.plot(t, noisy_results[0], color='k', label='No Hamiltonian')
 
-plt.legend(loc='upper right', title='Dissipative EC Rate')
+plt.legend(loc='upper right', title='Amplitude Damping Rate')
 
 plt.show()
