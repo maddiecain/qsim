@@ -1,10 +1,10 @@
 import numpy as np
-from qsim import noise_models
-from qsim.qaoa import simulate, variational_parameters
-from qsim import tools, operations
+from qsim.noise import noise_models
+from qsim.qaoa import variational_parameters
+from qsim import tools
 from qsim.state import *
 import matplotlib.pyplot as plt
-import scipy
+import scipy.optimize
 
 
 def rx_circuit(s):
@@ -30,7 +30,7 @@ def plot_rx(k=500):
         psi = JordanFarhiShor.basis[0]
         s = JordanFarhiShor(tools.outer_product(psi, psi), N, is_ket=False)
         # Apply circuit
-        penalty = variational_parameters.HamiltonianPenalty()
+        penalty = variational_parameters.HamiltonianBookatzPenalty()
         rx_circuit(s)
         s_ideal = JordanFarhiShor(tools.outer_product(psi, psi), N, is_ket=False)
         # Apply circuit
@@ -90,7 +90,7 @@ def plot_rx_rx(k=20):
         psi = JordanFarhiShor.basis[0]
         s = JordanFarhiShor(tools.outer_product(psi, psi), N, is_ket=False)
         # Apply circuit
-        penalty = variational_parameters.HamiltonianPenalty()
+        penalty = variational_parameters.HamiltonianBookatzPenalty()
         rx_circuit(s)
         s_ideal = JordanFarhiShor(tools.outer_product(psi, psi), N, is_ket=False)
         # Apply circuit
@@ -148,7 +148,7 @@ def plot_rx_error(k=100):
         psi = JordanFarhiShor.basis[0]
         s = JordanFarhiShor(tools.outer_product(psi, psi), N, is_ket=False)
         # Apply circuit
-        penalty = variational_parameters.HamiltonianPenalty()
+        penalty = variational_parameters.HamiltonianBookatzPenalty()
         rx_circuit(s)
         s_ideal = JordanFarhiShor(tools.outer_product(psi, psi), N, is_ket=False)
         # Apply circuit
@@ -157,7 +157,7 @@ def plot_rx_error(k=100):
             noise_models.random_pauli_noise(s, q, m, theta)
         # random_pauli_noise(s_ideal, m, theta)
         # random_pauli_noise(s_ideal, m, theta)
-        # penalty.evolve_penalty(s, param)
+        penalty.evolve_penalty(s, param)
         return -1 * np.real(tools.trace(s.state @ s_ideal.state))
 
     thetas = []
@@ -239,5 +239,5 @@ def plot_2_alpha(k=20):
 
 
 # plot_2_alpha()
-# plot_rx_rx_error()
+plot_rx_rx()
 

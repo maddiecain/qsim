@@ -39,8 +39,13 @@ class State(object):
         if self.is_ket:
             return np.linalg.norm(self.state) == 1
         else:
-            return (np.allclose(np.imag(np.linalg.eigvals(self.state)), np.zeros(2 ** self.N)) and
-                    np.all(np.real(np.linalg.eigvals(self.state)) >= -1e-10) and
+            print('eigenvalues real?', (np.allclose(np.imag(np.linalg.eigvals(self.state)), np.zeros(2 ** self.N))))
+            print('eigenvalues positive?', np.all(np.real(np.linalg.eigvals(self.state)) >= -1e-10))
+            print('trace 1?', np.isclose(np.absolute(np.trace(self.state)), 1))
+            print('eigvals', np.linalg.eigvals(self.state))
+            print('trace', np.trace(self.state))
+            return (np.allclose(np.imag(np.linalg.eigvals(self.state)), np.zeros(2 ** self.N), atol=1e-06) and
+                    np.all(np.real(np.linalg.eigvals(self.state)) >= -1*1e-05) and
                     np.isclose(np.absolute(np.trace(self.state)), 1))
 
     def change_basis(self, state, basis):
@@ -218,7 +223,8 @@ class JordanFarhiShor(State):
     SZ = tools.tensor_product((tools.SZ, tools.SZ, np.identity(2), np.identity(2)))
     n = 4
     basis = np.array([[[1], [0], [0], [1j], [0], [0], [0], [0], [0], [0], [0], [0], [1j], [0], [0], [1]],
-                      [[0], [0], [0], [0], [0], [-1], [1j], [0], [0], [1j], [0], [-1], [0], [0], [0], [0]]]) / 2
+                      [[0], [0], [0], [0], [0], [-1], [1j], [0], [0], [1j], [-1], [0], [0], [0], [0], [0]]]) / 2
+    stabilizers = np.array([tools.X(4), tools.Z(4), tools.tensor_product([tools.X(), tools.Y(), tools.Z(), tools.identity()])])
 
     def __init__(self, state, N, is_ket=True):
         super().__init__(state, self.n * N, is_ket)
@@ -263,6 +269,7 @@ class ThreeQubitCode(State):
     n = 3
     basis = np.array([[[1], [0], [0], [0], [0], [0], [0], [0], [0]],
                       [[0], [0], [0], [0], [0], [0], [0], [0], [1]]])
+    stabilizers = np.array([tools.tensor_product([tools.Z(2), tools.identity()]), tools.tensor_product([tools.identity(), tools.Z(2)])])
 
     def __init__(self, state, N, is_ket=True):
         super().__init__(state, ThreeQubitCode.n * N, is_ket)
@@ -351,3 +358,46 @@ class ThreeQubitCodeTwoAncillas(State):
 
 
 
+class Marvian(State):
+    SX = tools.tensor_product((tools.SY, np.identity(2), tools.SY, np.identity(2)))
+    SY = tools.tensor_product((-1 * np.identity(2), tools.SX, tools.SX, np.identity(2)))
+    SZ = tools.tensor_product((tools.SZ, tools.SZ, np.identity(2), np.identity(2)))
+    n = 3
+    basis = np.array([[[1], [0], [0], [1j], [0], [0], [0], [0], [0], [0], [0], [0], [1j], [0], [0], [1]],
+                      [[0], [0], [0], [0], [0], [-1], [1j], [0], [0], [1j], [-1], [0], [0], [0], [0], [0]]]) / 2
+    stabilizers = np.array([tools.X(4), tools.Z(4), tools.tensor_product([tools.X(), tools.Y(), tools.Z(), tools.identity()])])
+
+    def __init__(self, state, N, is_ket=True):
+        super().__init__(state, self.n * N, is_ket)
+
+    def single_qubit_operation(self, i: int, op, is_pauli=False):
+        # i indexes the logical qubit
+        if is_pauli:
+            if op == tools.SIGMA_X_IND:
+                super().single_qubit_operation(JordanFarhiShor.n * i, tools.SIGMA_Y_IND, is_pauli=is_pauli)
+                super().single_qubit_operation(JordanFarhiShor.n * i + 2, tools.SIGMA_Y_IND, is_pauli=is_pauli)
+            elif op == tools.SIGMA_Y_IND:
+                super().single_qubit_operation(JordanFarhiShor.n * i, -1 * np.identity(2), is_pauli=not is_pauli)
+                super().single_qubit_operation(JordanFarhiShor.n * i + 1, tools.SIGMA_X_IND, is_pauli=is_pauli)
+                super().single_qubit_operation(JordanFarhiShor.n * i + 2, tools.SIGMA_X_IND, is_pauli=is_pauli)
+            elif op == tools.SIGMA_Z_IND:
+                super().single_qubit_operation(JordanFarhiShor.n * i, tools.SIGMA_Z_IND, is_pauli=is_pauli)
+                super().single_qubit_operation(JordanFarhiShor.n * i + 1, tools.SIGMA_Z_IND, is_pauli=is_pauli)
+        else:
+            self.state = single_qubit_operation(self.state, i, op, is_pauli=False, is_ket=self.is_ket, d=2 ** self.n)
+
+    def single_qubit_rotation(self, i: int, angle: float, op):
+        rot = np.cos(angle) * np.identity(2 ** self.n) - op * 1j * np.sin(angle)
+        self.single_qubit_operation(i, rot, is_pauli=False)
+
+    def all_qubit_rotation(self, angle: float, op):
+        for i in range(int(self.N / JordanFarhiShor.n)):
+            self.single_qubit_rotation(i, angle, op)
+
+    def all_qubit_operation(self, op, is_pauli=False):
+        for i in range(int(self.N / JordanFarhiShor.n)):
+            self.single_qubit_operation(i, op, is_pauli=is_pauli)
+
+    @staticmethod
+    def equal_superposition(N):
+        return tools.equal_superposition(N, basis=JordanFarhiShor.basis)

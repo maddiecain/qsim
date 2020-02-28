@@ -1,6 +1,6 @@
 import numpy as np
-from qsim import noise_models
-from qsim.qaoa import simulate, variational_parameters
+from qsim.noise import noise_models
+from qsim.qaoa import variational_parameters
 from qsim import tools, operations
 from qsim.state import *
 import matplotlib.pyplot as plt
@@ -20,7 +20,7 @@ N = 1
 # Numerically integrate the master equation
 
 ep = 10
-penalty = variational_parameters.HamiltonianPenalty()
+penalty = variational_parameters.HamiltonianBookatzPenalty()
 depolarize = noise_models.DepolarizingNoise(0.01)
 amplitude = noise_models.AmplitudeDampingNoise(0.01)
 #pauli = noise_models.PauliNoise(0.01)

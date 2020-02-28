@@ -1,10 +1,7 @@
-import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-import plot
-from qsim import noise_models
+from qsim.noise import noise_models
 from qsim.qaoa import simulate, variational_parameters
-from qsim import tools
 
 # Construct a known graph
 """G = nx.Graph()
@@ -36,7 +33,7 @@ sim_penalty = simulate.SimulateQAOA(G, p, 3, is_ket=False)
 # Set the default variational operators with X^\otimesN
 sim_penalty.variational_params = [variational_parameters.HamiltonianC(sim.C),
                                      variational_parameters.HamiltonianB(),
-                                     variational_parameters.HamiltonianPenalty()]
+                                     variational_parameters.HamiltonianBookatzPenalty()]
 sim.noise = [noise_models.PauliNoise((.025, 0, 0)), noise_models.PauliNoise((.025, 0, 0))]
 sim_penalty.noise = [noise_models.PauliNoise((.025, 0, 0)), noise_models.PauliNoise((.025, 0, 0)), noise_models.LindbladNoise(np.array([]))]
 

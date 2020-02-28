@@ -1,7 +1,7 @@
 import numpy as np
 import unittest
 
-from qsim import noise_models
+from qsim.noise import noise_models
 from qsim import tools
 from qsim.state import State
 

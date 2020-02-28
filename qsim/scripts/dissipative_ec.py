@@ -1,5 +1,5 @@
 import numpy as np
-from qsim import noise_models
+from qsim.noise import noise_models
 from qsim import tools
 from qsim.state import *
 import matplotlib.pyplot as plt

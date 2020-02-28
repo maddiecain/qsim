@@ -31,5 +31,13 @@ class TestTools(unittest.TestCase):
     def test_is_orthonormal(self):
         self.assertTrue(tools.is_orthonormal(np.array([[1, 0], [0, 1]])))
 
+    def test_fidelity(self):
+        a = np.ones((2,1))/2**.5
+        a[0] = -1 * a[0]
+        b = a * 1j
+        a = tools.outer_product(a, a)
+        b = tools.outer_product(b, b)
+        assert tools.fidelity(a, b) == 1
+
 if __name__ == '__main__':
     unittest.main()

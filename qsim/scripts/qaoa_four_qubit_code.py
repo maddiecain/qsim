@@ -1,6 +1,6 @@
 import networkx as nx
-import plot
-from qsim import noise_models
+from . import plot
+from qsim.noise import noise_models
 from qsim.qaoa import simulate, variational_parameters
 from qsim.state import JordanFarhiShor
 
@@ -26,7 +26,7 @@ sim_penalty = simulate.SimulateQAOA(G, p, 3, is_ket=False, code=JordanFarhiShor)
 # Set the default variational parameters and noise
 sim_penalty.variational_params = [variational_parameters.HamiltonianC(sim_penalty.C),
                                   variational_parameters.HamiltonianB(),
-                                  variational_parameters.HamiltonianPenalty()]
+                                  variational_parameters.HamiltonianBookatzPenalty()]
 sim_penalty.noise = [noise_models.PauliNoise((.025, 0, 0)), noise_models.PauliNoise((.025, 0, 0)),
                      noise_models.PauliNoise((.025, 0, 0))]
 

@@ -1,5 +1,5 @@
 import numpy as np
-from qsim import noise_models
+from qsim.noise import noise_models
 from qsim import tools
 from qsim.state import *
 import matplotlib.pyplot as plt
@@ -35,7 +35,7 @@ ec_results = np.zeros((p_len, 2*n))
 # Initiate simulation
 sim_penalty = simulate.SimulateQAOA(G, 1, 2, is_ket=False, code=TwoQubitCode)
 
-hp = variational_parameters.HamiltonianPenalty()
+hp = variational_parameters.HamiltonianBookatzPenalty()
 hc = variational_parameters.HamiltonianC(sim_penalty.C)
 hb = variational_parameters.HamiltonianB()
 

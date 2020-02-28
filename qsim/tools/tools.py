@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.linalg as sp
 
 # Define global variables for single qubit Pauli operations
 SX = np.array([[0, 1], [1, 0]])
@@ -57,7 +58,7 @@ def hadamard(n=1):
 
 
 def identity(n=1):
-    return np.identity(2**n)
+    return np.identity(2 ** n)
 
 
 def trace(a, ind=None):
@@ -73,9 +74,9 @@ def trace(a, ind=None):
         N = int(np.log2(a.shape[-1]))
         a = np.reshape(a, [2 ** (N - k - 1), 2 ** (k + 1), 2 ** N], order='C')
         a[:, 2 ** k:2 ** (k + 1), :] = np.roll(a[:, 2 ** k:2 ** (k + 1), :], shift=-2 ** k, axis=2)
-        a = np.reshape(a, [2 ** (2*N-k-1), 2, 2 ** k], order='C')
+        a = np.reshape(a, [2 ** (2 * N - k - 1), 2, 2 ** k], order='C')
         a = np.delete(a, obj=1, axis=1)
-        a = np.reshape(a, [2 ** (2*N-2-2*k), 2, 2 ** (2*k)], order='C')
+        a = np.reshape(a, [2 ** (2 * N - 2 - 2 * k), 2, 2 ** (2 * k)], order='C')
         a = np.sum(a, axis=1)
         a = np.reshape(a, [2 ** (N - 1), 2 ** (N - 1)], order='C')
     return np.trace(a)
@@ -98,3 +99,27 @@ def multiply(state, operator, is_ket=False):
         return operator @ state
     else:
         return operator @ state @ operator.conj().T
+
+
+def commutator(A, B):
+    return A @ B - B @ A
+
+
+def anticommutator(A, B):
+    return A @ B + B @ A
+
+
+def is_hermitian(H):
+    return np.allclose(H, H.conj().T)
+
+
+def trace_norm(A, B):
+    return np.trace(A - B, axis1=1, axis2=2)
+
+
+def fidelity(A, B):
+    return np.trace(sp.sqrtm(sp.sqrtm(A) @ B @ sp.sqrtm(A))) ** 2
+
+
+def is_projector(A):
+    return np.allclose(A, A @ A)

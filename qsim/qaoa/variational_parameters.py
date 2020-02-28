@@ -92,7 +92,7 @@ class HamiltonianPauli(Hamiltonian):
             self.operator(n=s.N) @ s.state
 
 
-class HamiltonianPenalty(Hamiltonian):
+class HamiltonianBookatzPenalty(Hamiltonian):
     def __init__(self):
         super().__init__()
 
@@ -113,6 +113,7 @@ class HamiltonianPenalty(Hamiltonian):
                                                               is_ket=s.is_ket, d=2 ** s.n)
             else:
                 # This is just a single qubit operation
+                # TODO: clean this up!
                 state = s.state
                 state = state.reshape((2 ** (s.N - (s.n * i) - 1), 2 ** (s.n * i), -1), order='F').transpose([1, 0, 2])
                 state = np.dot(projector, state.reshape((2 ** s.n, -1), order='F'))

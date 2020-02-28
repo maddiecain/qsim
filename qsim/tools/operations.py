@@ -6,13 +6,12 @@ import numpy as np
 from qsim import tools
 
 __all__ = ['two_local_term', 'single_qubit_operation', 'single_qubit_rotation', 'all_qubit_rotation',
-           'all_qubit_operation']
+           'all_qubit_operation', 'left_multiply', 'right_multiply']
 
 
 def left_multiply(state, i: int, op, is_ket=False, d=2):
     # TODO: add Pauli operations
     N = int(np.log2(state.shape[0]))
-
     ind = d ** i
     n = int(np.log2(d))
     if is_ket:
@@ -43,7 +42,12 @@ def right_multiply(state, i: int, op, d=2, is_ket = False):
         state = out.reshape(state.shape, order='F')
         return state
     else:
-        return state @ op
+        # Right multiply
+        out = state.reshape((2 ** (2 * N - n * (i + 1)), d, -1), order='F').transpose([0, 2, 1])
+        out = np.dot(out.reshape((-1, d), order='F'), op.conj().T)
+        out = out.reshape((2 ** (2 * N - n * (i + 1)), -1, d), order='F').transpose([0, 2, 1])
+        state = out.reshape(state.shape, order='F')
+        return state
 
 
 def two_local_term(op1, op2, ind1, ind2, N):

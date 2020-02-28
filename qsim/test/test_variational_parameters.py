@@ -3,7 +3,6 @@ import networkx as nx
 import unittest
 
 from qsim.qaoa import simulate
-from qsim import noise_models
 from qsim.state import State
 from qsim import tools
 from qsim.qaoa import variational_parameters
