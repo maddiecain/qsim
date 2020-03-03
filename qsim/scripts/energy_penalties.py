@@ -29,7 +29,7 @@ bit_flip = noise_models.PauliNoise((p_error, 0, 0))
 # Dissipative noise rate
 ep = np.linspace(0, 50, p_len)
 
-noisy_results = np.zeros((p_len, 2*n))
+noiY_results = np.zeros((p_len, 2*n))
 ec_results = np.zeros((p_len, 2*n))
 
 # Initiate simulation
@@ -47,7 +47,7 @@ res = sim_penalty.find_parameters_brute(n=5)
 for j in range(p_len):
     ideal = np.sqrt(1/2)*(TwoQubitCode.basis[0]+TwoQubitCode.basis[0])
     # Noise with no error correction
-    noisy = TwoQubitCode(tools.outer_product(ideal, ideal), N, is_ket=False)
+    noiY = TwoQubitCode(tools.outer_product(ideal, ideal), N, is_ket=False)
     # Dissipative error correction
     ec = TwoQubitCode(tools.outer_product(ideal, ideal), N, is_ket=False)
     # Ideal state for fidelity calculations
@@ -57,13 +57,13 @@ for j in range(p_len):
         for i in range(n):
             # Evolve density matrix
             # Apply bit flip noise
-            k.evolve(noisy, dt * res[0][l])
+            k.evolve(noiY, dt * res[0][l])
             k.evolve(ideal, dt * res[0][l])
             hp.evolve(ec, ep * dt)
-            noisy.state = bit_flip.all_qubit_channel(rate)
+            noiY.state = bit_flip.all_qubit_channel(rate)
             ec.state = bit_flip.all_qubit_channel(rate)
             # Compute fidelity
-            noisy_results[j, i] = np.real(tools.trace(noisy.state @ ideal.state, ind = (4, 3)))
+            noiY_results[j, i] = np.real(tools.trace(noiY.state @ ideal.state, ind = (4, 3)))
             ec_results[j, i] = np.real(tools.trace(ec.state @ ideal.state, ind = (4, 3)))
 
 fig, ax = plt.subplots(1, 1)
@@ -73,7 +73,7 @@ ax.set_xlabel('Normalized Time')
 t = np.linspace(0, 1, 2*n)
 for l in range(p_len):
     ax.plot(t, ec_results[l], label=rate[l] * dt)
-ax.plot(t, noisy_results[0], color='k', label='None')
+ax.plot(t, noiY_results[0], color='k', label='None')
 
 plt.legend(loc='upper right', title='Dissipative EC Rate')
 

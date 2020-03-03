@@ -53,7 +53,7 @@ class TestSimulate(unittest.TestCase):
         self.assertTrue(np.abs(F - 1.897011131463) <= 1e-5)
         self.assertTrue(np.all(np.abs(Fgrad - np.array([14.287009047096, -0.796709998210])) <= 1e-5))
 
-        # p = 1 noisy
+        # p = 1 noiY
         F, Fgrad = sim_noisy.variational_grad(np.array([1, 0.5]))
         self.assertTrue(np.abs(F - 1.8869139555669938) <= 1e-5)
         self.assertTrue(np.all(np.abs(Fgrad - np.array([14.21096392, -0.79246937])) <= 1e-5))
@@ -87,7 +87,8 @@ class TestSimulate(unittest.TestCase):
         self.assertAlmostEqual(sim_ket.run([1, .5]), 1.897011131463)
 
         # See how things look with noise
-        self.assertAlmostEqual(sim_noisy.run([1, .5]), 1.8869139555669938)
+        self.assertAlmostEqual(sim_noisy
+                               .run([1, .5]), 1.8869139555669938)
 
         # Higher depth circuit
         params = np.array([-1, 4, 15, 5, -6, 7])
@@ -101,6 +102,7 @@ class TestSimulate(unittest.TestCase):
         sim_noisy.p = 3
         print('Noiseless:')
         params = sim.find_parameters_minimize()
+        print(params.x)
         self.assertTrue(np.allclose(params.x, np.array([0.2042597,0.42876983, 0.52240463,-0.50668092,-0.34297845,-0.16922362])))
         print('Noisy:')
         params = sim_noisy.find_parameters_minimize()

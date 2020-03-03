@@ -10,13 +10,13 @@ def random_pauli_noise(s, scale=.01):
     m = np.random.rand(3)
     m = m/(np.linalg.norm(m))**2
     theta = np.random.normal(scale=.25)
-    pauli = m[0]*State.SX+m[1]*State.SY+m[2]*State.SZ
+    pauli = m[0]*State.X+m[1]*State.Y+m[2]*State.Z
     for p in range(s.N):
         s.state = operations.single_qubit_rotation(s.state, p, theta, pauli, is_ket=s.is_ket)
 
 N = 1
 # Initialize in state |1_L>
-#ideal = s.single_qubit_operation(0, s.SX)
+#ideal = s.single_qubit_operation(0, s.X)
 # Numerically integrate the master equation
 
 ep = 10
@@ -43,8 +43,8 @@ for j in [depolarize, amplitude]:
         for i in range(n):
             # Evolve density matrix
             j.all_qubit_channel(s)
-            s.all_qubit_rotation(dt, s.SX)
-            s_good.all_qubit_rotation(dt, s.SX)
+            s.all_qubit_rotation(dt, s.X)
+            s_good.all_qubit_rotation(dt, s.X)
             penalty.evolve(s, dt*ep)
             # Compute fidelity
             if j == depolarize:
@@ -56,7 +56,7 @@ for j in [depolarize, amplitude]:
 # Plots for depolarizing, amplitude damping, and pauli channels
 # Error probability versus final fidelity
 # No rotation, just penalty
-# SX, SY, SZ rotations
+# X, Y, Z rotations
 # As a function of initial state
 # Trotterized version
 

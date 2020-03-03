@@ -9,12 +9,12 @@ import scipy.optimize
 
 def rx_circuit(s):
     # Apply a X-gate as a rotation over time
-    s.all_qubit_rotation(np.pi / 2, s.SX)
+    s.all_qubit_rotation(np.pi / 2, s.X)
 
 
 def ry_circuit(s):
     # Apply a Y-gate as a rotation over time
-    s.all_qubit_rotation(np.pi / 2, s.SY)
+    s.all_qubit_rotation(np.pi / 2, s.Y)
 
 
 def plot_rx(k=500):

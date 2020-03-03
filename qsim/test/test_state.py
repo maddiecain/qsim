@@ -18,9 +18,6 @@ class TestState(unittest.TestCase):
     def test_is_valid_dmatrix(self):
         self.assertTrue(not invalid_state.is_valid_dmatrix())
 
-    def test_change_basis(self):
-        self.assertTrue(True)
-
     def test_expectation(self):
         self.assertTrue(np.real(mixed_state.expectation(np.identity(mixed_state.state.shape[0]))))
 
@@ -39,22 +36,22 @@ class TestState(unittest.TestCase):
         state0 = State(psi0, N, is_ket=True)
 
         # Apply sigma_y on the second qubit to get 1j|010000>
-        state0.single_qubit_operation(1, tools.SY, is_pauli=False)
+        state0.opY(1)
         self.assertTrue(state0.state[2 ** (N - 2), 0] == 1j)
 
         # Apply sigma_z on the second qubit, state is -1j|010000>
-        state0.single_qubit_operation(1, tools.SZ, is_pauli=False)
+        state0.opZ(1)
         self.assertTrue(state0.state[2 ** (N - 2), 0] == -1j)
 
         # Apply sigma_x on qubit 0 through 3
         for i in range(N):
             if i != 1:
-                state0.single_qubit_operation(i, tools.SX, is_pauli=False)
+                state0.opX(i)
 
         # Vector is still normalized
         self.assertTrue(np.vdot(state0.state, state0.state) == 1)
 
-        # Should be 1j|111111>
+        # Should be -1j|111111>
         self.assertTrue(state0.state[-1, 0] == -1j)
 
         # Density matrix test
@@ -65,24 +62,24 @@ class TestState(unittest.TestCase):
         psi2 = np.array([np.kron([1, -1], [1, 0]) * -1j / 2 ** (1 / 2)]).T
         rho2 = tools.outer_product(psi2, psi2)
 
-        state1.single_qubit_operation(0, tools.SY, is_pauli=False)
+        state1.opY(0)
         self.assertTrue(np.linalg.norm(state1.state - rho2) <= 1e-10)
 
-        # TEST PAULI
+        # Test pauli
         state0 = State(psi0, N, is_ket=True)
 
         # Apply sigma_y on the second qubit to get 1j|010000>
-        state0.single_qubit_operation(1, tools.SIGMA_Y_IND, is_pauli=True)
+        state0.opY(1)
         self.assertTrue(state0.state[2 ** (N - 2), 0] == 1j)
 
         # Apply sigma_z on the second qubit, state is -1j|010000>
-        state0.single_qubit_operation(1, tools.SIGMA_Z_IND, is_pauli=True)
+        state0.opZ(1)
         self.assertTrue(state0.state[2 ** (N - 2), 0] == -1j)
 
         # Apply sigma_x on qubits
         for i in range(N):
             if i != 1:
-                state0.single_qubit_operation(i, tools.SIGMA_X_IND, is_pauli=True)
+                state0.opX(i)
 
         # Vector is still normalized
         self.assertTrue(np.vdot(state0.state, state0.state) == 1)
@@ -98,7 +95,7 @@ class TestState(unittest.TestCase):
         psi2 = np.array([np.kron([1, -1], [1, 0]) * -1j / 2 ** (1 / 2)]).T
         rho2 = tools.outer_product(psi2, psi2)
 
-        state1.single_qubit_operation(0, tools.SIGMA_Y_IND, is_pauli=True)
+        state1.opY(0)
         self.assertTrue(np.linalg.norm(state1.state - rho2) <= 1e-10)
 
     def test_single_qubit_rotation(self):
@@ -110,13 +107,13 @@ class TestState(unittest.TestCase):
 
         # Rotate by exp(-1i*pi/4*sigma_y) every qubit to get |++++++>
         for i in range(state0.N):
-            state0.single_qubit_rotation(i, np.pi / 4, tools.SY)
+            state0.single_qubit_rotation(i, np.pi / 4, tools.Y())
         self.assertAlmostEqual(np.vdot(state0.state, np.ones(2 ** state0.N) / 2 ** (state0.N / 2)), 1)
 
         # Apply exp(-1i*pi/4*sigma_x)*exp(-1i*pi/4*sigma_z) on every qubit to get exp(-1j*N*pi/4)*|000000>
         for i in range(state0.N):
-            state0.single_qubit_rotation(i, np.pi / 4, tools.SZ)
-            state0.single_qubit_rotation(i, np.pi / 4, tools.SX)
+            state0.single_qubit_rotation(i, np.pi / 4, tools.Z())
+            state0.single_qubit_rotation(i, np.pi / 4, tools.X())
 
         self.assertTrue(np.abs(np.vdot(state1.state, state0.state) * np.exp(1j * np.pi / 4 * state1.N) - 1) <= 1e-10)
 
@@ -130,26 +127,26 @@ class TestState(unittest.TestCase):
         rho2 = tools.outer_product(psi2, psi2)
 
         # Apply single qubit operation to dmatrix
-        state0.single_qubit_operation(0, tools.SY)
+        state0.single_qubit_operation(0, tools.Y())
         self.assertTrue(np.linalg.norm(state0.state - rho2) <= 1e-10)
 
         # Test on ket
-        state1.single_qubit_operation(0, tools.SY)
+        state1.single_qubit_operation(0, tools.Y())
         self.assertTrue(np.linalg.norm(state1.state - psi2) <= 1e-10)
 
     def test_logical_qubit(self):
-        logical_state.single_qubit_operation(1, logical_state.SY, is_pauli=False)
-        normal_state.single_qubit_operation(2, tools.SIGMA_Y_IND, is_pauli=True)
-        normal_state.single_qubit_operation(3, tools.SIGMA_Z_IND, is_pauli=True)
+        logical_state.opY(1)
+        normal_state.opY(2)
+        normal_state.opZ(3)
         # Should get out 1j|0010>
         self.assertTrue(np.allclose(logical_state.state, normal_state.state))
-        logical_state.single_qubit_operation(0, logical_state.SX, is_pauli=False)
-        normal_state.single_qubit_operation(0, tools.SIGMA_X_IND, is_pauli=True)
+        logical_state.opX(0)
+        normal_state.opX(1)
         self.assertTrue(np.allclose(logical_state.state, normal_state.state))
 
-        logical_state.all_qubit_rotation(np.pi / 2, logical_state.SX)
-        normal_state.single_qubit_rotation(0, np.pi / 2, normal_state.SX)
-        normal_state.single_qubit_rotation(2, np.pi / 2, normal_state.SX)
+        logical_state.all_qubit_rotation(np.pi / 2, logical_state.X)
+        normal_state.single_qubit_rotation(0, np.pi / 2, normal_state.X)
+        normal_state.single_qubit_rotation(2, np.pi / 2, normal_state.X)
 
         # Should get 1j|0010>
         self.assertTrue(np.allclose(logical_state.state, normal_state.state))

@@ -13,7 +13,7 @@ for e in G.edges:
 # Uncomment to visualize graph
 # plot.draw_graph(G)
 
-p = 2
+p = 1
 sim_code = simulate.SimulateQAOA(G, p, 2, is_ket=False, code=TwoQubitCode)
 
 # Set the default variational operators
@@ -32,5 +32,5 @@ sim_penalty.noise = [noise_models.PauliNoise((.025, 0, 0)), noise_models.PauliNo
                      noise_models.LindbladNoise()]
 
 # Find optimal parameters via brute force search
-# sim_code.find_parameters_brute(n=3)
-sim_penalty.find_parameters_brute(n=5)
+sim_code.find_parameters_brute(n=3)
+sim_penalty.find_parameters_brute(n=3)

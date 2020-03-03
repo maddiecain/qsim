@@ -1,6 +1,6 @@
 # QSim
 
-QSim is a Python package for simulating noisy quantum computers. 
+QSim is a Python package for simulating noiY quantum computers. 
 
 
 ## Installation

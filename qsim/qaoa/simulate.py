@@ -1,6 +1,6 @@
 """
 This is a collection of useful functions that help simulate QAOA efficiently
-Has been used on a standard laptop up to system size N=24
+Has been used on a standard laptop up to Ystem size N=24
 
 Based on arXiv:1812.01041 and https://github.com/leologist/GenQAOA
 
@@ -38,12 +38,12 @@ class SimulateQAOA(object):
         """
         C = np.zeros([2 ** (self.code.n*self.N), 1])
 
-        SZ = np.expand_dims(np.diagonal(self.code.SZ), axis=0).T
+        Z = np.expand_dims(np.diagonal(self.code.Z), axis=0).T
 
         node_to_index_map = {q: i for i, q in enumerate(self.graph.nodes)}
 
         for a, b in self.graph.edges:
-            C = C + self.graph[a][b]['weight'] * operations.two_local_term(SZ, SZ, node_to_index_map[a],
+            C = C + self.graph[a][b]['weight'] * operations.two_local_term(Z, Z, node_to_index_map[a],
                                                                         node_to_index_map[b], self.N)
         return C
 
@@ -63,7 +63,6 @@ class SimulateQAOA(object):
                F = <HamC> for minimization
                Fgrad = gradient of F with respect to param
         """
-        # DO NOT USE SELF.P
         p = int(param.shape[0] / self.m)
         m = self.m
         param = param.reshape(m, p).T
@@ -129,18 +128,17 @@ class SimulateQAOA(object):
         Fgrad = np.zeros(m * p)
         for q in range(p):
             for r in range(m):
-                # TODO: Make this work for a non-diagonal C
                 if self.is_ket:
                     s = self.code(np.array([memo[:, m * (2 * p - q) + 1 - r]]).T, self.N, is_ket=self.is_ket)
                     self.variational_params[r].multiply(s)
                     Fgrad[q * m + r] = -2 * np.imag(np.vdot(memo[:, q * m + r], np.squeeze(s.state.T)))
                 else:
                     Fgrad[q * m + r] = 2 * np.imag(np.trace(memo[..., q * m + r + 1]))
-
         return F, Fgrad
 
     def run(self, param):
         # TODO: have code that generates start state
+        print(param)
         if self.is_ket:
             s = self.code(self.code.equal_superposition(self.N), self.N, is_ket=self.is_ket)
         else:
@@ -157,7 +155,7 @@ class SimulateQAOA(object):
 
     def fix_param_gauge(self, param, gamma_period=np.pi, beta_period=np.pi / 2, degree_parity=None):
         EVEN_DEGREE_ONLY, ODD_DEGREE_ONLY = 0, 1
-        """ Use symmetries to reduce redundancies in the parameter space
+        """ Use Ymmetries to reduce redundancies in the parameter space
         This is useful for the interp heuristic that relies on smoothness of parameters
 
         Based on arXiv:1812.01041 and https://github.com/leologist/GenQAOA/
@@ -172,7 +170,7 @@ class SimulateQAOA(object):
         gammas = gammas % 1
         betas = betas % 1
 
-        # Use time-reversal symmetry to make first gamma small
+        # Use time-reversal Ymmetry to make first gamma small
         if (gammas[0] > 0.25 and gammas[0] < 0.5) or gammas[0] > 0.75:
             gammas = -gammas % 1
             betas = -betas % 1
@@ -228,9 +226,9 @@ class SimulateQAOA(object):
         degree_list = np.array([deg for (node, deg) in self.graph.degree]) % 2
         parity = None
         if np.all(degree_list % 2 == 0):
-            parity = EVEN_DEGREE_ONLY
+            parity = 0
         elif np.all(degree_list % 2 == 1):
-            parity = ODD_DEGREE_ONLY
+            parity = 1
 
         # Start the optimization process incrementally from p = 1 to p_max
         Fvals = self.p * [0]
@@ -275,7 +273,7 @@ class SimulateQAOA(object):
                     f'-- p={p + 1}, F = {results.fun:0.3f} / {min_c}, nfev={results.nfev}, time={end - start:0.2f} s')
 
             Fvals[p] = np.real(results.fun)
-            params[p] = fix_param_gauge(results.x, degree_parity=parity)
+            params[p] = self.fix_param_gauge(results.x, degree_parity=parity)
 
         if print_results:
             for p, f_val, param in zip(np.arange(1, self.p + 1), Fvals, params):

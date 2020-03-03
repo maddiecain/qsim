@@ -86,12 +86,12 @@ bit_flip = noise_models.PauliNoise((p_error, 0, 0))
 rate = np.linspace(0, n, p_len)
 corrective = noise_models.AmplitudeDampingNoise(1)
 
-noisy_results = np.zeros((p_len, n))
+noiY_results = np.zeros((p_len, n))
 ec_results = np.zeros((p_len, n))
 for j in range(p_len):
     ideal = ThreeQubitCodeTwoAncillas.basis[0]
     # Noise with no error correction
-    noisy = ThreeQubitCodeTwoAncillas(tools.outer_product(ideal, ideal), N, is_ket=False)
+    noiY = ThreeQubitCodeTwoAncillas(tools.outer_product(ideal, ideal), N, is_ket=False)
     # Dissipative error correction
     ec = ThreeQubitCodeTwoAncillas(tools.outer_product(ideal, ideal), N, is_ket=False)
     # Ideal state for fidelity calculations
@@ -102,12 +102,12 @@ for j in range(p_len):
         # Apply bit flip noise
         hamiltonian.evolve(ec, dt * kappa)
         for l in range(3):
-            noisy.state = bit_flip.channel(noisy.state, l)
+            noiY.state = bit_flip.channel(noiY.state, l)
             ec.state = bit_flip.channel(ec.state, l)
         for l in range(3, 5):
             ec.state = corrective.channel(ec.state, l)
         # Compute fidelity
-        noisy_results[j, i] = np.real(tools.trace(noisy.state @ ideal.state, ind = (4, 3)))
+        noiY_results[j, i] = np.real(tools.trace(noiY.state @ ideal.state, ind = (4, 3)))
         ec_results[j, i] = np.real(tools.trace(ec.state @ ideal.state, ind = (4, 3)))
 
 fig, ax = plt.subplots(1, 1)
@@ -118,7 +118,7 @@ t = np.linspace(0, 1, n)
 print(ec_results)
 for l in range(p_len):
     ax.plot(t, ec_results[l], label=rate[l] * dt)
-ax.plot(t, noisy_results[0], color='k', label='No Hamiltonian')
+ax.plot(t, noiY_results[0], color='k', label='No Hamiltonian')
 
 plt.legend(loc='upper right', title='Amplitude Damping Rate')
 

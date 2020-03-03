@@ -1,13 +1,6 @@
 import numpy as np
 import scipy.linalg as sp
 
-# Define global variables for single qubit Pauli operations
-SX = np.array([[0, 1], [1, 0]])
-SY = np.array([[0, -1j], [1j, 0]])
-SZ = np.array([[1, 0], [0, -1]])
-
-SIGMA_X_IND, SIGMA_Y_IND, SIGMA_Z_IND = (1, 2, 3)
-
 
 def int_to_binary(n):
     # Converts an integer N to a 2xlog(N) binary array
@@ -29,7 +22,7 @@ def tensor_product(A):
 
 
 def outer_product(a, b):
-    # Full tensor product of tensors a and b, returns |a><b|
+    # Full tensor product of kets a and b, returns |a><b|
     return a @ b.conj().T
 
 
@@ -58,6 +51,7 @@ def hadamard(n=1):
 
 
 def identity(n=1):
+    # Base two identity operation
     return np.identity(2 ** n)
 
 
@@ -123,3 +117,4 @@ def fidelity(A, B):
 
 def is_projector(A):
     return np.allclose(A, A @ A)
+

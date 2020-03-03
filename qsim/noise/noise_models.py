@@ -19,7 +19,8 @@ class LindbladNoise(object):
 
     def channel(self, s, i):
         # Output placeholder
-        #a = s * (1 - np.sum(self.weights))
+        if len(self.povm) == 0:
+            return s
         for j in range(len(self.povm)):
             a = a + self.weights[j] * (operations.single_qubit_operation(s, i, self.povm[j], is_pauli=False))
         return a
@@ -44,8 +45,8 @@ class LindbladNoise(object):
 
 class DepolarizingNoise(LindbladNoise):
     def __init__(self, p):
-        super().__init__(np.array([(np.sqrt(1 - 3 * p)) * np.identity(2), np.sqrt(p) * tools.SX, np.sqrt(p) * tools.SY,
-                                   np.sqrt(p) * tools.SZ]))
+        super().__init__(np.array([(np.sqrt(1 - 3 * p)) * np.identity(2), np.sqrt(p) * tools.X(), np.sqrt(p) * tools.Y(),
+                                   np.sqrt(p) * tools.Z()]))
         self.p = p
 
     def channel(self, s, i):
@@ -56,16 +57,16 @@ class DepolarizingNoise(LindbladNoise):
                         i = zero-based index of qubit location to apply pauli
                         p = probability of depolarization, between 0 and 1
                 """
-        return s * (1 - self.p) + self.p / 3 * (operations.single_qubit_operation(s, i, tools.SIGMA_X_IND, is_pauli=True) +
-                                      operations.single_qubit_operation(s, i, tools.SIGMA_Y_IND, is_pauli=True) +
-                                      operations.single_qubit_operation(s, i, tools.SIGMA_Z_IND, is_pauli=True))
+        return s * (1 - self.p) + self.p / 3 * (operations.single_qubit_operation(s, i, 'X', is_pauli=True) +
+                                      operations.single_qubit_operation(s, i, 'Y', is_pauli=True) +
+                                      operations.single_qubit_operation(s, i, 'Z', is_pauli=True))
 
 
 class PauliNoise(LindbladNoise):
     def __init__(self, p: Tuple[float]):
         super().__init__(self, np.array(
-            [(np.sqrt(1 - np.sum(p))) * np.identity(2), np.sqrt(p[0]) * tools.SX, np.sqrt(p[1]) * tools.SY,
-             np.sqrt(p[2]) * tools.SZ]))
+            [(np.sqrt(1 - np.sum(p))) * np.identity(2), np.sqrt(p[0]) * tools.X(), np.sqrt(p[1]) * tools.Y(),
+             np.sqrt(p[2]) * tools.Z()]))
         assert len(p) == 3
         self.p = p
 
@@ -83,9 +84,9 @@ class PauliNoise(LindbladNoise):
                                    + py * Yi * rho * Yi
                                    + pz * Zi * rho * Zi
         """
-        return (1 - sum(self.p)) * s + (self.p[0] * operations.single_qubit_operation(s, i, tools.SIGMA_X_IND, is_pauli=True)
-                                    + self.p[1] * operations.single_qubit_operation(s, i, tools.SIGMA_Y_IND, is_pauli=True)
-                                    + self.p[2] * operations.single_qubit_operation(s, i, tools.SIGMA_Z_IND, is_pauli=True))
+        return (1 - sum(self.p)) * s + (self.p[0] * operations.single_qubit_operation(s, i, 'X', is_pauli=True)
+                                    + self.p[1] * operations.single_qubit_operation(s, i, 'Y', is_pauli=True)
+                                    + self.p[2] * operations.single_qubit_operation(s, i, 'Z', is_pauli=True))
 
 
 
@@ -124,6 +125,7 @@ class ThermalNoise(LindbladNoise):
     def __init__(self, hamiltonian, temp):
         self.temp = temp 
         self.hamiltonian = hamiltonian
+        # TODO: finish this!
 
 
 

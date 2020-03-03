@@ -6,7 +6,7 @@ import numpy as np
 from qsim import tools
 
 __all__ = ['two_local_term', 'single_qubit_operation', 'single_qubit_rotation', 'all_qubit_rotation',
-           'all_qubit_operation', 'left_multiply', 'right_multiply']
+           'all_qubit_operation', 'left_multiply', 'right_multiply', 'expectation']
 
 
 def left_multiply(state, i: int, op, is_ket=False, d=2):
@@ -51,7 +51,7 @@ def right_multiply(state, i: int, op, d=2, is_ket = False):
 
 
 def two_local_term(op1, op2, ind1, ind2, N):
-    # TODO: generalize this for logical codes?
+    # TODO: get rid of this!
     r"""Utility function to create a 2-Local term op1 \otimes op2 among N spins"""
     if ind1 > ind2:
         return two_local_term(op2, op1, ind2, ind1, N)
@@ -90,25 +90,25 @@ def single_qubit_operation(state, i: int, op, is_pauli=False, is_ket=False, d=2)
         if is_ket:
             # Note index start from the right (sN,...,s3,s2,s1)
             out = state.reshape((-1, 2, ind), order='F').copy()
-            if pauli_ind == tools.SIGMA_X_IND:  # Sigma_X
+            if pauli_ind == 'X':  # Sigma_X
                 out = np.flip(out, 1)
-            elif pauli_ind == tools.SIGMA_Y_IND:  # Sigma_Y
+            elif pauli_ind == 'Y':  # Sigma_Y
                 out = np.flip(out, 1)
                 out[:, 0, :] = -1j * out[:, 0, :]
                 out[:, 1, :] = 1j * out[:, 1, :]
-            elif pauli_ind == tools.SIGMA_Z_IND:  # Sigma_Z
+            elif pauli_ind == 'Z':  # Sigma_Z
                 out[:, 1, :] = -out[:, 1, :]
 
             state = out.reshape(state.shape, order='F')
         else:
             out = state.reshape((-1, 2, 2 ** (N - 1), 2, ind), order='F').copy()
-            if pauli_ind == tools.SIGMA_X_IND:  # Sigma_X
+            if pauli_ind == 'X':  # Sigma_X
                 out = np.flip(out, (1, 3))
-            elif pauli_ind == tools.SIGMA_Y_IND:  # Sigma_Y
+            elif pauli_ind == 'Y':  # Sigma_Y
                 out = np.flip(out, (1, 3))
                 out[:, 1, :, 0, :] = -out[:, 1, :, 0, :]
                 out[:, 0, :, 1, :] = -out[:, 0, :, 1, :]
-            elif pauli_ind == tools.SIGMA_Z_IND:  # Sigma_Z
+            elif pauli_ind == 'Z':  # Sigma_Z
                 out[:, 1, :, 0, :] = -out[:, 1, :, 0, :]
                 out[:, 0, :, 1, :] = -out[:, 0, :, 1, :]
 
@@ -149,8 +149,7 @@ def single_qubit_rotation(state, i: int, angle: float, op, is_ket=False, d=2):
             op = unitary pauli operator or basis pauli index
     """
     rot = np.array([[np.cos(angle), 0], [0, np.cos(angle)]]) - op * 1j * np.sin(angle)
-    state = single_qubit_operation(state, i, rot, is_pauli=False, is_ket=is_ket, d=d)
-    return state
+    return single_qubit_operation(state, i, rot, is_pauli=False, is_ket=is_ket, d=d)
 
 
 def all_qubit_rotation(state, angle: float, op, is_ket=False, d=2):
@@ -174,5 +173,16 @@ def all_qubit_operation(state, op, is_pauli=False, is_ket=False):
     for i in range(N):
         state = single_qubit_operation(state, i, op, is_pauli=is_pauli, is_ket=is_ket)
     return state
+
+
+
+def expectation(state, op, is_ket = False):
+    """
+    :param operator: Operator to take the expectation of in :py:attr:`state`
+     Current support only for `operator.shape==self.state.shape`."""
+    if is_ket:
+        return state.conj().T @ op @ state
+    else:
+        return tools.trace(state @ op)
 
 

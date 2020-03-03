@@ -1,6 +1,7 @@
 from .tools import tools
 from .tools import operations
-
+from . import qaoa
+from . import noise
 # Example Sphinx docstring
 
 """[Summary]

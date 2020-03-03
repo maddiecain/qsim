@@ -5,9 +5,9 @@ the Jordan-Farhi-Shor code (:class:`qsim.state.JordanFarhiShor`). Alternatively,
 can be simulated with :class:`qsim.state.State`.
 Each class contains several helpful class attributes specific to the code it specifies:
 
-:SX: Stores the logical Pauli :math:`\sigma^x_L` matrix
-:SY: Stores the logical Pauli :math:`\sigma^y_L` matrix
-:SZ: Stores the logical Pauli :math:`\sigma^z_L` matrix
+:X: Stores the logical Pauli :math:`\sigma^x_L` matrix
+:Y: Stores the logical Pauli :math:`\sigma^y_L` matrix
+:Z: Stores the logical Pauli :math:`\sigma^z_L` matrix
 :basis: Stores the logical computational basis
 :n: Represents the number of physical qubits to a single logical qubit (:math:`n=1` for physical qubits)
 
