@@ -13,22 +13,24 @@ class LindbladNoise(object):
             self.weights = np.array([1] * povm.shape[0])
         # Assert that it's a valid POVM?
 
-    def all_qubit_channel(self, s: State):
-        for i in range(s.N):
-            s.state = self.channel(s.state, i)
+    def all_qubit_channel(self, s):
+        for i in range(int(np.log2(s.shape[0]))):
+            s = self.channel(s, i)
+        return s
 
     def channel(self, s, i):
         # Output placeholder
         if len(self.povm) == 0:
             return s
+        a = np.zeros(s.shape)
         for j in range(len(self.povm)):
-            a = a + self.weights[j] * (operations.single_qubit_operation(s, i, self.povm[j], is_pauli=False))
+            a = a + self.weights[j] * (operations.single_qubit_operation(s, i, self.povm[j]))
         return a
 
     def liouvillian(self, s, i):
         a = np.zeros(s.shape)
         for j in range(len(self.povm)):
-            a = a + self.weights[j] * (operations.single_qubit_operation(s, i, self.povm[j], is_pauli=False) -
+            a = a + self.weights[j] * (operations.single_qubit_operation(s, i, self.povm[j]) -
                 1 / 2 * operations.left_multiply(s, i, self.povm[j].conj().T @ self.povm[j]) -
                 1 / 2 * operations.right_multiply(s, i, self.povm[j].conj().T @ self.povm[j]))
         return a
@@ -57,9 +59,9 @@ class DepolarizingNoise(LindbladNoise):
                         i = zero-based index of qubit location to apply pauli
                         p = probability of depolarization, between 0 and 1
                 """
-        return s * (1 - self.p) + self.p / 3 * (operations.single_qubit_operation(s, i, 'X', is_pauli=True) +
-                                      operations.single_qubit_operation(s, i, 'Y', is_pauli=True) +
-                                      operations.single_qubit_operation(s, i, 'Z', is_pauli=True))
+        return s * (1 - self.p) + self.p / 3 * (operations.single_qubit_pauli(s, i, 'X') +
+                                      operations.single_qubit_pauli(s, i, 'Y') +
+                                      operations.single_qubit_pauli(s, i, 'Z',))
 
 
 class PauliNoise(LindbladNoise):
@@ -84,9 +86,9 @@ class PauliNoise(LindbladNoise):
                                    + py * Yi * rho * Yi
                                    + pz * Zi * rho * Zi
         """
-        return (1 - sum(self.p)) * s + (self.p[0] * operations.single_qubit_operation(s, i, 'X', is_pauli=True)
-                                    + self.p[1] * operations.single_qubit_operation(s, i, 'Y', is_pauli=True)
-                                    + self.p[2] * operations.single_qubit_operation(s, i, 'Z', is_pauli=True))
+        return (1 - sum(self.p)) * s + (self.p[0] * operations.single_qubit_pauli(s, i, 'X')
+                                    + self.p[1] * operations.single_qubit_pauli(s, i, 'Y')
+                                    + self.p[2] * operations.single_qubit_pauli(s, i, 'Z'))
 
 
 
@@ -108,8 +110,8 @@ class AmplitudeDampingNoise(LindbladNoise):
         K0 = np.array([[1, 0], [0, np.sqrt(1 - self.p)]])
         K1 = np.array([[0, np.sqrt(self.p)], [0, 0]])
 
-        return operations.single_qubit_operation(s, i, K0, is_pauli=False, is_ket=False) + \
-               operations.single_qubit_operation(s, i, K1, is_pauli=False, is_ket=False)
+        return operations.single_qubit_operation(s, i, K0, is_ket=False) + \
+               operations.single_qubit_operation(s, i, K1, is_ket=False)
 
 
 class ZProjectionNoise(LindbladNoise):

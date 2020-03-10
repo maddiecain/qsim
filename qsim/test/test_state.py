@@ -2,7 +2,7 @@ import unittest
 from qsim.state import State, TwoQubitCode
 import numpy as np
 from qsim import tools
-
+import time
 mixed_state = State(np.array([[.75, 0], [0, .25]]), 1, is_ket=False)
 pure_state = State(np.array([[1, 0]]).T, 1, is_ket=True)
 invalid_state = State(np.array([[-1, 0], [0, 0]]), 1, is_ket=False)

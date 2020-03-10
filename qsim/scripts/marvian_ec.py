@@ -1,10 +1,8 @@
 import numpy as np
 import networkx as nx
-from qsim.noise import schrodinger_equation
-from qsim.scripts import plot
-from matplotlib import cm
+from qsim import schrodinger_equation
 from qsim.state import *
-from qsim.tools import tools, operations
+from qsim.tools import tools
 import matplotlib.pyplot as plt
 
 """Model the Hamiltonians H_B and H_C under the presence of a penalty Hamiltonian H_P.
@@ -235,12 +233,12 @@ class MarvianCode(object):
         elif len(b_list.shape) - len(a_list.shape) == 1:
             return np.array([tools.fidelity(a_list @ b_list[i]) for i in range(b_list.shape[0])])
 
-    def run_fidelity(self, s: State, Ep, mag, freq, error='tracenorm', fid_proj=True, fid=True, hc=None, t0=0, tf=50, dt=0.005):
+    def run_fidelity(self, s: State, Ep, mag, freq, error='tracenorm', vec=None, fid_proj=True, fid=True, hc=None, t0=0, tf=50, dt=0.005):
         if hc is None:
             hc = np.zeros([2**self.N, 2**self.N])
-        hfield = self.Hfield(mag=mag)
+        hfield = self.Hfield(mag=mag, vec=vec)
         # Integrate the clean state
-        eq = schrodinger_equation.SchrodingerEquation(lambda t: hc)
+        eq = schrodinger_equation.SchrodingerEquation(lambda t: hc + Ep * self.hp)
         res = eq.run_ode_solver(s.state, t0, tf, dt=dt)
         # Numerically integrates the Schrodinger equation
         eq_error = schrodinger_equation.SchrodingerEquation(lambda t: hc + Ep * self.hp + hfield * np.cos(freq * t))
@@ -265,10 +263,10 @@ class MarvianCode(object):
         elif fid_proj:
             return proj_fidelity, res_error
 
-    def run_expectation(self, s: State, var, Ep, mag, freq, hc=None, t0=0, tf=50, dt=0.005):
+    def run_expectation(self, s: State, var, Ep, mag, freq, vec=None, hc=None, t0=0, tf=50, dt=0.005):
         if hc is None:
             hc = np.zeros([2**self.N, 2**self.N])
-        hfield = self.Hfield(mag=mag)
+        hfield = self.Hfield(mag=mag, vec=vec)
         # Integrate the clean state
         eq = schrodinger_equation.SchrodingerEquation(lambda t: hc)
         res = eq.run_ode_solver(s.state, t0, tf, dt=dt)
@@ -278,8 +276,7 @@ class MarvianCode(object):
         print('Frequency = ', str(freq))
         print('Field Magnitude =', str(mag))
         res_error = eq_error.run_ode_solver(s.state, t0, tf, dt=dt)
-        fidelity = self.trace_fidelity(res, var)
-        return fidelity, res_error
+        return res_error
 
 
     def plot_fidelity_vs_time(self, s:State, Ep, mag, freq, error='tracenorm', hc=None, t0=0, tf=50, dt=0.005):
@@ -287,28 +284,34 @@ class MarvianCode(object):
         gridspec = {'width_ratios': [1, 1]}
         fig, ax = plt.subplots(1, 2, figsize=(12, 6), gridspec_kw=gridspec)
         plt.xlabel(r'$t$')
-        plt.suptitle('Random inhomogeneous magnetic field with ' + r'$\omega = $' + str(freq))
+        plt.suptitle('Random inhomogeneous magnetic field with ' + r'$\omega = $' + str(freq) +r' and $|\vec{B}| = $'+str(mag))
         ax[0].set_ylabel(r'tr$\left(\rho_{ideal}\rho_{field}\right)$')
         ax[1].set_ylabel(r'tr$\left(\Pi_0\rho_{field}\right)$')
         ax[0].set_xlabel(r'$t$')
         ax[1].set_xlabel(r'$t$')
-
+        vec = self.random_field(mag)
+        vec = np.array([[ 8.76269826e-01, -2.51853752e-01,  1.47272535e+00],
+                         [-3.33067976e-01, -1.11800034e+00,  1.86559581e+00],
+                         [-9.24260330e-01,  1.31818790e+00,  1.02415430e+00],
+                         [-3.61232717e-01, -1.02356971e-01, -8.66519649e-01],
+                         [-1.62142404e-02, -1.05085294e+00,  8.93728037e-01],
+                         [ 4.95712048e-01,  1.21526340e+00,  1.76865324e-03]])
         if isinstance(Ep, list):
             for i in range(len(Ep)):
-                fidelity, proj_fidelity, res = self.run_fidelity(s, Ep[i], mag, freq, error=error, fid_proj=True, fid=True, hc=hc, t0=t0, tf=tf, dt=dt)
+                fidelity, proj_fidelity, res = self.run_fidelity(s, Ep[i], mag, freq, vec=vec, error=error, fid_proj=True, fid=True, hc=hc, t0=t0, tf=tf, dt=dt)
                 ax[0].plot(np.linspace(t0, tf, int((tf - t0) / dt)), fidelity)
                 ax[1].plot(np.linspace(t0, tf, int((tf - t0) / dt)), proj_fidelity, label=r'$Ep = $' + str(Ep[i]))
 
         else:
-            fidelity, proj_fidelity, res = self.run_fidelity(s, Ep, mag, freq, error=error, fid_proj=True, fid=True, hc=hc, t0=t0, tf=tf, dt=dt)
+            fidelity, proj_fidelity, res = self.run_fidelity(s, Ep, mag, freq, vec=vec, error=error, fid_proj=True, fid=True, hc=hc, t0=t0, tf=tf, dt=dt)
             ax[0].plot(np.linspace(t0, tf, int((tf - t0) / dt)), fidelity)
             ax[1].plot(np.linspace(t0, tf, int((tf - t0) / dt)), proj_fidelity, label=r'$Ep = $' + str(Ep))
         plt.legend(loc='lower right')
         plt.show()
 
     def plot_frequency_vs_magnitude(self, s: State, Ep, error='tracenorm', n=10, hc=None, t0=0, tf=50):
-        gridspec = {'width_ratios': [1, 1, 0.2]}
-        fig, ax = plt.subplots(1, 3, figsize=(12, 5), gridspec_kw=gridspec)
+        gridspec = {'width_ratios': [1, 0.2, 1, 0.2]}
+        fig, ax = plt.subplots(1, 4, figsize=(14, 5), gridspec_kw=gridspec)
         for ep in Ep:
             mag = np.linspace(0, 10, 15)
             freq = np.linspace(0, np.pi, 15)
@@ -329,18 +332,21 @@ class MarvianCode(object):
 
             surf = ax[0].imshow(fidelities, interpolation='none', aspect="auto",
                                 extent=[mag[0], mag[-1], freq[-1], freq[0]])
-            ax[1].imshow(tracenorm_fidelities, interpolation='none', aspect="auto",
+            plt.sca(ax[0])
+            cax = ax[1]
+            plt.colorbar(surf, cax=cax)
+            surf1 = ax[2].imshow(tracenorm_fidelities, interpolation='none', aspect="auto",
                          extent=[mag[0], mag[-1], freq[-1], freq[0]])
-            plt.sca(ax[1])
+            plt.sca(ax[2])
+            cax = ax[3]
+            plt.colorbar(surf1, cax=cax)  # , shrink=0.5, aspect=5)
             plt.suptitle(r'$E_p = $' + str(ep))
-            ax[1].set_title(r'tr$\left(\Pi_0\rho_{field}\right)$')
+            ax[2].set_title(r'tr$\left(\Pi_0\rho_{field}\right)$')
             ax[0].set_title(r'tr$\left(\rho_{ideal}\rho_{field}\right)$')
             ax[0].set_xlabel(r'$|\vec{B}|$')
             ax[0].set_ylabel(r'$\omega$')
-            ax[1].set_xlabel(r'$|\vec{B}|$')
-            ax[1].set_ylabel(r'$\omega$')
-            cax = ax[2]
-            plt.colorbar(surf, cax=cax)  # , shrink=0.5, aspect=5)
+            ax[2].set_xlabel(r'$|\vec{B}|$')
+            ax[2].set_ylabel(r'$\omega$')
             plt.tight_layout()
             plt.savefig('plot_ep' + str(ep))
         plt.show()
@@ -389,26 +395,36 @@ class MarvianCode(object):
         plt.savefig('fidelity_vs_size')
         plt.show()
 
-    def plot_expectation(self, N, Ep, mag, freq, n=10, hc=None, t0=0, tf=10, dt=0.1):
-        gridspec = {'width_ratios': [1]}
-        fig, ax = plt.subplots(1, 1, figsize=(5, 5), gridspec_kw=gridspec)
-        fidelities = np.zeros(len(N))
-        sizes = np.zeros(len(N))
-        for j in range(len(N)):
-            temp = MarvianCode(N[j][0], N[j][1])
-            var = temp.Z(1)
-            s = State(temp.ZeroL(), temp.N)
-            sizes[j] = temp.N
-            fid = np.zeros(n)
-            for k in range(n):
-                fid[k] = np.median(temp.run_expectation(s, var, Ep, mag, freq, hc=hc, t0=t0, tf=tf, dt=dt)[0])
-            fidelities[j] = np.mean(fid)
-        ax.scatter(sizes, fidelities)
-        ax.plot(sizes, fidelities, c='k')
+    def plot_expectation_vs_time(self, var1, var2, var3, var4, Ep, mag,  freq, vec=None, hc=None, t0=0, tf=50, dt=0.1):
+        gridspec = {'width_ratios': [1, 1]}
+        fig, ax = plt.subplots(2, 2, figsize=(10, 10), gridspec_kw=gridspec)
+        times = np.linspace(t0, tf, int((tf-t0)/dt))
+        vec = np.array([[ 8.76269826e-01, -2.51853752e-01,  1.47272535e+00],
+                         [-3.33067976e-01, -1.11800034e+00,  1.86559581e+00],
+                         [-9.24260330e-01,  1.31818790e+00,  1.02415430e+00],
+                         [-3.61232717e-01, -1.02356971e-01, -8.66519649e-01],
+                         [-1.62142404e-02, -1.05085294e+00,  8.93728037e-01],
+                         [ 4.95712048e-01,  1.21526340e+00,  1.76865324e-03]])
+        for i in mag:
+            res = self.run_expectation(s, var1, Ep, i, freq, vec=vec, hc=hc, t0=t0, tf=tf, dt=dt)
+            ax[0][0].scatter(times, self.trace_fidelity(res, var1))
+            ax[0][0].plot(times, self.trace_fidelity(res, var1), c='k')
+            ax[0][1].scatter(times, self.trace_fidelity(res, var2), label=r'$|\vec{B}| = $'+str(i))
+            ax[0][1].plot(times, self.trace_fidelity(res, var2), c='k')
+            ax[1][0].scatter(times, self.trace_fidelity(res, var3))
+            ax[1][0].plot(times, self.trace_fidelity(res, var3), c='k')
+            ax[1][1].scatter(times, self.trace_fidelity(res, var4))
+            ax[1][1].plot(times, self.trace_fidelity(res, var4), c='k')
 
-        ax.set_ylabel(r'$\langle Z_1 \rangle$)')
-        ax.set_xlabel(r'Number of Logical Qubits $N$')
-        plt.legend(loc='upper left')
+        ax[0][0].set_ylabel(r'$\langle Z_1 \rangle$')
+        ax[0][0].set_xlabel(r'$t$')
+        ax[0][1].set_ylabel(r'$\langle X_1 \rangle$')
+        ax[0][1].set_xlabel(r'$t$')
+        ax[0][1].legend(loc='upper left')
+        ax[1][0].set_ylabel(r'$\langle Z_2 \rangle$')
+        ax[1][0].set_xlabel(r'$t$')
+        ax[1][1].set_ylabel(r'$\langle X_2 \rangle$')
+        ax[1][1].set_xlabel(r'$t$')
         plt.tight_layout()
         plt.savefig('expectation_vs_size')
         plt.show()
@@ -425,11 +441,14 @@ class MarvianCode(object):
 code = MarvianCode(1, 2)
 #code.plot_hp_gap([[2,2]])
 s = State(code.ZeroL(), code.N)
+code.plot_fidelity_vs_time(s, [10,25,50,100], 4, 0, hc=code.hb, tf=10)
+#code.plot_fidelity_vs_time(s, [10,25,50,100], 4, 1, hc=code.hc, tf=10)
+
 #code.plot_fidelity_vs_time(s, [5, 10, 15], 1, 5.359)
 #code.plot_fidelity_vs_ep(s, np.linspace(10, 70, 7), np.linspace(2, 10, 5), 0, n=10)
-code.plot_fidelity_vs_N([[1, 2], [1, 4]], 10, 1, 0, n=1, tf=2)
-code.plot_expectation()
-#code.plot_frequency_vs_magnitude(s, [0], n=10)
+#code.plot_fidelity_vs_N([[1, 2], [1, 4]], 10, 1, 0, n=1, tf=2)
+code.plot_expectation_vs_time(code.Z(1), code.X(1), code.Z(4), code.X(4), 10, np.linspace(4, 6, 1), 0, hc=code.hb)
+code.plot_frequency_vs_magnitude(s, [10], n=10)
 #code.plot_fidelity_vs_time(s, [10, 20], 1, 0)
 
 

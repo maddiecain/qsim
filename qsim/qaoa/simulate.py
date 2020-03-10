@@ -15,43 +15,32 @@ import networkx as nx
 import numpy as np
 from timeit import default_timer as timer
 
+
 from qsim.state import *
-from qsim import tools, operations
+from qsim import tools
+from qsim.hamiltonian import HamiltonianC
 
 
 class SimulateQAOA(object):
-    def __init__(self, graph: nx.Graph, p, m, variational_params=None, noise=None, is_ket=True, code=State):
+    def __init__(self, graph: nx.Graph, p, m, hamiltonian=None, noise=None, is_ket=True, code=State, mis=True):
         self.graph = graph
-        self.variational_params = variational_params
+        self.hamiltonian = hamiltonian
         self.noise = noise
         self.N = self.graph.number_of_nodes()
         # Depth of circuit
         self.p = p
         self.m = m
         self.code = code
-        self.C = self.create_C()
+        self.mis = mis
+        self.C = HamiltonianC(graph, mis=mis, code=self.code).hamiltonian_diag
         self.is_ket = is_ket
-
-    def create_C(self):
-        r"""
-        Generate a vector corresponding to the diagonal of the C Hamiltonian.
-        """
-        C = np.zeros([2 ** (self.code.n*self.N), 1])
-
-        Z = np.expand_dims(np.diagonal(self.code.Z), axis=0).T
-
-        node_to_index_map = {q: i for i, q in enumerate(self.graph.nodes)}
-
-        for a, b in self.graph.edges:
-            C = C + self.graph[a][b]['weight'] * operations.two_local_term(Z, Z, node_to_index_map[a],
-                                                                        node_to_index_map[b], self.N)
-        return C
 
     def cost_function(self, s: State):
         # Returns <s|C|s>
         if self.is_ket:
             return np.real(np.vdot(s.state, self.C * s.state))
         else:
+            # Density matrix
             return np.real(np.squeeze(tools.trace(self.C * s.state)))
 
     def variational_grad(self, param):
@@ -83,21 +72,21 @@ class SimulateQAOA(object):
         for j in range(p):
             for i in range(m):
                 if self.is_ket:
-                    self.variational_params[i].evolve(s, param[j][i])
+                    self.hamiltonian[i].evolve(s, param[j][i])
                     memo[:, j * m + i + 1] = np.squeeze(s.state.T)
                 else:
-                    self.variational_params[i].evolve(tester, param[j][i])
+                    self.hamiltonian[i].evolve(tester, param[j][i])
                     # Goes through memo, evolves every density matrix in it, and adds one more in the j*m+i+1 position
                     # corresponding to H_i*p
                     s0_prenoise = self.code(memo[..., 0], self.N, is_ket=self.is_ket)
                     for k in range(m * j + i + 1):
                         s = self.code(memo[..., k], self.N, is_ket=self.is_ket)
-                        self.variational_params[i].evolve(s, param[j][i])
+                        self.hamiltonian[i].evolve(s, param[j][i])
                         if k == 0:
                             s0_prenoise.state = s.state
                         self.noise[i].all_qubit_channel(s)
                         memo[..., k] = s.state
-                    self.variational_params[i].multiply(s0_prenoise)
+                    self.hamiltonian[i].left_multiply(s0_prenoise)
                     self.noise[i].all_qubit_channel(s0_prenoise)
                     memo[..., m * j + i + 1] = s0_prenoise.state
 
@@ -115,7 +104,7 @@ class SimulateQAOA(object):
         if self.is_ket:
             for k in range(p):
                 for l in range(m):
-                    self.variational_params[m - l - 1].evolve(s, -1 * param[p - k - 1][m - l - 1])
+                    self.hamiltonian[m - l - 1].evolve(s, -1 * param[p - k - 1][m - l - 1])
                     memo[:, (p + k) * m + 2 + l] = np.squeeze(s.state.T)
 
         # Evaluating objective function
@@ -130,25 +119,23 @@ class SimulateQAOA(object):
             for r in range(m):
                 if self.is_ket:
                     s = self.code(np.array([memo[:, m * (2 * p - q) + 1 - r]]).T, self.N, is_ket=self.is_ket)
-                    self.variational_params[r].multiply(s)
+                    self.hamiltonian[r].left_multiply(s)
                     Fgrad[q * m + r] = -2 * np.imag(np.vdot(memo[:, q * m + r], np.squeeze(s.state.T)))
                 else:
                     Fgrad[q * m + r] = 2 * np.imag(np.trace(memo[..., q * m + r + 1]))
         return F, Fgrad
 
     def run(self, param):
-        # TODO: have code that generates start state
-        print(param)
+        psi0 = tools.equal_superposition(self.N, basis=self.code.basis)
         if self.is_ket:
-            s = self.code(self.code.equal_superposition(self.N), self.N, is_ket=self.is_ket)
+            s = self.code(psi0, self.N, is_ket=self.is_ket)
         else:
-            s = self.code(tools.outer_product(self.code.equal_superposition(self.N),
-                                              self.code.equal_superposition(self.N)), self.N, is_ket=self.is_ket)
+            s = self.code(tools.outer_product(psi0, psi0), self.N, is_ket=self.is_ket)
 
         for i in range(self.p):
             for j in range(self.m):
-                self.variational_params[j].evolve(s, param[j * self.p + i])
-                self.noise[j].all_qubit_channel(s)
+                self.hamiltonian[j].evolve(s, param[j * self.p + i])
+                s.state = self.noise[j].all_qubit_channel(s.state)
         # Return the expected value of the cost function
         # Note that the state's defined expectation function won't work here due to the shape of C
         return self.cost_function(s)

@@ -1,7 +1,6 @@
 import numpy as np
 import scipy.linalg as sp
 
-
 def int_to_binary(n):
     # Converts an integer N to a 2xlog(N) binary array
     assert n >= 0
@@ -46,6 +45,7 @@ def Z(n=1):
 
 def hadamard(n=1):
     # Returns a Hadamard transform acting on n qubits
+    # TODO: make this work on different logical codes
     h = [np.array([[1, 1], [1, -1]]) / np.sqrt(2)] * n
     return tensor_product(h)
 
@@ -62,7 +62,7 @@ def trace(a, ind=None):
         return np.trace(a)
     # Put indices in reverse order
     ind = list(ind)
-    ind.sort()
+    ind.sort(reverse=True)
     # Partial trace
     for k in ind:
         N = int(np.log2(a.shape[-1]))

@@ -4,7 +4,7 @@ import numpy as np
 __all__ = ['SchrodingerEquation']
 
 class SchrodingerEquation(object):
-    def __init__(self, hamiltonian):
+    def __init__(self, hamiltonian = None):
         # Hamiltonian is a function of time
         self.hamiltonian = hamiltonian
 

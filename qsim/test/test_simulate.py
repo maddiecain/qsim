@@ -4,7 +4,7 @@ import unittest
 
 from qsim.qaoa import simulate
 from qsim.noise import noise_models
-from qsim.qaoa import variational_parameters
+from qsim import hamiltonian
 
 # Generate sample graph
 g = nx.Graph()
@@ -19,9 +19,9 @@ g.add_edge(1, 5, weight=1)
 g.add_edge(2, 5, weight=1)
 g.add_edge(3, 5, weight=1)
 
-sim = simulate.SimulateQAOA(g, 1, 2, is_ket=False)
-sim_ket = simulate.SimulateQAOA(g, 1, 2, is_ket=True)
-sim_noisy = simulate.SimulateQAOA(g, 1, 2, is_ket=False)
+sim = simulate.SimulateQAOA(g, 1, 2, is_ket=False, mis=False)
+sim_ket = simulate.SimulateQAOA(g, 1, 2, is_ket=True, mis=False)
+sim_noisy = simulate.SimulateQAOA(g, 1, 2, is_ket=False, mis=False)
 sim_noisy.noise = []
 
 
@@ -30,9 +30,9 @@ N = 10
 psi0 = np.zeros((2 ** N, 1))
 psi0[0, 0] = 1
 
-sim.variational_params = [variational_parameters.HamiltonianC(sim.C), variational_parameters.HamiltonianB()]
-sim_ket.variational_params = [variational_parameters.HamiltonianC(sim.C), variational_parameters.HamiltonianB()]
-sim_noisy.variational_params = [variational_parameters.HamiltonianC(sim.C), variational_parameters.HamiltonianB()]
+sim.hamiltonian = [hamiltonian.HamiltonianC(g, mis=False), hamiltonian.HamiltonianB()]
+sim_ket.hamiltonian = [hamiltonian.HamiltonianC(g, mis=False), hamiltonian.HamiltonianB()]
+sim_noisy.hamiltonian = [hamiltonian.HamiltonianC(g, mis=False), hamiltonian.HamiltonianB()]
 
 sim.noise = [noise_models.LindbladNoise(), noise_models.LindbladNoise()]
 sim_ket.noise = [noise_models.LindbladNoise(), noise_models.LindbladNoise()]
@@ -49,7 +49,7 @@ class TestSimulate(unittest.TestCase):
 
         # p = 1 density matrix
         F, Fgrad = sim.variational_grad(np.array([1, 0.5]))
-
+        print(Fgrad)
         self.assertTrue(np.abs(F - 1.897011131463) <= 1e-5)
         self.assertTrue(np.all(np.abs(Fgrad - np.array([14.287009047096, -0.796709998210])) <= 1e-5))
 
@@ -102,7 +102,6 @@ class TestSimulate(unittest.TestCase):
         sim_noisy.p = 3
         print('Noiseless:')
         params = sim.find_parameters_minimize()
-        print(params.x)
         self.assertTrue(np.allclose(params.x, np.array([0.2042597,0.42876983, 0.52240463,-0.50668092,-0.34297845,-0.16922362])))
         print('Noisy:')
         params = sim_noisy.find_parameters_minimize()

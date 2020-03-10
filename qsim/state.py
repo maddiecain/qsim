@@ -46,37 +46,46 @@ class State(object):
             print('eigvals', np.linalg.eigvals(self.state))
             print('trace', np.trace(self.state))
             return (np.allclose(np.imag(np.linalg.eigvals(self.state)), np.zeros(2 ** self.N), atol=1e-06) and
-                    np.all(np.real(np.linalg.eigvals(self.state)) >= -1*1e-05) and
+                    np.all(np.real(np.linalg.eigvals(self.state)) >= -1 * 1e-05) and
                     np.isclose(np.absolute(np.trace(self.state)), 1))
 
-    def opX(self, i: int):
-        self.state = single_qubit_operation(self.state, i, 'X', is_pauli=True, is_ket=self.is_ket, d=2)
+    def opX(self, i: int, overwrite=True):
+        result = single_qubit_pauli(self.state, i, 'X', is_ket=self.is_ket)
+        if overwrite:
+            self.state = result
+        return result
 
-    def opY(self, i: int):
-        self.state = single_qubit_operation(self.state, i, 'Y', is_pauli=True, is_ket=self.is_ket, d=2)
+    def opY(self, i: int, overwrite=True):
+        result = single_qubit_pauli(self.state, i, 'Y', is_ket=self.is_ket)
+        if overwrite:
+            self.state = result
+        return result
 
-    def opZ(self, i: int):
-        self.state = single_qubit_operation(self.state, i, 'Z', is_pauli=True, is_ket=self.is_ket, d=2)
+    def opZ(self, i: int, overwrite=True):
+        result = single_qubit_pauli(self.state, i, 'Z', is_ket=self.is_ket)
+        if overwrite:
+            self.state = result
+        return result
 
-    def hamX(self, i: int):
-        return tools.tensor_product([tools.identity(i), State.X, tools.identity(self.N-i-1)])
+    def rotX(self, i: int, angle, overwrite=True):
+        result = single_qubit_rotation(self.state, i, angle, State.X, is_ket=self.is_ket)
+        if overwrite:
+            self.state = result
+        return result
 
-    def hamY(self, i: int):
-        return tools.tensor_product([tools.identity(i), State.Y, tools.identity(self.N-i-1)])
+    def rotY(self, i: int, angle, overwrite=True):
+        result = single_qubit_rotation(self.state, i, angle, State.Y, is_ket=self.is_ket)
+        if overwrite:
+            self.state = result
+        return result
 
-    def hamZ(self, i: int):
-        return tools.tensor_product([tools.identity(i), State.Z, tools.identity(self.N-i-1)])
+    def rotZ(self, i: int, angle, overwrite=True):
+        result = single_qubit_rotation(self.state, i, angle, State.Z, is_ket=self.is_ket)
+        if overwrite:
+            self.state = result
+        return result
 
-    def rotX(self, i: int, angle):
-        self.state = single_qubit_rotation(self.state, i, angle, State.X, is_ket=self.is_ket)
-
-    def rotY(self, i: int, angle):
-        self.state = single_qubit_rotation(self.state, i, angle, State.Y, is_ket=self.is_ket)
-
-    def rotZ(self, i: int, angle):
-        self.state = single_qubit_rotation(self.state, i, angle, State.Z, is_ket=self.is_ket)
-
-    def single_qubit_operation(self, i: int, op):
+    def single_qubit_operation(self, i: int, op, overwrite=True):
         """Apply a single qubit operation on the input state.
         Efficient implementation using reshape and transpose.
 
@@ -84,36 +93,50 @@ class State(object):
         :type i: Boolean
         :param op: :math:`2 \\times 2` single-qubit operator to be applied
         """
-        self.state = single_qubit_operation(self.state, i, op, is_pauli=False, is_ket=self.is_ket, d=2 ** self.n)
+        result = single_qubit_operation(self.state, i, op, is_ket=self.is_ket, d=2 ** self.n)
+        if overwrite:
+            self.state = result
+        return result
 
-    def single_qubit_rotation(self, i: int, angle: float, op):
+    def single_qubit_rotation(self, i: int, angle: float, op, overwrite=True):
         """Apply a single qubit rotation :math:`\\exp(-i \\theta * op)` to wavefunction
 
         :param i: zero-based index of qubit location to apply pauli
         :param angle: rotation angle
-        :param op: unitary pauli operator or basis pauli index
+        :param op: projection operator or basis pauli index
         """
-        self.state = single_qubit_rotation(self.state, i, angle, op, is_ket=self.is_ket)
+        result = single_qubit_rotation(self.state, i, angle, op, is_ket=self.is_ket, d=2 ** self.n)
+        if overwrite:
+            self.state = result
+        return result
 
-    def all_qubit_rotation(self, angle: float, op):
+    def all_qubit_rotation(self, angle: float, op, overwrite=True):
         """Apply rotation :math:`\\exp(-i \\theta * op)` to every qubit
 
         :param angle: rotation angle :math:`\theta`
         :param op: operation to perform on a single qubit
         """
-        self.state = all_qubit_rotation(self.state, angle, op, is_ket=self.is_ket)
+        result = all_qubit_rotation(self.state, angle, op, is_ket=self.is_ket, d=2 ** self.n)
+        if overwrite:
+            self.state = result
+        return result
 
-    def all_qubit_operation(self, op, is_pauli=False):
+    def all_qubit_operation(self, op, is_pauli=False, overwrite=True):
         """ Apply a qubit operation ``op`` to every qubit
 
+        :param is_pauli: If True, op should be a string denoting the Pauli matrix to apply.
         :param op: :math:`2 \\times 2` single-qubit operator to be applied
         """
-        self.state = all_qubit_operation(self.state, op, is_pauli=is_pauli, is_ket=self.is_ket)
+        result = all_qubit_operation(self.state, op, is_pauli=is_pauli, is_ket=self.is_ket, d=2 ** self.n)
+        if overwrite:
+            self.state = result
+        return result
 
     def expectation(self, operator):
         """
         :param operator: Operator to take the expectation of in :py:attr:`state`
-         Current support only for `operator.shape==self.state.shape`."""
+         It is required that `operator.shape==self.state.shape`."""
+        assert operator.shape == self.state.shape
         return expectation(self.state, operator, is_ket=self.is_ket)
 
     def measurement_outcomes(self, operator):
@@ -170,12 +193,6 @@ class State(object):
         self.state = tools.multiply(self.state, operator, is_ket=self.is_ket)
 
 
-    @staticmethod
-    def equal_superposition(N):
-        """Returns a positive equal superposition of all possible states"""
-        return tools.equal_superposition(N)
-
-
 class TwoQubitCode(State):
     X = tools.tensor_product((tools.X(), tools.identity()))
     Y = tools.tensor_product((tools.Y(), tools.Z()))
@@ -188,40 +205,38 @@ class TwoQubitCode(State):
         # Simple two qubit code with |0>_L = |00>, |1>_L = |11>
         super().__init__(state, TwoQubitCode.n * N, is_ket)
 
-    def opX(self, i: int):
+    def opX(self, i: int, overwrite=True):
         # I_i X_{i+1}
-        super().opX(TwoQubitCode.n * i + 1)
+        return super().opX(TwoQubitCode.n * i + 1, overwrite=overwrite)
 
-    def opY(self, i: int):
+    def opY(self, i: int, overwrite=True):
         # Y_i Z_{i+1}
-        super().opY(TwoQubitCode.n * i)
-        super().opZ(TwoQubitCode.n * i + 1)
+        result = single_qubit_pauli(self.state, TwoQubitCode.n * i, 'Y', is_ket=self.is_ket)
+        result = single_qubit_pauli(result, TwoQubitCode.n * i + 1, 'Z', is_ket=self.is_ket)
+        if overwrite:
+            self.state = result
+        return result
 
-    def opZ(self, i: int):
+
+    def opZ(self, i: int, overwrite=True):
         # Z_i Z_{i+1}
-        super().opZ(TwoQubitCode.n * i)
-        super().opZ(TwoQubitCode.n * i + 1)
+        result = single_qubit_pauli(self.state, TwoQubitCode.n * i, 'Z', is_ket=self.is_ket)
+        result = single_qubit_pauli(result, TwoQubitCode.n * i + 1, 'Z', is_ket=self.is_ket)
+        if overwrite:
+            self.state = result
+        return result
 
-    def single_qubit_operation(self, i: int, op):
-        # i indexes the logical qubit
-        # The logical qubit starts at index 2 ** (2*i)
-        self.state = single_qubit_operation(self.state, i, op, is_pauli=False, is_ket=self.is_ket, d=2 ** self.n)
+    def rotX(self, i: int, angle, overwrite=True):
+        # TODO
+        pass
 
-    def single_qubit_rotation(self, i: int, angle: float, op):
-        rot = np.cos(angle) * np.identity(2 ** TwoQubitCode.n) - op * 1j * np.sin(angle)
-        self.single_qubit_operation(i, rot)
+    def rotY(self, i: int, angle, overwrite=True):
+        # TODO
+        pass
 
-    def all_qubit_rotation(self, angle: float, op):
-        for i in range(int(self.N / TwoQubitCode.n)):
-            self.single_qubit_rotation(i, angle, op)
-
-    def all_qubit_operation(self, op, is_pauli=False):
-        for i in range(int(self.N / TwoQubitCode.n)):
-            self.single_qubit_operation(i, op)
-
-    @staticmethod
-    def equal_superposition(N):
-        return tools.equal_superposition(N, basis=TwoQubitCode.basis)
+    def rotZ(self, i: int, angle, overwrite=True):
+        # TODO
+        pass
 
 
 class JordanFarhiShor(State):
@@ -231,44 +246,34 @@ class JordanFarhiShor(State):
     n = 4
     basis = np.array([[[1], [0], [0], [1j], [0], [0], [0], [0], [0], [0], [0], [0], [1j], [0], [0], [1]],
                       [[0], [0], [0], [0], [0], [-1], [1j], [0], [0], [1j], [-1], [0], [0], [0], [0], [0]]]) / 2
-    stabilizers = np.array([tools.X(4), tools.Z(4), tools.tensor_product([tools.X(), tools.Y(), tools.Z(), tools.identity()])])
+    stabilizers = np.array(
+        [tools.X(4), tools.Z(4), tools.tensor_product([tools.X(), tools.Y(), tools.Z(), tools.identity()])])
     proj = tools.outer_product(basis[0], basis[0]) + tools.outer_product(basis[1], basis[1])
 
     def __init__(self, state, N, is_ket=True):
         super().__init__(state, self.n * N, is_ket)
 
-    def opX(self, i: int):
-        super().opY(JordanFarhiShor.n * i)
-        super().opY(JordanFarhiShor.n * i + 2)
+    def opX(self, i: int, overwrite=True):
+        result = single_qubit_pauli(self.state, JordanFarhiShor.n * i, 'Y', is_ket=self.is_ket)
+        result = single_qubit_pauli(result, JordanFarhiShor.n * i + 2, 'Y', is_ket=self.is_ket)
+        if overwrite:
+            self.state = result
+        return result
 
-    def opY(self, i: int):
-        super().single_qubit_operation(JordanFarhiShor.n * i, -1 * tools.identity(1))
-        super().opX(JordanFarhiShor.n * i + 1)
-        super().opX(JordanFarhiShor.n * i + 2)
+    def opY(self, i: int, overwrite=True):
+        result = -1 * self.state
+        result = single_qubit_pauli(result, JordanFarhiShor.n * i + 1, 'X', is_ket=self.is_ket)
+        result = single_qubit_pauli(result, JordanFarhiShor.n * i + 2, 'X', is_ket=self.is_ket)
+        if overwrite:
+            self.state = result
+        return result
 
-    def opZ(self, i: int):
-        super().opZ(JordanFarhiShor.n * i)
-        super().opZ(JordanFarhiShor.n * i + 1)
-
-    def single_qubit_operation(self, i: int, op):
-        # i indexes the logical qubit
-        self.state = single_qubit_operation(self.state, i, op, is_pauli=False, is_ket=self.is_ket, d=2 ** self.n)
-
-    def single_qubit_rotation(self, i: int, angle: float, op):
-        rot = np.cos(angle) * np.identity(2 ** self.n) - op * 1j * np.sin(angle)
-        self.single_qubit_operation(i, rot)
-
-    def all_qubit_rotation(self, angle: float, op):
-        for i in range(int(self.N / JordanFarhiShor.n)):
-            self.single_qubit_rotation(i, angle, op)
-
-    def all_qubit_operation(self, op, is_pauli=False):
-        for i in range(int(self.N / JordanFarhiShor.n)):
-            self.single_qubit_operation(i, op, is_pauli=is_pauli)
-
-    @staticmethod
-    def equal_superposition(N):
-        return tools.equal_superposition(N, basis=JordanFarhiShor.basis)
+    def opZ(self, i: int, overwrite=True):
+        result = single_qubit_pauli(self.state, JordanFarhiShor.n * i, 'Z', is_ket=self.is_ket)
+        result = single_qubit_pauli(result, JordanFarhiShor.n * i + 1, 'Z', is_ket=self.is_ket)
+        if overwrite:
+            self.state = result
+        return result
 
 
 class ThreeQubitCode(State):
@@ -278,45 +283,36 @@ class ThreeQubitCode(State):
     n = 3
     basis = np.array([[[1], [0], [0], [0], [0], [0], [0], [0], [0]],
                       [[0], [0], [0], [0], [0], [0], [0], [0], [1]]])
-    stabilizers = np.array([tools.tensor_product([tools.Z(2), tools.identity()]), tools.tensor_product([tools.identity(), tools.Z(2)])])
+    proj = tools.outer_product(basis[0], basis[0]) + tools.outer_product(basis[1], basis[1])
+    stabilizers = np.array(
+        [tools.tensor_product([tools.Z(2), tools.identity()]), tools.tensor_product([tools.identity(), tools.Z(2)])])
 
     def __init__(self, state, N, is_ket=True):
         super().__init__(state, ThreeQubitCode.n * N, is_ket)
 
-    def opX(self, i: int):
-        super().opX(ThreeQubitCode.n * i)
-        super().opX(ThreeQubitCode.n * i + 1)
-        super().opX(ThreeQubitCode.n * i + 2)
+    def opX(self, i: int, overwrite=True):
+        result = single_qubit_pauli(self.state, ThreeQubitCode.n * i, 'X', is_ket=self.is_ket)
+        result = single_qubit_pauli(result, ThreeQubitCode.n * i + 1, 'X', is_ket=self.is_ket)
+        result = single_qubit_pauli(result, ThreeQubitCode.n * i + 2, 'X', is_ket=self.is_ket)
+        if overwrite:
+            self.state = result
+        return result
 
-    def opY(self, i: int):
-        super().single_qubit_operation(ThreeQubitCode.n * i, -1 * tools.Y())
-        super().opY(ThreeQubitCode.n * i + 1)
-        super().opY(ThreeQubitCode.n * i + 2)
+    def opY(self, i: int, overwrite=True):
+        result = single_qubit_operation(self.state, ThreeQubitCode.n * i, -1 * tools.Y(), is_ket=self.is_ket)
+        result = single_qubit_pauli(result, ThreeQubitCode.n * i + 1, 'Y', is_ket=self.is_ket)
+        result = single_qubit_pauli(result, ThreeQubitCode.n * i + 2, 'Y', is_ket=self.is_ket)
+        if overwrite:
+            self.state = result
+        return result
 
-    def opZ(self, i: int):
-        super().opZ(ThreeQubitCode.n * i)
-        super().opZ(ThreeQubitCode.n * i + 1)
-        super().opZ(ThreeQubitCode.n * i + 2)
-
-    def single_qubit_operation(self, i: int, op):
-        # i indexes the logical qubit
-        self.state = single_qubit_operation(self.state, i, op, is_pauli=False, is_ket=self.is_ket, d=2 ** self.n)
-
-    def single_qubit_rotation(self, i: int, angle: float, op):
-        rot = np.cos(angle) * np.identity(2 ** ThreeQubitCode.n) - op * 1j * np.sin(angle)
-        self.single_qubit_operation(i, rot)
-
-    def all_qubit_rotation(self, angle: float, op):
-        for i in range(int(self.N / ThreeQubitCode.n)):
-            self.single_qubit_rotation(i, angle, op)
-
-    def all_qubit_operation(self, op, is_pauli=False):
-        for i in range(int(self.N / ThreeQubitCode.n)):
-            self.single_qubit_operation(i, op, is_pauli=is_pauli)
-
-    @staticmethod
-    def equal_superposition(N):
-        return tools.equal_superposition(N, basis=ThreeQubitCode.basis)
+    def opZ(self, i: int, overwrite=True):
+        result = single_qubit_pauli(self.state, ThreeQubitCode.n * i, 'Z', is_ket=self.is_ket)
+        result = single_qubit_pauli(result, ThreeQubitCode.n * i + 1, 'Z', is_ket=self.is_ket)
+        result = single_qubit_pauli(result, ThreeQubitCode.n * i + 2, 'Z', is_ket=self.is_ket)
+        if overwrite:
+            self.state = result
+        return result
 
 
 class ThreeQubitCodeTwoAncillas(State):
@@ -324,47 +320,35 @@ class ThreeQubitCodeTwoAncillas(State):
     Y = -1 * tools.tensor_product((tools.Y(), tools.Y(), tools.Y(), tools.identity(), tools.identity()))
     Z = tools.tensor_product((tools.Z(), tools.Z(), tools.Z(), tools.identity(), tools.identity()))
     n = 5
-    basis = np.array([[[0]]*(2**5),
-                      [[0]]*(2**5)])
-    basis[0,28] = 1
-    basis[1,1] = 1
+    basis = np.array([[[0]] * (2 ** n),
+                      [[0]] * (2 ** n)])
+    basis[0, 28] = 1
+    basis[1, 1] = 1
+    proj = tools.outer_product(basis[0], basis[0]) + tools.outer_product(basis[1], basis[1])
 
     def __init__(self, state, N, is_ket=True):
         super().__init__(state, ThreeQubitCodeTwoAncillas.n * N, is_ket)
 
-    def opX(self, i: int):
-        super().opX(ThreeQubitCodeTwoAncillas.n * i)
-        super().opX(ThreeQubitCodeTwoAncillas.n * i + 1)
-        super().opX(ThreeQubitCodeTwoAncillas.n * i + 2)
+    def opX(self, i: int, overwrite=True):
+        result = single_qubit_pauli(self.state, ThreeQubitCodeTwoAncillas.n * i, 'X', is_ket=self.is_ket)
+        result = single_qubit_pauli(result, ThreeQubitCodeTwoAncillas.n * i + 1, 'X', is_ket=self.is_ket)
+        result = single_qubit_pauli(result, ThreeQubitCodeTwoAncillas.n * i + 2, 'X', is_ket=self.is_ket)
+        if overwrite:
+            self.state = result
+        return result
 
-    def opY(self, i: int):
-        super().single_qubit_operation(ThreeQubitCodeTwoAncillas.n * i, -1 * tools.Y())
-        super().opY(ThreeQubitCodeTwoAncillas.n * i + 1)
-        super().opY(ThreeQubitCodeTwoAncillas.n * i + 2)
+    def opY(self, i: int, overwrite=True):
+        result = single_qubit_operation(self.state, ThreeQubitCodeTwoAncillas.n * i, -1 * tools.Y(), is_ket=self.is_ket)
+        result = single_qubit_pauli(result, ThreeQubitCodeTwoAncillas.n * i + 1, 'Y', is_ket=self.is_ket)
+        result = single_qubit_pauli(result, ThreeQubitCodeTwoAncillas.n * i + 2, 'Y', is_ket=self.is_ket)
+        if overwrite:
+            self.state = result
+        return result
 
-    def opZ(self, i: int):
-        super().opZ(ThreeQubitCodeTwoAncillas.n * i)
-        super().opZ(ThreeQubitCodeTwoAncillas.n * i + 1)
-        super().opZ(ThreeQubitCodeTwoAncillas.n * i + 2)
-
-    def single_qubit_operation(self, i: int, op):
-        # i indexes the logical qubit
-        self.state = single_qubit_operation(self.state, i, op, is_pauli=False, is_ket=self.is_ket, d=2 ** self.n)
-
-    def single_qubit_rotation(self, i: int, angle: float, op):
-        rot = np.cos(angle) * np.identity(2 ** ThreeQubitCodeTwoAncillas.n) - op * 1j * np.sin(angle)
-        self.single_qubit_operation(i, rot)
-
-    def all_qubit_rotation(self, angle: float, op):
-        for i in range(int(self.N / ThreeQubitCodeTwoAncillas.n)):
-            self.single_qubit_rotation(i, angle, op)
-
-    def all_qubit_operation(self, op, is_pauli=False):
-        for i in range(int(self.N / ThreeQubitCodeTwoAncillas.n)):
-            self.single_qubit_operation(i, op, is_pauli=is_pauli)
-
-    @staticmethod
-    def equal_superposition(N):
-        return tools.equal_superposition(N, basis=ThreeQubitCodeTwoAncillas.basis)
-
-
+    def opZ(self, i: int, overwrite=True):
+        result = single_qubit_pauli(self.state, ThreeQubitCodeTwoAncillas.n * i, 'Z', is_ket=self.is_ket)
+        result = single_qubit_pauli(result, ThreeQubitCodeTwoAncillas.n * i + 1, 'Z', is_ket=self.is_ket)
+        result = single_qubit_pauli(result, ThreeQubitCodeTwoAncillas.n * i + 2, 'Z', is_ket=self.is_ket)
+        if overwrite:
+            self.state = result
+        return result

@@ -1,8 +1,9 @@
 import numpy as np
 import networkx as nx
-from qsim.noise import master_equation, noise_models
+from qsim.noise import noise_models
 from qsim.qaoa.simulate import SimulateQAOA
 from qsim.state import *
+from qsim import master_equation
 from qsim.tools import tools
 import matplotlib.pyplot as plt
 
@@ -25,8 +26,8 @@ for e in G.edges:
     G[e[0]][e[1]]['weight'] = 1
 fig = plt.figure()
 qaoa = SimulateQAOA(G, 1, 2, is_ket=False, code=JordanFarhiShor)
-psi0 = tools.outer_product(JordanFarhiShor.equal_superposition(qaoa.N),
-                           JordanFarhiShor.equal_superposition(qaoa.N))
+psi0 = tools.equal_superposition(qaoa.N, basis=JordanFarhiShor.basis)
+psi0 = tools.outer_product(psi0, psi0)
 s = JordanFarhiShor(psi0, qaoa.N, is_ket=qaoa.is_ket)
 h = lambda t: tools.identity(qaoa.N * JordanFarhiShor.n) * qaoa.C + penalty(1, qaoa.N)
 m = master_equation.MasterEquation(h, noise_models.LindbladNoise())

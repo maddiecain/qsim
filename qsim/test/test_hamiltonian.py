@@ -4,8 +4,7 @@ import unittest
 
 from qsim.qaoa import simulate
 from qsim.state import State
-from qsim import tools
-from qsim.qaoa import variational_parameters
+from qsim import tools, hamiltonian
 
 # Generate sample graph
 g = nx.Graph()
@@ -20,29 +19,29 @@ g.add_edge(1, 5, weight=1)
 g.add_edge(2, 5, weight=1)
 g.add_edge(3, 5, weight=1)
 
-sim = simulate.SimulateQAOA(g, 1, 2, is_ket=False)
+sim = simulate.SimulateQAOA(g, 1, 2, is_ket=False, mis=False)
 
 N = 10
 # Initialize in |000000>
 psi0 = np.zeros((2 ** N, 1))
 psi0[0, 0] = 1
 
-sim.variational_params = [variational_parameters.HamiltonianC(sim.C), variational_parameters.HamiltonianB()]
+sim.hamiltonian = [hamiltonian.HamiltonianC(g, mis=False), hamiltonian.HamiltonianB()]
 
-class TestVariationalParameters(unittest.TestCase):
+class TestHamiltonian(unittest.TestCase):
     def test_evolve_B(self):
         state0 = State(psi0, N, is_ket=True)
         state1 = State(tools.outer_product(psi0, psi0), N, is_ket=False)
 
         # Evolve by e^{-i (\pi/2) \sum_i X_i}
-        sim.variational_params[1].evolve(state0, np.pi / 2)
+        sim.hamiltonian[1].evolve(state0, np.pi / 2)
 
         # Should get (-1j)^N |111111>
         self.assertTrue(np.vdot(state0.state, state0.state) == 1)
         self.assertTrue(state0.state[-1,0] == (-1j) ** N)
 
         # Evolve by e^{-i (\pi/2) \sum_i X_i}
-        sim.variational_params[1].evolve(state1, np.pi / 2)
+        sim.hamiltonian[1].evolve(state1, np.pi / 2)
 
         # Should get (-1j)^N |111111>
         self.assertTrue(state1.is_valid_dmatrix)
@@ -51,7 +50,7 @@ class TestVariationalParameters(unittest.TestCase):
     def test_multiply_B(self):
         state0 = State(psi0, N, is_ket=True)
 
-        sim.variational_params[1].multiply(state0)
+        sim.hamiltonian[1].left_multiply(state0)
         psi1 = np.zeros((2 ** N, 1))
         for i in range(N):
             psi1[2 ** i, 0] = 1
