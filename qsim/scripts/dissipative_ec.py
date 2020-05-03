@@ -22,11 +22,11 @@ def ham_term(*argv):
 
 def h1():
     ham = (tools.identity(5) + ham_term('z', 'z', 'i', 'i', 'i')) @ (
-                ham_term('i', 'z', 'z', 'i', 'i') - tools.identity(5)) @ \
+            ham_term('i', 'z', 'z', 'i', 'i') - tools.identity(5)) @ \
           ham_term('i', 'i', 'x', 'i', 'x') + (tools.identity(5) + ham_term('z', 'i', 'z', 'i', 'i')) @ (
-                      ham_term('i', 'z', 'z', 'i', 'i') - tools.identity(5)) @ \
+                  ham_term('i', 'z', 'z', 'i', 'i') - tools.identity(5)) @ \
           ham_term('i', 'x', 'i', 'x', 'x') + (tools.identity(5) + ham_term('i', 'z', 'z', 'i', 'i')) @ (
-                      ham_term('z', 'z', 'i', 'i', 'i') - tools.identity(5)) @ \
+                  ham_term('z', 'z', 'i', 'i', 'i') - tools.identity(5)) @ \
           ham_term('x', 'i', 'i', 'x', 'i')
     return ham + ham.conj().T
 
@@ -53,16 +53,18 @@ def h2():
 
 
 def h3():
-    return -1 * ham_term('z', 'i', 'i', 'x', 'i') + ham_term('i', 'z', 'i', 'x', 'i') - ham_term('i', 'z', 'i', 'y', 'i') + \
+    return -1 * ham_term('z', 'i', 'i', 'x', 'i') + ham_term('i', 'z', 'i', 'x', 'i') - ham_term('i', 'z', 'i', 'y',
+                                                                                                 'i') + \
            ham_term('i', 'i', 'z', 'y', 'i')
+
 
 def h4():
     ham = (tools.identity(5) + ham_term('z', 'z', 'i', 'i', 'i')) @ (
-                ham_term('i', 'z', 'z', 'i', 'i') - tools.identity(5)) @ \
+            ham_term('i', 'z', 'z', 'i', 'i') - tools.identity(5)) @ \
           ham_term('i', 'i', 'i', 'i', 'x') + (tools.identity(5) + ham_term('z', 'i', 'z', 'i', 'i')) @ (
-                      ham_term('i', 'z', 'z', 'i', 'i') - tools.identity(5)) @ \
+                  ham_term('i', 'z', 'z', 'i', 'i') - tools.identity(5)) @ \
           ham_term('i', 'i', 'i', 'x', 'x') + (tools.identity(5) + ham_term('i', 'z', 'z', 'i', 'i')) @ (
-                      ham_term('z', 'z', 'i', 'i', 'i') - tools.identity(5)) @ \
+                  ham_term('z', 'z', 'i', 'i', 'i') - tools.identity(5)) @ \
           ham_term('i', 'i', 'i', 'x', 'i')
     return ham + ham.conj().T
 
@@ -107,8 +109,8 @@ for j in range(p_len):
         for l in range(3, 5):
             ec.state = corrective.channel(ec.state, l)
         # Compute fidelity
-        noisy_results[j, i] = np.real(tools.trace(noisy.state @ ideal.state, ind = (4, 3)))
-        ec_results[j, i] = np.real(tools.trace(ec.state @ ideal.state, ind = (4, 3)))
+        noisy_results[j, i] = np.real(tools.trace(noisy.state @ ideal.state, ind=(4, 3)))
+        ec_results[j, i] = np.real(tools.trace(ec.state @ ideal.state, ind=(4, 3)))
 
 fig, ax = plt.subplots(1, 1)
 fig.suptitle('Dissipative Error Correction on Bit Flip Code', fontsize=14)

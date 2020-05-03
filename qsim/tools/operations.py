@@ -9,10 +9,12 @@ __all__ = ['single_qubit_pauli', 'single_qubit_operation', 'single_qubit_rotatio
            'all_qubit_operation', 'left_multiply', 'right_multiply', 'expectation']
 
 
-def left_multiply(state, i: int, op, is_ket=False, d=2):
+def left_multiply(state, i: int, op, is_ket=False):
     N = int(np.log2(state.shape[0]))
+    d = int(op.shape[0])
     ind = d ** i
     n = int(np.log2(d))
+
     if is_ket:
         # Left multiply
         out = state.reshape((-1, d, ind), order='F').transpose([1, 0, 2])
@@ -28,8 +30,9 @@ def left_multiply(state, i: int, op, is_ket=False, d=2):
     return state
 
 
-def right_multiply(state, i: int, op, d=2, is_ket=False):
+def right_multiply(state, i: int, op, is_ket=False):
     N = int(np.log2(state.shape[0]))
+    d = int(op.shape[0])
     n = int(np.log2(d))
     # Right multiply
     if is_ket:
@@ -88,7 +91,7 @@ def single_qubit_pauli(state, i: int, pauli_ind: str, is_ket=False):
     return state
 
 
-def single_qubit_operation(state, i: int, op, is_ket=False, d=2):
+def single_qubit_operation(state, i: int, op, is_ket=False):
     """ Apply a single qubit operation on the input state.
         Efficient implementation using reshape and transpose.
 
@@ -97,6 +100,27 @@ def single_qubit_operation(state, i: int, op, is_ket=False, d=2):
             operation = 2x2 single-qubit operator to be applied OR a pauli index {0, 1, 2}
             is_pauli = Boolean indicating if op is a pauli index
     """
+    """N = int(np.log2(state.shape[0]))
+    ind = d ** i
+    n = int(np.log2(d))
+    if is_ket:
+        # Left multiply
+        out = state.reshape((-1, d, ind), order='F').transpose([1, 0, 2])
+        out = np.dot(op, out.reshape((d, -1), order='F'))
+        out = out.reshape((d, -1, ind), order='F').transpose([1, 0, 2])
+    else:
+        # Left multiply
+        out = state.reshape((2 ** (N - n * i - n), d, -1), order='F').transpose([1, 0, 2])
+        out = np.dot(op, out.reshape((d, -1), order='F'))
+        out = out.reshape((d, 2 ** (N - n * i - n), -1), order='F').transpose([1, 0, 2])
+        # Right multiply
+        out = out.reshape((2 ** (2 * N - n * (i + 1)), d, -1), order='F').transpose([0, 2, 1])
+        out = np.dot(out.reshape((-1, d), order='F'), op.conj().T)
+        out = out.reshape((2 ** (2 * N - n * (i + 1)), -1, d), order='F').transpose([0, 2, 1])
+
+    state = out.reshape(state.shape, order='F')
+    return state"""
+    d = int(op.shape[0])
     N = int(np.log2(state.shape[0]))
     ind = d ** i
     n = int(np.log2(d))
@@ -131,25 +155,25 @@ def single_qubit_rotation(state, i: int, angle: float, op, is_ket=False, d=2):
     return single_qubit_operation(state, i, rot, is_ket=is_ket, d=d)
 
 
-def all_qubit_rotation(state, angle: float, op, is_ket=False, d=2):
+def all_qubit_rotation(state, angle: float, op, is_ket=False):
     """ Apply rotation exp(-1j * angle * pauli) to every qubit
         Input:
             angle = rotation angle
             op = operation on a single qubit
     """
-    assert op.shape[0] == d
+    d = op.shape[0]
     N = int(np.log2(state.shape[0]))
     for i in range(int(N / np.log2(d))):
         state = single_qubit_rotation(state, i, angle, op, is_ket=is_ket, d=d)
     return state
 
 
-def all_qubit_operation(state, op, is_pauli=False, is_ket=False, d=2):
+def all_qubit_operation(state, op, is_ket=False):
     """ Apply qubit operation to every qubit
         Input:
             op = one of (1,2,3) for (X, Y, Z)
     """
-    assert op.shape[0] == d
+    d = op.shape[0]
     N = int(np.log2(state.shape[0]))
     for i in range(int(N / np.log2(d))):
         state = single_qubit_operation(state, i, op, is_ket=is_ket, d=d)

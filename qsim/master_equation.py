@@ -22,5 +22,5 @@ class MasterEquation(object):
             func = f
         # s is a density matrix
         # tf is the total simulation time
-        z, infodict = odeintw(f, s, np.linspace(t0, tf, num=(tf-t0)/dt), full_output=True)
+        z, infodict = odeintw(func, s, np.linspace(t0, tf, num=(tf-t0)/dt), full_output=True)
         return z

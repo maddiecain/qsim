@@ -5,7 +5,8 @@ import networkx as nx
 from qsim.state import *
 from qsim import tools, operations
 
-__all__ = ['Hamiltonian', 'HamiltonianBookatzPenalty', 'HamiltonianGlobalPauli', 'HamiltonianB', 'HamiltonianC']
+__all__ = ['Hamiltonian', 'HamiltonianBookatzPenalty', 'HamiltonianGlobalPauli', 'HamiltonianB', 'HamiltonianC',
+           'HamiltonianMarvianPenalty']
 
 
 class Hamiltonian(object):
@@ -46,13 +47,13 @@ class HamiltonianB(Hamiltonian):
                 # Use opX because it's a little bit faster
                 out = out + s.opX(i, overwrite=False)
             else:
-                out = out + operations.left_multiply(s.state, i, s.X, is_ket=s.is_ket, d=2 ** s.n)
+                out = out + operations.left_multiply(s.state, i, s.X, is_ket=s.is_ket)
         s.state = out
 
     def right_multiply(self, s: State):
         out = np.zeros(s.state.shape, dtype=np.complex128)
         for i in range(int(s.N / s.n)):
-            out = out + operations.right_multiply(s.state, i, s.X, is_ket=s.is_ket, d=2 ** s.n)
+            out = out + operations.right_multiply(s.state, i, s.X, is_ket=s.is_ket)
         s.state = out
 
     def evolve(self, s: State, beta):
@@ -92,7 +93,8 @@ class HamiltonianC(Hamiltonian):
         if s.is_ket:
             s.state = np.exp(-1j * gamma * self.hamiltonian_diag) * s.state
         else:
-            s.state = np.exp(-1j * gamma * self.hamiltonian_diag) * s.state * np.exp(1j * gamma * self.hamiltonian_diag).T
+            s.state = np.exp(-1j * gamma * self.hamiltonian_diag) * s.state * np.exp(
+                1j * gamma * self.hamiltonian_diag).T
 
     def left_multiply(self, s: State):
         s.state = self.hamiltonian_diag * s.state
@@ -146,12 +148,55 @@ class HamiltonianBookatzPenalty(Hamiltonian):
             if s.is_ket:
                 out = out + s.single_qubit_operation(i, projector, overwrite=False)
             else:
-                out = out + operations.left_multiply(s.state, i, projector, is_ket=s.is_ket, d=2**s.n)
+                out = out + operations.left_multiply(s.state, i, projector, is_ket=s.is_ket)
         s.state = out
 
     def right_multiply(self, s: State):
         projector = np.identity(2 ** s.n) - s.proj
         out = np.zeros(s.state.shape, dtype=np.complex128)
         for i in range(int(s.N / s.n)):
-            out = out + operations.right_multiply(s.state, i, projector, is_ket=s.is_ket, d= 2**s.n)
+            out = out + operations.right_multiply(s.state, i, projector, is_ket=s.is_ket)
         s.state = out
+
+
+class HamiltonianMarvianPenalty(Hamiltonian):
+    def __init__(self, Nx, Ny):
+        super().__init__()
+        self.Nx = Nx
+        self.Ny = Ny
+        self.N = 3 * Nx * Ny
+        # Generate Hamiltonian
+        # Two by two geometry (can be generalized in the future)
+        hp = np.zeros([2 ** self.N, 2 ** self.N])
+        for i in range(int(self.Nx * self.Ny)):
+            # Add gauge interactions within a single logical qubit
+            hp = hp + tools.tensor_product(
+                [tools.identity(i * 3), tools.Z(), tools.Z(),
+                 tools.identity(self.N - i * 3 - 2)]) + tools.tensor_product(
+                [tools.identity(i * 3 + 1), tools.X(), tools.X(), tools.identity(self.N - i * 3 - 3)])
+        # Between rows
+        for j in range(self.Ny):
+            # j is the number of rows
+            for k in range(self.Nx):
+                # k is the number of columns
+                # Need to deal with edge effects
+                # Add gauge interactions within a single logical qubit
+                if k != self.Nx - 1:
+                    # Along the same row
+                    hp = hp + tools.tensor_product(
+                        [tools.identity(j * self.Nx * 3 + k * 3), tools.X(), tools.identity(2), tools.X(),
+                         tools.identity(self.N - (j * self.Nx * 3 + k * 3) - 4)]) + \
+                         tools.tensor_product(
+                             [tools.identity(j * self.Nx * 3 + k * 3 + 2), tools.Z(), tools.identity(2), tools.Z(),
+                              tools.identity(self.N - (j * self.Nx * 3 + k * 3 + 2) - 4)])
+                    # Along the same column
+                if j != self.Ny - 1:
+                    hp = hp + tools.tensor_product(
+                        [tools.identity(j * self.Nx * 3 + k * 3), tools.X(), tools.identity(3 * self.Nx - 1),
+                         tools.X(),
+                         tools.identity(self.N - (j * self.Nx * 3 + k * 3) - 3 * self.Nx - 1)]) + \
+                         tools.tensor_product(
+                             [tools.identity(j * self.Nx * 3 + k * 3 + 2), tools.Z(),
+                              tools.identity(3 * self.Nx - 1),
+                              tools.Z(), tools.identity(self.N - (j * self.Nx * 3 + k * 3 + 2) - 3 * self.Nx - 1)])
+        self.hamiltonian = -1 * hp

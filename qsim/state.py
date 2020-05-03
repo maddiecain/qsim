@@ -1,8 +1,9 @@
+import networkx as nx
 import numpy as np
 from qsim import tools
 from qsim.tools.operations import *
 
-__all__ = ['State', 'TwoQubitCode', 'JordanFarhiShor', 'ThreeQubitCode', 'ThreeQubitCodeTwoAncillas']
+__all__ = ['State', 'TwoQubitCode', 'JordanFarhiShor', 'ThreeQubitCode', 'ThreeQubitCodeTwoAncillas', 'MarvianCode']
 
 
 class State(object):
@@ -93,7 +94,7 @@ class State(object):
         :type i: Boolean
         :param op: :math:`2 \\times 2` single-qubit operator to be applied
         """
-        result = single_qubit_operation(self.state, i, op, is_ket=self.is_ket, d=2 ** self.n)
+        result = single_qubit_operation(self.state, i, op, is_ket=self.is_ket)
         if overwrite:
             self.state = result
         return result
@@ -105,7 +106,7 @@ class State(object):
         :param angle: rotation angle
         :param op: projection operator or basis pauli index
         """
-        result = single_qubit_rotation(self.state, i, angle, op, is_ket=self.is_ket, d=2 ** self.n)
+        result = single_qubit_rotation(self.state, i, angle, op, is_ket=self.is_ket)
         if overwrite:
             self.state = result
         return result
@@ -116,7 +117,7 @@ class State(object):
         :param angle: rotation angle :math:`\theta`
         :param op: operation to perform on a single qubit
         """
-        result = all_qubit_rotation(self.state, angle, op, is_ket=self.is_ket, d=2 ** self.n)
+        result = all_qubit_rotation(self.state, angle, op, is_ket=self.is_ket)
         if overwrite:
             self.state = result
         return result
@@ -127,7 +128,7 @@ class State(object):
         :param is_pauli: If True, op should be a string denoting the Pauli matrix to apply.
         :param op: :math:`2 \\times 2` single-qubit operator to be applied
         """
-        result = all_qubit_operation(self.state, op, is_pauli=is_pauli, is_ket=self.is_ket, d=2 ** self.n)
+        result = all_qubit_operation(self.state, op, is_ket=self.is_ket)
         if overwrite:
             self.state = result
         return result
@@ -217,7 +218,6 @@ class TwoQubitCode(State):
             self.state = result
         return result
 
-
     def opZ(self, i: int, overwrite=True):
         # Z_i Z_{i+1}
         result = single_qubit_pauli(self.state, TwoQubitCode.n * i, 'Z', is_ket=self.is_ket)
@@ -281,8 +281,8 @@ class ThreeQubitCode(State):
     Y = -1 * tools.tensor_product((tools.Y(), tools.Y(), tools.Y()))
     Z = tools.tensor_product((tools.Z(), tools.Z(), tools.Z()))
     n = 3
-    basis = np.array([[[1], [0], [0], [0], [0], [0], [0], [0], [0]],
-                      [[0], [0], [0], [0], [0], [0], [0], [0], [1]]])
+    basis = np.array([[[1], [0], [0], [0], [0], [0], [0], [0]],
+                      [[0], [0], [0], [0], [0], [0], [0], [1]]])
     proj = tools.outer_product(basis[0], basis[0]) + tools.outer_product(basis[1], basis[1])
     stabilizers = np.array(
         [tools.tensor_product([tools.Z(2), tools.identity()]), tools.tensor_product([tools.identity(), tools.Z(2)])])
@@ -349,6 +349,140 @@ class ThreeQubitCodeTwoAncillas(State):
         result = single_qubit_pauli(self.state, ThreeQubitCodeTwoAncillas.n * i, 'Z', is_ket=self.is_ket)
         result = single_qubit_pauli(result, ThreeQubitCodeTwoAncillas.n * i + 1, 'Z', is_ket=self.is_ket)
         result = single_qubit_pauli(result, ThreeQubitCodeTwoAncillas.n * i + 2, 'Z', is_ket=self.is_ket)
+        if overwrite:
+            self.state = result
+        return result
+
+
+class MarvianCode(State):
+    def __init__(self, Nx, Ny):
+        self.Nx = Nx
+        self.Ny = Ny
+        self.grid = [Nx, Ny]
+        self.N = 3 * Nx * Ny
+        self.hp = None  # HamiltonianMarvianPenalty(Nx, Ny).hamiltonian
+
+        """def codespace():
+            # Returns a projector into the code space as well as an orthonormal basis for the code space
+            eigval, eigvec = np.linalg.eig(self.hp)
+            eigvec = eigvec.T
+            gss = eigvec[np.isclose(eigval, np.min(eigval))]
+            gss = np.linalg.qr(gss.T)[0].T
+            p = np.zeros([2 ** self.N, 2 ** self.N])
+            for i in range(gss.shape[0]):
+                gssi = np.array([gss[i]]).T
+                p = p + tools.outer_product(gssi, gssi)
+            return p, gss
+
+        self.proj, self.onb = codespace()
+        if G is None:
+            # G should default to a grid
+            G = nx.Graph()
+            for k in range(Nx*Ny):
+                G.add_node(k)
+            # Along rows
+            for i in range(Nx-1):
+                for j in range(Ny):
+                    G.add_edge(j * Ny + i, j * Ny + i+1)
+            # Along columns
+            for i in range(Ny-1):
+                for j in range(Nx):
+                    G.add_edge(i * Nx + j,  (i+1) * Nx + j)
+        self.G = G
+        self.hb = self.Hb()
+        self.hc = self.Hc()
+
+    def hamX(self, i):
+        # Returns the Hamiltonian corresponding to X-
+        # i is ith physical qubit, assumed to be a B-type qubit. An L-type qubit is assumed to be the next physical qubit
+        # N is the total number of physical qubits
+        assert i % 3 == 1
+        return tools.tensor_product([tools.identity(i - 1), tools.X(), tools.X(), tools.identity(self.N - i - 1)])
+
+    def hamZ(self, i):
+        assert i % 3 == 1
+        # i is ith physical qubit, assumed to be a B-type qubit. An R-type qubit is assumed to be the next physical qubit
+        # N is the total number of physical qubits
+        return tools.tensor_product([tools.identity(i), tools.Z(), tools.Z(), tools.identity(self.N - i - 2)])
+
+
+    def Hc(self):
+        # MIS Hamiltonian
+        hc = np.zeros([2 ** self.N, 2 ** self.N])
+        for i in range(self.N // 3):
+            hc = hc + self.Z(3 * i + 1)
+        # Two body interaction for each edge
+        # Gotta figure out the coefficient rescaling!
+        for (i, j) in self.G.edges():
+            # Assumes nodes are zero indexed
+            gij = (self.proj @ tools.tensor_product([tools.identity(3 * i + 2), tools.Z(), tools.identity(3 * j - 3 * i - 1), tools.Z(), tools.identity(self.N - 3 * j - 3)]) @ self.proj)
+            gij = np.max(np.linalg.eig(gij)[0]) / np.max(np.linalg.eig(self.proj)[0])
+            hc = hc + 1 / gij * self.ZZ(3 * i + 1, 3 * j + 1)
+        return hc
+
+    def Hb(self):
+        hb = np.zeros([2 ** self.N, 2 ** self.N])
+        for i in range(self.N // 3):
+            if i == 0:
+                hb = hb + 3 * self.X(3 * i + 1)
+            hb = hb + self.X(3 * i + 1)
+        return hb
+
+    def ZeroL(self, is_ket=False):
+        s = np.zeros([self.onb.shape[1], 1])
+        for i in range(self.onb.shape[0]):
+            temp = np.array([self.onb[i]]).T
+            for j in range(self.N // 3):
+                temp = (self.X(3 * j + 1) @ (1 / 2 * tools.identity(self.N) - 1 / 2 * self.Z(3 * j + 1)) @ self.X(
+                    3 * j + 1) @ (
+                                1 / 2 * tools.identity(self.N) + 1 / 2 * self.Z(3 * j + 1))) @ temp
+            s = s + temp
+        s = s / np.linalg.norm(s)
+        if not is_ket:
+            s = tools.outer_product(s, s)
+        return s
+
+    def OneL(self, is_ket=False):
+        s = np.zeros([self.onb.shape[1], 1])
+        for i in range(self.onb.shape[0]):
+            temp = np.array([self.onb[i]]).T
+            for j in range(self.N // 3):
+                temp = (self.X(3 * j + 1) @ (1 / 2 * tools.identity(self.N) + 1 / 2 * self.Z(3 * j + 1)) @ self.X(
+                    3 * j + 1) @ (
+                                1 / 2 * tools.identity(self.N) - 1 / 2 * self.Z(3 * j + 1))) @ temp
+            s = s + temp
+        s = s / np.linalg.norm(s)
+        if not is_ket:
+            s = tools.outer_product(s, s)
+        return s"""
+
+
+class FTThreeQubitCode(State):
+    X = tools.tensor_product((tools.X(), tools.X(), tools.X()))
+    Z = np.array(
+        [[1, 0, 0, 0, 0, 0, 0, 0], [0, 1, 0, 0, 0, 0, 0, 0], [0, 0, 1, 0, 0, 0, 0, 0], [0, 0, 0, -1, 0, 0, 0, 0],
+         [0, 0, 0, 0, 1, 0, 0, 0], [0, 0, 0, 0, 0, -1, 0, 0], [0, 0, 0, 0, 0, 0, -1, 0], [0, 0, 0, 0, 0, 0, 0, -1]])
+    n = 3
+    basis = np.array([[[1], [0], [0], [0], [0], [0], [0], [0]],
+                      [[0], [0], [0], [0], [0], [0], [0], [1]]])
+    proj = tools.outer_product(basis[0], basis[0]) + tools.outer_product(basis[1], basis[1])
+    stabilizers = np.array(
+        [tools.tensor_product([tools.Z(2), tools.identity()]), tools.tensor_product([tools.identity(), tools.Z(2)])])
+
+    def __init__(self, state, N, is_ket=True):
+        super().__init__(state, ThreeQubitCode.n * N, is_ket)
+
+    def opX(self, i: int, overwrite=True):
+        result = single_qubit_pauli(self.state, ThreeQubitCode.n * i, 'X', is_ket=self.is_ket)
+        result = single_qubit_pauli(result, ThreeQubitCode.n * i + 1, 'X', is_ket=self.is_ket)
+        result = single_qubit_pauli(result, ThreeQubitCode.n * i + 2, 'X', is_ket=self.is_ket)
+        if overwrite:
+            self.state = result
+        return result
+
+
+    def opZ(self, i: int, overwrite=True):
+        result = self.single_qubit_operation(i, FTThreeQubitCode.Z, overwrite=overwrite)
         if overwrite:
             self.state = result
         return result

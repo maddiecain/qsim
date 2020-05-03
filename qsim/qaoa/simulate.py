@@ -84,10 +84,10 @@ class SimulateQAOA(object):
                         self.hamiltonian[i].evolve(s, param[j][i])
                         if k == 0:
                             s0_prenoise.state = s.state
-                        self.noise[i].all_qubit_channel(s)
+                        s.state = self.noise[i].all_qubit_channel(s.state)
                         memo[..., k] = s.state
                     self.hamiltonian[i].left_multiply(s0_prenoise)
-                    self.noise[i].all_qubit_channel(s0_prenoise)
+                    s0_prenoise.state = self.noise[i].all_qubit_channel(s0_prenoise.state)
                     memo[..., m * j + i + 1] = s0_prenoise.state
 
         # Multiply by C

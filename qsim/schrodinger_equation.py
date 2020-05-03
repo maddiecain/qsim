@@ -19,3 +19,6 @@ class SchrodingerEquation(object):
         z, infodict = odeintw(func, s, np.linspace(t0, tf, num=(tf-t0)/dt), full_output=True)
         return z
 
+    def run_mc_solver(self, s, t0, tf, dt = .1, func=None):
+        pass
+

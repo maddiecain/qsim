@@ -1,16 +1,16 @@
 from typing import Tuple
 from qsim.tools import operations, tools
 import numpy as np
-from qsim.state import *
 
 
 class LindbladNoise(object):
-    def __init__(self, povm=np.array([]), weights=None):
+    def __init__(self, povm=[], weights=None):
         # POVM and weights are numpy arrays
         self.povm = povm
+        self.weights = weights
         if weights is None:
             # Is this a good default?
-            self.weights = np.array([1] * povm.shape[0])
+            self.weights = np.array([1] * len(povm))
         # Assert that it's a valid POVM?
 
     def all_qubit_channel(self, s):
@@ -42,13 +42,13 @@ class LindbladNoise(object):
         return a
 
     def is_valid_povm(self):
-        return np.allclose(np.sum(np.transpose(self.povm.conj(), [0, 2, 1])@self.povm, axis = 0), np.identity(self.povm[0].shape[0]))
+        return np.allclose(np.sum(np.transpose(np.array(self.povm).conj(), [0, 2, 1])@np.array(self.povm), axis = 0), np.identity(self.povm[0].shape[0]))
 
 
 class DepolarizingNoise(LindbladNoise):
     def __init__(self, p):
-        super().__init__(np.array([(np.sqrt(1 - 3 * p)) * np.identity(2), np.sqrt(p) * tools.X(), np.sqrt(p) * tools.Y(),
-                                   np.sqrt(p) * tools.Z()]))
+        super().__init__([np.array((np.sqrt(1 - 3 * p)) * np.identity(2), np.sqrt(p) * tools.X(), np.sqrt(p) * tools.Y(),
+                                   np.sqrt(p) * tools.Z())])
         self.p = p
 
     def channel(self, s, i):
@@ -66,9 +66,8 @@ class DepolarizingNoise(LindbladNoise):
 
 class PauliNoise(LindbladNoise):
     def __init__(self, p: Tuple[float]):
-        super().__init__(self, np.array(
-            [(np.sqrt(1 - np.sum(p))) * np.identity(2), np.sqrt(p[0]) * tools.X(), np.sqrt(p[1]) * tools.Y(),
-             np.sqrt(p[2]) * tools.Z()]))
+        super().__init__(povm = [(np.sqrt(1 - np.sum(p))) * np.identity(2), np.sqrt(p[0]) * tools.X(), np.sqrt(p[1]) * tools.Y(),
+             np.sqrt(p[2]) * tools.Z()])
         assert len(p) == 3
         self.p = p
 
@@ -94,7 +93,7 @@ class PauliNoise(LindbladNoise):
 
 class AmplitudeDampingNoise(LindbladNoise):
     def __init__(self, p):
-        super().__init__(povm = np.array([[[1, 0], [0, np.sqrt(1 - p)]], [[0, np.sqrt(p)], [0, 0]]]))
+        super().__init__(povm = [np.array([[1, 0], [0, np.sqrt(1 - p)]]), np.array([[0, np.sqrt(p)], [0, 0]])])
         self.p = p
 
     def channel(self, s, i: int):
@@ -117,7 +116,7 @@ class AmplitudeDampingNoise(LindbladNoise):
 class ZProjectionNoise(LindbladNoise):
     def __init__(self, p):
         """Zeno-type noise that projects along the sigma_z eigenstates with probability p."""
-        projectors = 1 / np.sqrt(2) * np.array([[[1, 0], [0, 0]], [[0, 0], [0, -1]]])
+        projectors = [1 / np.sqrt(2) * np.array([[1, 0], [0, 0]]), 1 / np.sqrt(2) * np.array([[0, 0], [0, -1]])]
         super().__init__(projectors, weights=(p, p))
         self.p = p
 
@@ -131,3 +130,6 @@ class ThermalNoise(LindbladNoise):
 
 
 
+class SpontaneousEmission(LindbladNoise):
+    def __init__(self, rate):
+        super().__init__(povm = [np.array([[0, 0], [1, 0]])], weights = [rate])
