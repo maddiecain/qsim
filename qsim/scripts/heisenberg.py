@@ -1,5 +1,5 @@
 import numpy as np
-from qsim.tools import operations
+from qsim.tools import operations, tools
 from qsim import schrodinger_equation
 from qsim import hamiltonian
 from qsim.state import *
@@ -11,6 +11,15 @@ up = np.array([[1,0], [0,0]])
 down = np.array([[0,0], [0,1]])
 raise_spin = np.array([[0,1],[0,0]])
 lower_spin = np.array([[0,0],[1,0]])
+
+
+def chain_graph(n):
+    g = nx.Graph()
+    g.add_nodes_from(np.arange(0, n), weight=1)
+    for i in range(n-1):
+        g.add_edge(i, i+1, weight=-1)
+    return g
+
 
 
 class StochasticWavefunction(object):
@@ -29,6 +38,7 @@ class StochasticWavefunction(object):
             jump = self.jumps[0]
             jump_probability = jump.jump_rate(s)*dt
             if np.random.uniform() < jump_probability:
+                print('jumping up')
                 s = jump.random_jump(s)
                 # Renormalize state
                 s = s / np.linalg.norm(s)
@@ -69,16 +79,26 @@ class Graph(object):
     def free_node(self, i, ignore=None):
         """Checks if node i is free, ignoring some neighbors if indicated. If free, return True; otherwise,
         return False. ignore is assumed to be a list of nodes."""
-        if ignore is None:
-            for neighbor in list(self.graph.neighbors(i)):
-                if self.configuration[neighbor] == 1:
-                    return False
-        else:
-            for neighbor in list(self.graph.neighbors(i)):
-                if neighbor not in ignore:
+        if self.configuration[i] == 0:
+            if ignore is None:
+                for neighbor in list(self.graph.neighbors(i)):
                     if self.configuration[neighbor] == 1:
                         return False
-        return True
+            else:
+                for neighbor in list(self.graph.neighbors(i)):
+                    if neighbor not in ignore:
+                        if self.configuration[neighbor] == 1:
+                            return False
+            return True
+        return False
+
+    def free_nodes(self):
+        """Count the number of free nodes"""
+        free = []
+        for j in range(self.n):
+            if self.free_node(j): free.append(j)
+        return free
+
 
     def raise_node(self, i):
         """Check if node i is free. If it is, change its value to 1. Return True if the node has been raised."""
@@ -110,6 +130,71 @@ class Graph(object):
                 return True
         return False
 
+    def spin_exchange(self, i):
+        """Returns True if and only if a node i can spin exchange."""
+        if self.configuration[i] == 1:
+            for neighbor in self.graph.neighbors(i):
+                if self.free_node(neighbor, ignore=[i]):
+                    return True
+        elif self.configuration[i] == 0:
+            raised_neighbors = self.raised_neighbors(i)
+            if len(raised_neighbors) == 1:
+                return True
+        return False
+
+    def spin_exchanges(self):
+        """Returns a list of pairs of nodes which can spin exchange."""
+        exchanges = []
+        for i in self.nodes:
+            if self.configuration[i] == 1:
+                for neighbor in self.graph.neighbors(i):
+                    if self.free_node(neighbor, ignore=[i]):
+                        exchanges.append((i, neighbor))
+        return exchanges
+
+    def random_spin_exchange(self):
+        exchanges = self.spin_exchanges()
+        to_exchange = exchanges[np.random.randint(0, len(exchanges))]
+        self.configuration[to_exchange[0]] = self.configuration[to_exchange[1]]
+        self.configuration[to_exchange[1]] = self.configuration[to_exchange[0]]
+        return self.configuration
+
+    def random_raise(self):
+        free_nodes = self.free_nodes()
+        to_raise = free_nodes[np.random.randint(0, len(free_nodes))]
+        self.raise_node(to_raise)
+        return self.configuration
+
+    def run(self, t0, tf, dt, rates = None, config = None):
+        if config is None:
+            self.configuration = np.zeros(self.n)
+        else:
+            self.configuration = config
+        if rates is None:
+            rates = [1,1]
+        times = np.arange(t0, tf, dt)
+        outputs = np.zeros((times.shape[0], self.configuration.shape[0], 1), dtype=np.complex64)
+        for (j, time) in zip(range(times.shape[0]), times):
+            if j == 0:
+                outputs[0, :] = np.array([self.configuration.copy()]).T
+            if j != 0:
+                # Compute the probability that something happens
+                # Probability of spin exchange
+                probability_exchange = dt * rates[0] * len(self.spin_exchanges()) # TODO: figure out if this is over 2
+                # Probability of raising
+                probability_raise = dt * rates[1] * len(self.free_nodes())
+                probability = probability_exchange + probability_raise
+                if np.random.uniform() < probability:
+                    if np.random.uniform(0, probability) < probability_exchange:
+                        # Do a spin exchange
+                        self.random_spin_exchange()
+                    else:
+                        # Raise a node
+                        self.random_raise()
+                outputs[j, :] = np.array([self.configuration.copy()]).T
+        return outputs
+
+
     def draw_configuration(self):
         """Spin up is white, spin down is black."""
         # First, color the nodes
@@ -126,6 +211,7 @@ class Graph(object):
         weight = np.sum(self.configuration)
         print('Configuration weight: '+str(weight))
         return weight
+
 
 
 class HamiltonianHeisenberg(object):
@@ -328,7 +414,6 @@ def simple_stochastic(dt=0.001):
     output = sw.run(s.state, 0, 3, dt)
     print(output)
 
-
 def simple_stochastic_heisenberg(dt=0.001):
     """Simple stochastic integrator with no Hamiltonian evolution"""
     graph = nx.Graph()
@@ -350,7 +435,6 @@ def simple_stochastic_heisenberg(dt=0.001):
     plt.show()
 
 def simple_greedy_heisenberg(dt=0.001):
-    """Simple stochastic integrator with no Hamiltonian evolution"""
     g = nx.Graph()
     g.add_nodes_from([0, 1, 2, 3, 4], weight = 1)
     g.add_edges_from([(0, 1), (1, 2), (2, 3), (3, 4)], weight = -1)
@@ -368,22 +452,143 @@ def simple_greedy_heisenberg(dt=0.001):
     mis = np.zeros((2**graph.n, 1))
     mis[10] = 1
     overlap_mis = np.abs(np.squeeze(output, axis=-1)@mis)
-    """overlap_violators = np.abs(np.squeeze(output, axis=-1)@(np.array([[1, 1, 0, 1, 0, 0, 0,0]]).T))
-    overlap_start = np.abs(np.squeeze(output, axis=-1)@(np.array([[0,0, 0, 0, 0, 0, 0,1]]).T))
-    overlap_1 = np.abs(np.squeeze(output, axis=-1)@np.array([[0, 0, 0, 1, 0, 0, 0, 0]]).T)
-    overlap_2 = np.abs(np.squeeze(output, axis=-1)@np.array([[0, 0, 0, 0, 0, 0, 1, 0]]).T)
-    overlap_3 = np.abs(np.squeeze(output, axis=-1)@np.array([[0, 0, 0, 0, 0, 1, 0, 0]]).T)"""
-    #m = np.array([[3, 2, 2, 1, 2, 1, 1, 0]]).T
     spin = np.abs(np.squeeze(output, axis=-1))**2 @ mis_hamiltonian.hamiltonian_diag
     plt.plot(times, overlap_mis, label = 'mis')
     plt.plot(times, spin, label='spin')
-    """plt.plot(times, overlap_2, label = '011')
-    plt.plot(times, overlap_1, label = '110')
-    plt.plot(times, overlap_3, label = '101')
-    plt.plot(times, overlap_violators, label = 'violators')
-    plt.plot(times, overlap_start, label = 'start')"""
+    plt.legend(loc='upper left')
+    plt.show()
+
+def simple_greedy_spin_exchange(dt=0.001):
+    g = nx.Graph()
+    g.add_nodes_from([0, 1, 2, 3, 4], weight = 1)
+    g.add_edges_from([(0, 1), (1, 2), (2, 3), (3, 4)], weight = -1)
+    graph = Graph(g)
+    tf = 3
+    times = np.arange(0, tf, dt)
+    output = graph.run(0, tf, dt)
+    plt.plot(times, np.sum(output, axis=-2)/3, label = 'approximation ratio')
+    plt.legend(loc='upper left')
+    plt.show()
+
+def domain_wall_dissipation(n:list, dt=0.001, trials = 30):
+    tf = 3
+    times = np.arange(0, tf, dt)
+    pump_rate = 10
+    for i in n:
+        # Ensure an odd number of nodes
+        assert i % 2 == 1
+        def psi0():
+            """Generates the initial domain wall state"""
+            s = np.zeros((1, 2**i))
+            middle = i//2-1
+            arr = np.ones(i)
+            for j in range(i):
+                if j <= middle and j % 2 == 0:
+                    arr[j] = 0
+                elif j > middle+1 and j % 2 == 1:
+                    arr[j] = 0
+            s[0,tools.binary_to_int(arr)] = 1
+            return s.T
+        def mis_state():
+            """Generates the initial domain wall state"""
+            s = np.zeros((1, 2**i))
+            arr = np.ones(i)
+            for j in range(i):
+                if j % 2 == 0:
+                    arr[j] = 0
+            s[0, tools.binary_to_int(arr)] = 1
+            return s.T
+        def spin_hamiltonian():
+            s = np.zeros((1, 2 ** i))
+            for j in range(2**i):
+                s[0,j] = i-np.sum(tools.int_to_binary(j))
+            return s.T
+        g = chain_graph(i)
+        graph = Graph(g)
+        psi0 = np.zeros((2**i, 1)) # psi0()#
+        psi0[-1,0] = 1
+        s = State(psi0, graph.n, is_ket=True)
+        greedy = GreedyNoise(graph, rate = pump_rate)
+        heisenberg = HamiltonianHeisenberg(graph, k=100)
+        sw = StochasticWavefunction(hamiltonians=[heisenberg, greedy], jumps=[greedy])
+        quantum_outputs = np.zeros((trials, np.arange(0, tf, dt).shape[0], psi0.shape[0]), dtype=np.complex64)
+        classical_outputs = np.zeros((trials, np.arange(0, tf, dt).shape[0], graph.n), dtype=np.complex64)
+        for k in range(trials):
+            quantum_output = sw.run(s.state, 0, tf, dt)
+            quantum_outputs[k,...] = np.squeeze(quantum_output, axis=-1)
+            classical_output = graph.run(0, tf, dt, rates=[1, pump_rate], config=np.array([0,0,0,0,0]))
+            classical_outputs[k,...] = np.squeeze(classical_output, axis=-1)
+        mis_size = i//2+1
+        # Assume the amount in the ground state is very small
+        quantum_overlap_mis = np.abs(quantum_outputs@mis_state())**2
+        quantum_spin = np.abs(quantum_outputs)**2 @ spin_hamiltonian()/mis_size
+        classical_spin = np.sum(classical_outputs, axis=-1) / mis_size
+        classical_overlap_mis = classical_spin.copy()
+        classical_overlap_mis[classical_overlap_mis==1] =1
+        classical_overlap_mis[classical_overlap_mis!=1] =0
+        plt.plot(times, np.mean(np.squeeze(quantum_overlap_mis, axis=-1), axis=0), label='Quantum MIS overlap, n='+str(i))
+        plt.plot(times, np.mean(np.squeeze(quantum_spin, axis=-1), axis=0), label='Quantum AR, n='+str(i))
+
+        plt.plot(times, np.mean(classical_overlap_mis, axis=0), label='Classical MIS overlap, n='+str(i))
+        plt.plot(times, np.mean(classical_spin, axis=0), label='Classical AR, n='+str(i))
+
     plt.legend(loc='upper left')
     plt.show()
 
 
-simple_greedy_heisenberg()
+
+#domain_wall_dissipation([5],trials=20)
+
+
+def random_erdos_renyi(n, p=.3, dt=0.001, trials = 30):
+    tf = 3
+    times = np.arange(0, tf, dt)
+    pump_rate = 10
+    # Ensure an odd number of nodes
+    def spin_hamiltonian():
+        s = np.zeros((1, 2 ** n))
+        for j in range(2**n):
+            s[0,j] = n-np.sum(tools.int_to_binary(j))
+        return s.T
+    g = nx.erdos_renyi_graph(n, p)
+    graph = Graph(g)
+    psi0 = np.zeros((2**n, 1))
+    psi0[-1,0] = 1
+    s = State(psi0, graph.n, is_ket=True)
+    greedy = GreedyNoise(graph, rate = pump_rate)
+    heisenberg = HamiltonianHeisenberg(graph, k=100)
+    sw = StochasticWavefunction(hamiltonians=[heisenberg, greedy], jumps=[greedy])
+    quantum_outputs = np.zeros((trials, np.arange(0, tf, dt).shape[0], psi0.shape[0]), dtype=np.complex64)
+    classical_outputs = np.zeros((trials, np.arange(0, tf, dt).shape[0], graph.n), dtype=np.complex64)
+    for k in range(trials):
+        quantum_output = sw.run(s.state, 0, tf, dt)
+        quantum_outputs[k,...] = np.squeeze(quantum_output, axis=-1)
+        classical_output = graph.run(0, tf, dt, rates=[1, pump_rate])
+        classical_outputs[k,...] = np.squeeze(classical_output, axis=-1)
+    #print(classical_outputs[-1], quantum_outputs[-1])
+    mis = nx.algorithms.approximation.maximum_independent_set(graph.graph)
+    mis_state = np.zeros(2**n)
+    binary = np.zeros(n)
+    for l in range(graph.n):
+        if l in mis:
+            binary[l] = 1
+    mis_state[tools.binary_to_int(binary)] = 1
+    mis_state = np.array([mis_state]).T
+    mis_size = np.sum(binary)
+    # Assume the amount in the ground state is very small
+    quantum_overlap_mis = np.abs(quantum_outputs@mis_state)**2
+    quantum_spin = np.abs(quantum_outputs)**2 @ spin_hamiltonian()/mis_size
+    classical_spin = np.sum(classical_outputs, axis=-1) / mis_size
+    classical_overlap_mis = classical_spin.copy()
+    classical_overlap_mis[classical_overlap_mis==1] =1
+    classical_overlap_mis[classical_overlap_mis!=1] =0
+    plt.plot(times, np.mean(np.squeeze(quantum_overlap_mis, axis=-1), axis=0), label='Quantum MIS overlap, n='+str(n))
+    plt.plot(times, np.mean(np.squeeze(quantum_spin, axis=-1), axis=0), label='Quantum AR, n='+str(n))
+
+    plt.plot(times, np.mean(classical_overlap_mis, axis=0), label='Classical MIS overlap, n='+str(n))
+    plt.plot(times, np.mean(classical_spin, axis=0), label='Classical AR, n='+str(n))
+
+    plt.legend(loc='upper left')
+    plt.show()
+
+random_erdos_renyi(5, .3, trials=10)

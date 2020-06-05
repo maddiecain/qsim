@@ -9,7 +9,7 @@ def int_to_binary(n):
 
 def binary_to_int(b):
     # Converts a 2xlog(N) binary array to an integer
-    return b.dot(2 ** np.arange(b.size)[::-1])
+    return int(b.dot(2 ** np.arange(b.size)[::-1]))
 
 
 def tensor_product(A):
