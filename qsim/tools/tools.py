@@ -84,7 +84,7 @@ def equal_superposition(N: int, basis=np.array([[[1], [0]], [[0], [1]]])):
     """Basis is an array of dimension (2, 2**n, 1) containing the two basis states of the code
     comprised of n qubits. N is the number of logical qubits"""
     plus = (basis[0] + basis[1]) / np.sqrt(2)
-    return tensor_product([plus] * N)
+    return tensor_product([plus] * N).astype(np.complex128)
 
 
 def multiply(state, operator, is_ket=False):

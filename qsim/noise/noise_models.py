@@ -1,11 +1,12 @@
 from typing import Tuple
 from qsim.tools import operations, tools
 import numpy as np
-
+import networkx as nx
 
 class LindbladNoise(object):
-    def __init__(self, povm=[], weights=None):
+    def __init__(self, povm=[], weights=None, n = 1):
         # POVM and weights are numpy arrays
+        self.n = n
         self.povm = povm
         self.weights = weights
         if weights is None:
@@ -14,7 +15,7 @@ class LindbladNoise(object):
         # Assert that it's a valid POVM?
 
     def all_qubit_channel(self, s):
-        for i in range(int(np.log2(s.shape[0]))):
+        for i in range(int(np.log2(s.shape[0])/np.log2(2**self.n))):
             s = self.channel(s, i)
         return s
 
@@ -37,7 +38,7 @@ class LindbladNoise(object):
 
     def all_qubit_liouvillian(self, s):
         a = np.zeros(s.shape)
-        for i in range(int(np.log2(s.shape[-1]))):
+        for i in range(int(np.log2(s.shape[0])/np.log2(2**self.n))):
             a = a + self.liouvillian(s, i)
         return a
 
@@ -133,3 +134,34 @@ class ThermalNoise(LindbladNoise):
 class SpontaneousEmission(LindbladNoise):
     def __init__(self, rate):
         super().__init__(povm = [np.array([[0, 0], [1, 0]])], weights = [rate])
+
+
+class RydbergNoise(LindbladNoise):
+    def __init__(self, N, rate, graph: nx.Graph):
+        super().__init__(povm = [np.array([[0, 0, 0, 0], [1, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]), np.array([[0, 0, 0, 0], [0, 0, 0, 0], [1, 0, 0, 0], [0, 0, 0, 0]]), np.array([[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [1, 0, 0, 0]])], weights = rate, n=4)
+        # Construct the right povm operators
+        povm = []
+        np.set_printoptions(threshold=np.inf)
+
+        for (i, j) in graph.edges:
+            for p in range(len(self.povm)):
+                temp = tools.tensor_product([self.povm[p], tools.identity(N-2)])
+                temp = np.reshape(temp, 2*np.ones(2*N, dtype=int))
+                temp = np.moveaxis(temp, [0, 1, N, N+1], [i, j, N+i, N+j])
+                temp = np.reshape(temp, (2**N, 2**N))
+                povm.append(temp)
+        self.povm = povm
+
+    def liouvillian(self, s, i):
+        a = np.zeros(s.shape)
+        a = a + self.weights * (self.povm[i] @ s @ self.povm[i].T -
+            1 / 2 * s @ self.povm[i].conj().T @ self.povm[i] -
+            1 / 2 * self.povm[i].conj().T @ self.povm[i] @ s)
+        return a
+
+    def all_qubit_liouvillian(self, s):
+        a = np.zeros(s.shape)
+        for i in range(len(self.povm)):
+            a = a + self.liouvillian(s, i)
+        return a
+

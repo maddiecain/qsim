@@ -36,7 +36,7 @@ class State(object):
         """Returns ``True`` if :py:attr:`state` is a pure state."""
         return np.array_equal(self.state @ self.state, self.state) or self.is_ket
 
-    def is_valid_dmatrix(self):
+    def is_valid_dmatrix(self, verbose = True):
         """Returns ``True`` if :py:attr:`state` is a valid density matrix or a ket."""
         if self.is_ket:
             return np.linalg.norm(self.state) == 1
@@ -44,8 +44,9 @@ class State(object):
             print('eigenvalues real?', (np.allclose(np.imag(np.linalg.eigvals(self.state)), np.zeros(2 ** self.N))))
             print('eigenvalues positive?', np.all(np.real(np.linalg.eigvals(self.state)) >= -1e-10))
             print('trace 1?', np.isclose(np.absolute(np.trace(self.state)), 1))
-            print('eigvals', np.linalg.eigvals(self.state))
-            print('trace', np.trace(self.state))
+            if verbose:
+                print('eigvals', np.linalg.eigvals(self.state))
+                print('trace', np.trace(self.state))
             return (np.allclose(np.imag(np.linalg.eigvals(self.state)), np.zeros(2 ** self.N), atol=1e-06) and
                     np.all(np.real(np.linalg.eigvals(self.state)) >= -1 * 1e-05) and
                     np.isclose(np.absolute(np.trace(self.state)), 1))
@@ -122,7 +123,7 @@ class State(object):
             self.state = result
         return result
 
-    def all_qubit_operation(self, op, is_pauli=False, overwrite=True):
+    def all_qubit_operation(self, op, overwrite=True):
         """ Apply a qubit operation ``op`` to every qubit
 
         :param is_pauli: If True, op should be a string denoting the Pauli matrix to apply.
@@ -189,9 +190,11 @@ class State(object):
             i = np.random.choice(operator.shape[0], p=np.absolute(probs))
             return eigenvalues[i], outcomes[i] / probs
 
-    def multiply(self, operator):
+    def multiply(self, operator, overwrite = True):
         """Applies ``operator`` to :py:attr:`state`."""
-        self.state = tools.multiply(self.state, operator, is_ket=self.is_ket)
+        if overwrite:
+            self.state = tools.multiply(self.state, operator, is_ket=self.is_ket)
+        return tools.multiply(self.state, operator, is_ket=self.is_ket)
 
 
 class TwoQubitCode(State):
