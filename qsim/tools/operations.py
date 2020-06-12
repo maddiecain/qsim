@@ -4,53 +4,54 @@ Helper functions for qubit operations
 
 import numpy as np
 from qsim import tools
+import math
 
 __all__ = ['single_qubit_pauli', 'single_qubit_operation', 'single_qubit_rotation', 'all_qubit_rotation',
            'all_qubit_operation', 'left_multiply', 'right_multiply', 'expectation']
 
 
-def left_multiply(state, i: int, op, is_ket=False):
-    N = int(np.log2(state.shape[0]))
-    d = int(op.shape[0])
-    ind = d ** i
-    n = int(np.log2(d))
+def left_multiply(state, i: int, op, is_ket=False, d=2):
+    N = int(math.log(state.shape[0], d))
+    N_op = int(op.shape[0])
+    ind = N_op ** i
+    n = int(math.log(N_op, d))
     if is_ket:
         # Left multiply
-        out = state.reshape((-1, d, ind), order='F').transpose([1, 0, 2])
-        out = np.dot(op, out.reshape((d, -1), order='F'))
-        out = out.reshape((d, -1, ind), order='F').transpose([1, 0, 2])
+        out = state.reshape((-1, N_op, ind), order='F').transpose([1, 0, 2])
+        out = np.dot(op, out.reshape((N_op, -1), order='F'))
+        out = out.reshape((N_op, -1, ind), order='F').transpose([1, 0, 2])
     else:
         # Left multiply
-        out = state.reshape((2 ** (N - n * i - n), d, -1), order='F').transpose([1, 0, 2])
-        out = np.dot(op, out.reshape((d, -1), order='F'))
-        out = out.reshape((d, 2 ** (N - n * i - n), -1), order='F').transpose([1, 0, 2])
+        out = state.reshape((2 ** (N - n * i - n), N_op, -1), order='F').transpose([1, 0, 2])
+        out = np.dot(op, out.reshape((N_op, -1), order='F'))
+        out = out.reshape((N_op, 2 ** (N - n * i - n), -1), order='F').transpose([1, 0, 2])
 
     state = out.reshape(state.shape, order='F')
     return state
 
 
-def right_multiply(state, i: int, op, is_ket=False):
-    N = int(np.log2(state.shape[0]))
-    d = int(op.shape[0])
-    n = int(np.log2(d))
+def right_multiply(state, i: int, op, is_ket=False, d=2):
+    N = int(math.log(state.shape[0], d))
+    N_op = int(op.shape[0])
+    n = int(math.log(N_op, d))
     # Right multiply
     if is_ket:
-        out = state.reshape((2 ** (2 * N - n * (i + 1)), d, -1), order='F').transpose([0, 2, 1])
-        out = np.dot(out.reshape((-1, d), order='F'), op.conj().T)
-        out = out.reshape((2 ** (2 * N - n * (i + 1)), -1, d), order='F').transpose([0, 2, 1])
+        out = state.reshape((2 ** (2 * N - n * (i + 1)), N_op, -1), order='F').transpose([0, 2, 1])
+        out = np.dot(out.reshape((-1, N_op), order='F'), op.conj().T)
+        out = out.reshape((2 ** (2 * N - n * (i + 1)), -1, N_op), order='F').transpose([0, 2, 1])
 
         state = out.reshape(state.shape, order='F')
         return state
     else:
         # Right multiply
-        out = state.reshape((2 ** (2 * N - n * (i + 1)), d, -1), order='F').transpose([0, 2, 1])
-        out = np.dot(out.reshape((-1, d), order='F'), op.conj().T)
-        out = out.reshape((2 ** (2 * N - n * (i + 1)), -1, d), order='F').transpose([0, 2, 1])
+        out = state.reshape((2 ** (2 * N - n * (i + 1)), N_op, -1), order='F').transpose([0, 2, 1])
+        out = np.dot(out.reshape((-1, N_op), order='F'), op.conj().T)
+        out = out.reshape((2 ** (2 * N - n * (i + 1)), -1, N_op), order='F').transpose([0, 2, 1])
         state = out.reshape(state.shape, order='F')
         return state
 
 
-def single_qubit_pauli(state, i: int, pauli_ind: str, is_ket=False):
+def single_qubit_pauli(state, i: int, pauli_ind: str, is_ket=False, d=2):
     """ Multiply a single pauli operator on the i-th qubit of the input wavefunction
 
         Input:
@@ -59,8 +60,8 @@ def single_qubit_pauli(state, i: int, pauli_ind: str, is_ket=False):
             pauli_ind = one of (X, Y, Z)
             is_ket = Boolean dictating whether the input is a density matrix (True) or not (False)
     """
-    N = int(np.log2(state.shape[0]))
-    ind = 2 ** i
+    N = int(math.log(state.shape[0], d))
+    ind = d ** i
     if is_ket:
         # Note index start from the right (sN,...,s3,s2,s1)
         out = state.reshape((-1, 2, ind), order='F').copy()
@@ -90,7 +91,7 @@ def single_qubit_pauli(state, i: int, pauli_ind: str, is_ket=False):
     return state
 
 
-def single_qubit_operation(state, i: int, op, is_ket=False):
+def single_qubit_operation(state, i: int, op, is_ket=False, d=2):
     """ Apply a single qubit operation on the input state.
         Efficient implementation using reshape and transpose.
 
@@ -99,24 +100,24 @@ def single_qubit_operation(state, i: int, op, is_ket=False):
             operation = 2x2 single-qubit operator to be applied OR a pauli index {0, 1, 2}
             is_pauli = Boolean indicating if op is a pauli index
     """
-    d = int(op.shape[0])
-    N = int(np.log2(state.shape[0]))
-    ind = d ** i
-    n = int(np.log2(d))
+    N_op = int(op.shape[0])
+    N = int(math.log(state.shape[0], d))
+    ind = N_op ** i
+    n = int(math.log(N_op, d))
     if is_ket:
         # Left multiply
-        out = state.reshape((-1, d, ind), order='F').transpose([1, 0, 2])
-        out = np.dot(op, out.reshape((d, -1), order='F'))
-        out = out.reshape((d, -1, ind), order='F').transpose([1, 0, 2])
+        out = state.reshape((-1, N_op, ind), order='F').transpose([1, 0, 2])
+        out = np.dot(op, out.reshape((N_op, -1), order='F'))
+        out = out.reshape((N_op, -1, ind), order='F').transpose([1, 0, 2])
     else:
         # Left multiply
-        out = state.reshape((2 ** (N - n * i - n), d, -1), order='F').transpose([1, 0, 2])
-        out = np.dot(op, out.reshape((d, -1), order='F'))
-        out = out.reshape((d, 2 ** (N - n * i - n), -1), order='F').transpose([1, 0, 2])
+        out = state.reshape((2 ** (N - n * i - n), N_op, -1), order='F').transpose([1, 0, 2])
+        out = np.dot(op, out.reshape((N_op, -1), order='F'))
+        out = out.reshape((N_op, 2 ** (N - n * i - n), -1), order='F').transpose([1, 0, 2])
         # Right multiply
-        out = out.reshape((2 ** (2 * N - n * (i + 1)), d, -1), order='F').transpose([0, 2, 1])
-        out = np.dot(out.reshape((-1, d), order='F'), op.conj().T)
-        out = out.reshape((2 ** (2 * N - n * (i + 1)), -1, d), order='F').transpose([0, 2, 1])
+        out = out.reshape((2 ** (2 * N - n * (i + 1)), N_op, -1), order='F').transpose([0, 2, 1])
+        out = np.dot(out.reshape((-1, N_op), order='F'), op.conj().T)
+        out = out.reshape((2 ** (2 * N - n * (i + 1)), -1, N_op), order='F').transpose([0, 2, 1])
 
     state = out.reshape(state.shape, order='F')
     return state
@@ -128,39 +129,43 @@ def single_qubit_rotation(state, i: int, angle: float, op, is_ket=False, d=2):
             state = input wavefunction (as numpy.ndarray)
             i = zero-based index of qubit location to apply rotation
             angle = rotation angle
-            op = unitary pauli operator or basis pauli index
+            op = involutory  operator
+            :type d: Int
     """
-    rot = np.cos(angle) * tools.identity(int(np.log2(d))) - op * 1j * np.sin(angle)
-    return single_qubit_operation(state, i, rot, is_ket=is_ket, d=d)
+    if np.all(op@op == op):
+        N_op = int(op.shape[0])
+        rot = np.cos(angle) * tools.identity(N_op) - op * 1j * np.sin(angle)
+        return single_qubit_operation(state, i, rot, is_ket=is_ket, d=d)
+    else:
+        return single_qubit_operation(state, i, np.expm(-1j*angle*op), is_ket=is_ket, d=d)
 
 
-def all_qubit_rotation(state, angle: float, op, is_ket=False):
+def all_qubit_rotation(state, angle: float, op, is_ket=False, d=2):
     """ Apply rotation exp(-1j * angle * pauli) to every qubit
         Input:
             angle = rotation angle
             op = operation on a single qubit
     """
-    d = op.shape[0]
-    N = int(np.log2(state.shape[0]))
-    for i in range(int(N / np.log2(d))):
+    N_op = op.shape[0]
+    N = int(math.log(state.shape[0], d))
+    for i in range(int(N / math.log(N_op, d))):
         state = single_qubit_rotation(state, i, angle, op, is_ket=is_ket, d=d)
     return state
 
 
-def all_qubit_operation(state, op, is_ket=False):
-    """ Apply qubit operation to every qubit
-        Input:
-            op = one of (1,2,3) for (X, Y, Z)
+def all_qubit_operation(state, op, is_ket=False, d=d):
+    """ Apply qubit operation to every qubit.
     """
-    d = op.shape[0]
-    N = int(np.log2(state.shape[0]))
-    for i in range(int(N / np.log2(d))):
-        state = single_qubit_operation(state, i, op, is_ket=is_ket, d=d)
+    N_op = op.shape[0]
+    N = int(math.log(state.shape[0], d))
+    for i in range(int(N / math.log(N_op, d))):
+        state = single_qubit_operation(state, i, op, is_ket=is_ket)
     return state
 
 
 def expectation(state, op, is_ket=False):
     """
+    :param is_ket: True if the input is a ket, False if the input is a density matrix
     :param op: Operator to take the expectation of in :py:attr:`state`
      Current support only for `operator.shape==self.state.shape`."""
     if is_ket:

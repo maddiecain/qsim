@@ -34,7 +34,6 @@ class StochasticWavefunction(object):
         se = schrodinger_equation.SchrodingerEquation(hamiltonians=self.hamiltonians, is_ket=True)
         for (j, time) in zip(range(times.shape[0]), times):
             output = se.run_ode_solver(s, time, time+2*dt, dt)[-1]
-            jump_probability_integrated = 1-np.linalg.norm(np.squeeze(output.T))**2
             jump = self.jumps[0]
             jump_probability = jump.jump_rate(s)*dt
             if np.random.uniform() < jump_probability:
@@ -43,6 +42,7 @@ class StochasticWavefunction(object):
                 # Renormalize state
                 s = s / np.linalg.norm(s)
             else:
+                jump_probability_integrated = 1 - np.linalg.norm(np.squeeze(output.T)) ** 2
                 s = output/(1-jump_probability_integrated)**.5
             outputs[j,...] = s
         return outputs
@@ -220,7 +220,7 @@ class HamiltonianHeisenberg(object):
         self.k = k
 
     def left_multiply(self, s):
-        temp = s.copy()
+        temp = np.zeros(s.shape)
         for edge in self.graph.edges:
             term = s.copy()
             term = operations.single_qubit_pauli(term, edge[0], 'X', is_ket=True)
@@ -360,11 +360,11 @@ class GreedyNoise(object):
                 temp = operations.single_qubit_operation(temp, neighbor, down, is_ket=True)
             temp = operations.single_qubit_operation(temp, node, down, is_ket=True)
             term = temp + term
-        return -1j * self.rate * term
+        return -1j * self.rate * term/2
 
     def jump_rate(self, s):
         """Compute the probability that a quantum jump happens on any node"""
-        return np.squeeze(1j * s.conj().T @ self.left_multiply(s))
+        return 2*np.squeeze(1j * s.conj().T @ self.left_multiply(s))
 
 
 def simple_monte_carlo(d, n, iters = 10):
@@ -505,8 +505,8 @@ def domain_wall_dissipation(n:list, dt=0.001, trials = 30):
             return s.T
         g = chain_graph(i)
         graph = Graph(g)
-        psi0 = np.zeros((2**i, 1)) # psi0()#
-        psi0[-1,0] = 1
+        psi0 =  psi0()#np.zeros((2**i, 1)) #
+        #psi0[-1,0] = 1
         s = State(psi0, graph.n, is_ket=True)
         greedy = GreedyNoise(graph, rate = pump_rate)
         heisenberg = HamiltonianHeisenberg(graph, k=100)
@@ -514,9 +514,9 @@ def domain_wall_dissipation(n:list, dt=0.001, trials = 30):
         quantum_outputs = np.zeros((trials, np.arange(0, tf, dt).shape[0], psi0.shape[0]), dtype=np.complex64)
         classical_outputs = np.zeros((trials, np.arange(0, tf, dt).shape[0], graph.n), dtype=np.complex64)
         for k in range(trials):
-            quantum_output = sw.run(s.state, 0, tf, dt)
+            quantum_output = sw.run(s.state.copy(), 0, tf, dt)
             quantum_outputs[k,...] = np.squeeze(quantum_output, axis=-1)
-            classical_output = graph.run(0, tf, dt, rates=[1, pump_rate], config=np.array([0,0,0,0,0]))
+            classical_output = graph.run(0, tf, dt, rates=[1, pump_rate], config=np.array([1,0,0,1,0]))
             classical_outputs[k,...] = np.squeeze(classical_output, axis=-1)
         mis_size = i//2+1
         # Assume the amount in the ground state is very small
@@ -536,8 +536,7 @@ def domain_wall_dissipation(n:list, dt=0.001, trials = 30):
     plt.show()
 
 
-
-#domain_wall_dissipation([5],trials=20)
+#domain_wall_dissipation([5],trials=30)
 
 
 def random_erdos_renyi(n, p=.3, dt=0.001, trials = 30):
@@ -550,45 +549,46 @@ def random_erdos_renyi(n, p=.3, dt=0.001, trials = 30):
         for j in range(2**n):
             s[0,j] = n-np.sum(tools.int_to_binary(j))
         return s.T
+
+    psi0 = np.zeros((2 ** n, 1))
+    psi0[-1, 0] = 1
+    s = State(psi0, n, is_ket=True)
+    quantum_outputs = np.zeros((trials, np.arange(0, tf, dt).shape[0], psi0.shape[0]), dtype=np.complex64)
+    classical_outputs = np.zeros((trials, np.arange(0, tf, dt).shape[0], n), dtype=np.complex64)
+    # Generate a new graph
     g = nx.erdos_renyi_graph(n, p)
     graph = Graph(g)
-    psi0 = np.zeros((2**n, 1))
-    psi0[-1,0] = 1
-    s = State(psi0, graph.n, is_ket=True)
-    greedy = GreedyNoise(graph, rate = pump_rate)
-    heisenberg = HamiltonianHeisenberg(graph, k=100)
-    sw = StochasticWavefunction(hamiltonians=[heisenberg, greedy], jumps=[greedy])
-    quantum_outputs = np.zeros((trials, np.arange(0, tf, dt).shape[0], psi0.shape[0]), dtype=np.complex64)
-    classical_outputs = np.zeros((trials, np.arange(0, tf, dt).shape[0], graph.n), dtype=np.complex64)
+    nx.draw(g)
+    plt.show()
     for k in range(trials):
-        quantum_output = sw.run(s.state, 0, tf, dt)
+        print(k)
+        greedy = GreedyNoise(graph, rate = pump_rate)
+        heisenberg = HamiltonianHeisenberg(graph, k=100)
+        sw = StochasticWavefunction(hamiltonians=[heisenberg, greedy], jumps=[greedy])
+        quantum_output = sw.run(s.state.copy(), 0, tf, dt)
         quantum_outputs[k,...] = np.squeeze(quantum_output, axis=-1)
         classical_output = graph.run(0, tf, dt, rates=[1, pump_rate])
         classical_outputs[k,...] = np.squeeze(classical_output, axis=-1)
-    #print(classical_outputs[-1], quantum_outputs[-1])
     mis = nx.algorithms.approximation.maximum_independent_set(graph.graph)
     mis_state = np.zeros(2**n)
     binary = np.zeros(n)
     for l in range(graph.n):
         if l in mis:
             binary[l] = 1
-    mis_state[tools.binary_to_int(binary)] = 1
-    mis_state = np.array([mis_state]).T
     mis_size = np.sum(binary)
+    mis_state[tools.binary_to_int(1-binary)] = 1
+    mis_state = np.array([mis_state]).T
     # Assume the amount in the ground state is very small
-    quantum_overlap_mis = np.abs(quantum_outputs@mis_state)**2
+    #quantum_overlap_mis = np.abs(quantum_outputs@mis_state)**2
     quantum_spin = np.abs(quantum_outputs)**2 @ spin_hamiltonian()/mis_size
     classical_spin = np.sum(classical_outputs, axis=-1) / mis_size
-    classical_overlap_mis = classical_spin.copy()
-    classical_overlap_mis[classical_overlap_mis==1] =1
-    classical_overlap_mis[classical_overlap_mis!=1] =0
-    plt.plot(times, np.mean(np.squeeze(quantum_overlap_mis, axis=-1), axis=0), label='Quantum MIS overlap, n='+str(n))
+    #plt.plot(times, np.mean(np.squeeze(quantum_overlap_mis, axis=-1), axis=0), label='Quantum MIS overlap, n='+str(n))
     plt.plot(times, np.mean(np.squeeze(quantum_spin, axis=-1), axis=0), label='Quantum AR, n='+str(n))
 
-    plt.plot(times, np.mean(classical_overlap_mis, axis=0), label='Classical MIS overlap, n='+str(n))
+    #plt.plot(times, np.mean(classical_overlap_mis, axis=0), label='Classical MIS overlap, n='+str(n))
     plt.plot(times, np.mean(classical_spin, axis=0), label='Classical AR, n='+str(n))
 
     plt.legend(loc='upper left')
     plt.show()
 
-random_erdos_renyi(5, .3, trials=10)
+random_erdos_renyi(7, .5, trials=20)
