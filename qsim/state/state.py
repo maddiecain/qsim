@@ -3,7 +3,7 @@ import numpy as np
 from qsim import tools
 from qsim.tools.operations import *
 
-__all__ = ['State', 'TwoQubitCode', 'JordanFarhiShor', 'ThreeQubitCode', 'ThreeQubitCodeTwoAncillas', 'MarvianCode']
+__all__ = ['State', 'TwoQubitCode', 'JordanFarhiShor', 'ThreeQubitCode', 'ThreeQubitCodeTwoAncillas']
 
 
 class State(object):
@@ -53,37 +53,37 @@ class State(object):
                     np.isclose(np.absolute(np.trace(self.state)), 1))
 
     def opX(self, i: int, overwrite=True):
-        result = single_qubit_pauli(self.state, i, 'X', is_ket=self.is_ket)
+        result = single_qubit_pauli(self.state, i, 'X', is_ket=self.is_ket, d=self.d)
         if overwrite:
             self.state = result
         return result
 
     def opY(self, i: int, overwrite=True):
-        result = single_qubit_pauli(self.state, i, 'Y', is_ket=self.is_ket)
+        result = single_qubit_pauli(self.state, i, 'Y', is_ket=self.is_ket, d=self.d)
         if overwrite:
             self.state = result
         return result
 
     def opZ(self, i: int, overwrite=True):
-        result = single_qubit_pauli(self.state, i, 'Z', is_ket=self.is_ket)
+        result = single_qubit_pauli(self.state, i, 'Z', is_ket=self.is_ket, d=self.d)
         if overwrite:
             self.state = result
         return result
 
     def rotX(self, i: int, angle, overwrite=True):
-        result = single_qubit_rotation(self.state, i, angle, State.X, is_ket=self.is_ket)
+        result = single_qubit_rotation(self.state, i, angle, State.X, is_ket=self.is_ket, d=self.d)
         if overwrite:
             self.state = result
         return result
 
     def rotY(self, i: int, angle, overwrite=True):
-        result = single_qubit_rotation(self.state, i, angle, State.Y, is_ket=self.is_ket)
+        result = single_qubit_rotation(self.state, i, angle, State.Y, is_ket=self.is_ket, d=self.d)
         if overwrite:
             self.state = result
         return result
 
     def rotZ(self, i: int, angle, overwrite=True):
-        result = single_qubit_rotation(self.state, i, angle, State.Z, is_ket=self.is_ket)
+        result = single_qubit_rotation(self.state, i, angle, State.Z, is_ket=self.is_ket, d=self.d)
         if overwrite:
             self.state = result
         return result
@@ -96,7 +96,7 @@ class State(object):
         :type i: Boolean
         :param op: :math:`2 \\times 2` single-qubit operator to be applied
         """
-        result = single_qubit_operation(self.state, i, op, is_ket=self.is_ket)
+        result = single_qubit_operation(self.state, i, op, is_ket=self.is_ket, d=self.d)
         if overwrite:
             self.state = result
         return result
@@ -108,7 +108,7 @@ class State(object):
         :param angle: rotation angle
         :param op: projection operator or basis pauli index
         """
-        result = single_qubit_rotation(self.state, i, angle, op, is_ket=self.is_ket)
+        result = single_qubit_rotation(self.state, i, angle, op, is_ket=self.is_ket, d=self.d)
         if overwrite:
             self.state = result
         return result
@@ -119,7 +119,7 @@ class State(object):
         :param angle: rotation angle :math:`\theta`
         :param op: operation to perform on a single qubit
         """
-        result = all_qubit_rotation(self.state, angle, op, is_ket=self.is_ket)
+        result = all_qubit_rotation(self.state, angle, op, is_ket=self.is_ket, d=self.d)
         if overwrite:
             self.state = result
         return result
@@ -130,7 +130,7 @@ class State(object):
         :param is_pauli: If True, op should be a string denoting the Pauli matrix to apply.
         :param op: :math:`2 \\times 2` single-qubit operator to be applied
         """
-        result = all_qubit_operation(self.state, op, is_ket=self.is_ket)
+        result = all_qubit_operation(self.state, op, is_ket=self.is_ket, d=self.d)
         if overwrite:
             self.state = result
         return result

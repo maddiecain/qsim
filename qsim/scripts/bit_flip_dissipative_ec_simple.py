@@ -2,10 +2,9 @@ from qsim import master_equation
 from qsim.tools import operations
 from qsim import tools
 from qsim.noise.noise_models import PauliNoise
-from qsim.state import ThreeQubitCode
+from qsim.state.state import ThreeQubitCode
 import numpy as np
 import matplotlib.pyplot as plt
-import scipy.linalg as sp
 
 # New ThreeQubitCode object with two logical qubits
 # Initial state is 1/sqrt(2)(|000>+|111>)

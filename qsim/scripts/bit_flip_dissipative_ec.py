@@ -2,7 +2,7 @@ from qsim import master_equation
 from qsim.tools import operations
 from qsim import tools
 from qsim.noise.noise_models import PauliNoise
-from qsim.state import FTThreeQubitCode, ThreeQubitCode
+from qsim.state.state import FTThreeQubitCode, ThreeQubitCode
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.sparse

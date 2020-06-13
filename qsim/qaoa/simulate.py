@@ -16,7 +16,7 @@ import numpy as np
 from timeit import default_timer as timer
 
 
-from qsim.state import *
+from qsim.state.state import *
 from qsim import tools
 from qsim.hamiltonian import HamiltonianC
 

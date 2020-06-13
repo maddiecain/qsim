@@ -1,25 +1,33 @@
 from qsim.tools import tools
 from odeintw import odeintw
 import numpy as np
+
 __all__ = ['SchrodingerEquation']
 
+
 class SchrodingerEquation(object):
-    def __init__(self, hamiltonians = None, is_ket = False):
+    def __init__(self, hamiltonians=None, is_ket=False):
         # Hamiltonian is a function of time
         self.hamiltonians = hamiltonians
         self.is_ket = is_ket
 
-    def run_ode_solver(self, s, t0, tf, dt = .1, func=None):
+    def run_time_independent_solver(self, t0, tf, dt=.1, func=None):
+        """Returns the state of the system under unitary time evolution of a time
+        independent Hamiltonian"""
+        pass
+
+    def run_ode_solver(self, s, t0, tf, dt=.1, func=None):
+        """Numerically integrates the Schrodinger equation"""
         if func is None:
             if not self.is_ket:
                 def f(s, t):
                     # hbar is set to one
-                    return -1j*tools.commutator(self.hamiltonian(t), s)
+                    return -1j * tools.commutator(self.hamiltonian(t), s)
             else:
                 def f(s, t):
                     res = np.zeros(s.shape)
                     for hamiltonian in self.hamiltonians:
-                        res = res -1j*hamiltonian.left_multiply(s)
+                        res = res - 1j * hamiltonian.left_multiply(s)
                     return res
             func = f
         # s is a density matrix
@@ -27,6 +35,5 @@ class SchrodingerEquation(object):
         z, infodict = odeintw(func, s, np.arange(t0, tf, dt), full_output=True)
         return z
 
-    def run_mc_solver(self, s, t0, tf, dt = .1, func=None):
+    def run_mc_solver(self, s, t0, tf, dt=.1, func=None):
         pass
-

@@ -2,7 +2,7 @@ import numpy as np
 from qsim.tools import operations, tools
 from qsim import schrodinger_equation
 from qsim import hamiltonian
-from qsim.state import *
+from qsim.state.state import *
 import matplotlib.pyplot as plt
 import networkx as nx
 from networkx.algorithms import approximation

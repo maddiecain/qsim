@@ -3,7 +3,7 @@ import networkx as nx
 import unittest
 
 from qsim.qaoa import simulate
-from qsim.state import State
+from qsim.state.state import State
 from qsim import tools, hamiltonian
 
 # Generate sample graph
@@ -49,12 +49,10 @@ class TestHamiltonian(unittest.TestCase):
 
     def test_multiply_B(self):
         state0 = State(psi0, N, is_ket=True)
-
         sim.hamiltonian[1].left_multiply(state0)
         psi1 = np.zeros((2 ** N, 1))
         for i in range(N):
             psi1[2 ** i, 0] = 1
-
         self.assertTrue(np.allclose(state0.state, psi1))
 
 

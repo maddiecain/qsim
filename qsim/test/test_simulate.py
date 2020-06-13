@@ -24,7 +24,6 @@ sim_ket = simulate.SimulateQAOA(g, 1, 2, is_ket=True, mis=False)
 sim_noisy = simulate.SimulateQAOA(g, 1, 2, is_ket=False, mis=False)
 sim_noisy.noise = []
 
-
 N = 10
 # Initialize in |000000>
 psi0 = np.zeros((2 ** N, 1))
@@ -49,11 +48,10 @@ class TestSimulate(unittest.TestCase):
 
         # p = 1 density matrix
         F, Fgrad = sim.variational_grad(np.array([1, 0.5]))
-        print(Fgrad)
         self.assertTrue(np.abs(F - 1.897011131463) <= 1e-5)
         self.assertTrue(np.all(np.abs(Fgrad - np.array([14.287009047096, -0.796709998210])) <= 1e-5))
 
-        # p = 1 noiY
+        # p = 1 noisy
         F, Fgrad = sim_noisy.variational_grad(np.array([1, 0.5]))
         self.assertTrue(np.abs(F - 1.8869139555669938) <= 1e-5)
         self.assertTrue(np.all(np.abs(Fgrad - np.array([14.21096392, -0.79246937])) <= 1e-5))
@@ -102,10 +100,12 @@ class TestSimulate(unittest.TestCase):
         sim_noisy.p = 3
         print('Noiseless:')
         params = sim.find_parameters_minimize()
-        self.assertTrue(np.allclose(params.x, np.array([0.2042597,0.42876983, 0.52240463,-0.50668092,-0.34297845,-0.16922362])))
+        self.assertTrue(
+            np.allclose(params.x, np.array([0.2042597, 0.42876983, 0.52240463, -0.50668092, -0.34297845, -0.16922362])))
         print('Noisy:')
         params = sim_noisy.find_parameters_minimize()
-        self.assertTrue(np.allclose(params.x, np.array([0.20340663,  0.42731716 , 0.52019853, -0.50669633, -0.3437759,  -0.17029569])))
+        self.assertTrue(
+            np.allclose(params.x, np.array([0.20340663, 0.42731716, 0.52019853, -0.50669633, -0.3437759, -0.17029569])))
 
     def test_fix_param_gauge(self):
         """
@@ -153,6 +153,7 @@ class TestSimulate(unittest.TestCase):
         param2 += np.random.choice([1, -1], 6) * np.pi / 2
         param_fixed = sim.fix_param_gauge(param2, degree_parity=0)
         self.assertTrue(np.linalg.norm(param - param_fixed) <= tolerance)
+
 
 if __name__ == '__main__':
     unittest.main()

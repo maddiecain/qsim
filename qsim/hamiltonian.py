@@ -1,96 +1,65 @@
 import numpy as np
-import scipy.linalg as sc
 import networkx as nx
 
-from qsim.state import *
+from qsim.state.state import *
 from qsim import tools, operations
 
-__all__ = ['Hamiltonian', 'HamiltonianBookatzPenalty', 'HamiltonianGlobalPauli', 'HamiltonianB', 'HamiltonianC',
+__all__ = ['HamiltonianBookatzPenalty', 'HamiltonianGlobalPauli', 'HamiltonianB', 'HamiltonianC',
            'HamiltonianMarvianPenalty']
 
 
-class Hamiltonian(object):
-    """:class:`Hamiltonian` defines a new variational parameter for QAOA.
-
-    :param evolve: evolves :class:`Hamiltonian`, defaults to [DefaultParamVal]
-    :type evolve: [ParamType](, optional)
-    ...
-    :raises [ErrorType]: [ErrorDescription]
-    ...
-    :return: [ReturnDescription]
-    :rtype: [ReturnType]
-    """
-
-    def __init__(self, hamiltonian=None):
-        # Actual representation of the Hamiltonian as a matrix
-        self.hamiltonian = hamiltonian
-
-    def evolve(self, s: State, time, overwrite = True):
-        # Diagonalize then apply operation
-        return s.multiply(sc.expm(-1j * self.hamiltonian * time), overwrite = overwrite)
-
-    def left_multiply(self, s: State, overwrite = True):
-        if overwrite:
-            s.state = self.hamiltonian @ s.state
-        return self.hamiltonian @ s.state
-
-    def right_multiply(self, s: State, overwrite = True):
-        if overwrite:
-            s.state = s.state @ self.hamiltonian.conj().T
-        return s.state @ self.hamiltonian.conj().T
-
-
-class HamiltonianB(Hamiltonian):
-    def __init__(self, pauli = 'x'):
+class HamiltonianB(object):
+    def __init__(self, pauli='X', code=State):
         super().__init__()
         self.pauli = pauli
+        self.time_independent = True
 
-    def left_multiply(self, s: State, overwrite = True):
-        out = np.zeros(s.state.shape, dtype=np.complex128)
+    def left_multiply(self, s: State, overwrite=True):
+        out = np.zeros_like(s.state, dtype=np.complex128)
         for i in range(int(s.N / s.n)):
             if s.is_ket:
                 # Use op because it's a little bit faster
-                if self.pauli == 'x':
+                if self.pauli == 'X':
                     out = out + s.opX(i, overwrite=False)
-                elif self.pauli == 'y':
+                elif self.pauli == 'Y':
                     out = out + s.opY(i, overwrite=False)
-                elif self.pauli == 'z':
+                elif self.pauli == 'Z':
                     out = out + s.opZ(i, overwrite=False)
             else:
-                if self.pauli == 'x':
+                if self.pauli == 'X':
                     out = out + operations.left_multiply(s.state, i, s.X, is_ket=s.is_ket)
-                elif self.pauli == 'y':
+                elif self.pauli == 'Y':
                     out = out + operations.left_multiply(s.state, i, s.Y, is_ket=s.is_ket)
-                elif self.pauli == 'z':
+                elif self.pauli == 'Z':
                     out = out + operations.left_multiply(s.state, i, s.Z, is_ket=s.is_ket)
         if overwrite:
             s.state = out
         return out
 
-    def right_multiply(self, s: State, overwrite = True):
-        out = np.zeros(s.state.shape, dtype=np.complex128)
+    def right_multiply(self, s: State, overwrite=True):
+        out = np.zeros_like(s.state, dtype=np.complex128)
         for i in range(int(s.N / s.n)):
-            if self.pauli == 'x':
+            if self.pauli == 'X':
                 out = out + operations.right_multiply(s.state, i, s.X, is_ket=s.is_ket)
-            elif self.pauli == 'y':
+            elif self.pauli == 'Y':
                 out = out + operations.right_multiply(s.state, i, s.Y, is_ket=s.is_ket)
-            elif self.pauli == 'z':
+            elif self.pauli == 'Z':
                 out = out + operations.right_multiply(s.state, i, s.Z, is_ket=s.is_ket)
         if overwrite:
             s.state = out
         return out
 
-    def evolve(self, s: State, beta, overwrite = True):
+    def evolve(self, s: State, beta, overwrite=True):
         r"""Use reshape to efficiently implement evolution under B=\sum_i X_i"""
-        if self.pauli == 'x':
+        if self.pauli == 'X':
             s.all_qubit_rotation(beta, s.X, overwrite=overwrite)
-        elif self.pauli == 'y':
+        elif self.pauli == 'Y':
             s.all_qubit_rotation(beta, s.Y, overwrite=overwrite)
-        elif self.pauli == 'z':
+        elif self.pauli == 'Z':
             s.all_qubit_rotation(beta, s.Z, overwrite=overwrite)
 
 
-class HamiltonianC(Hamiltonian):
+class HamiltonianC(object):
     def __init__(self, graph: nx.Graph, mis=True, code=State):
         # If MIS is true, create an MIS Hamiltonian. Otherwise, make a MaxCut Hamiltonian
         r"""
@@ -98,6 +67,7 @@ class HamiltonianC(Hamiltonian):
         """
         self.code = code
         self.mis = mis
+        self.time_independent = True
         self.graph = graph
         self.N = self.graph.number_of_nodes()
         C = np.zeros([2 ** (self.code.n * self.N), 1])
@@ -110,15 +80,16 @@ class HamiltonianC(Hamiltonian):
                 temp = a
                 a = b
                 b = temp
+            # TODO: change this to be the correct MaxCut hamiltonian
             C = C + self.graph[a][b]['weight'] * tools.tensor_product(
                 [myeye(a), Z, myeye(b - a - 1), Z, myeye(self.N - b - 1)])
         if self.mis:
             for c in self.graph.nodes:
+                print(self.graph[c])
                 C = C + tools.tensor_product([myeye(c), Z, myeye(self.N - c - 1)])
         self.hamiltonian_diag = C
-        super().__init__(hamiltonian=np.diag(np.squeeze(C.T)))
 
-    def evolve(self, s: State, gamma, overwrite = True):
+    def evolve(self, s: State, gamma, overwrite=True):
         if s.is_ket:
             if overwrite:
                 s.state = np.exp(-1j * gamma * self.hamiltonian_diag) * s.state
@@ -126,60 +97,85 @@ class HamiltonianC(Hamiltonian):
         else:
             if overwrite:
                 s.state = np.exp(-1j * gamma * self.hamiltonian_diag) * s.state * np.exp(
-                1j * gamma * self.hamiltonian_diag).T
+                    1j * gamma * self.hamiltonian_diag).T
             return np.exp(-1j * gamma * self.hamiltonian_diag) * s.state * np.exp(
                 1j * gamma * self.hamiltonian_diag).T
 
-    def left_multiply(self, s: State, overwrite = True):
+    def left_multiply(self, s: State, overwrite=True):
         if overwrite:
             s.state = self.hamiltonian_diag * s.state
+            return s.state
         return self.hamiltonian_diag * s.state
 
-    def right_multiply(self, s: State, overwrite = True):
+    def right_multiply(self, s: State, overwrite=True):
         # Already real, so you don't need to conjugate
         if overwrite:
             s.state = s.state * self.hamiltonian_diag.T
+            return s.state
         return s.state * self.hamiltonian_diag.T
 
 
-class HamiltonianGlobalPauli(Hamiltonian):
-    def __init__(self, pauli: str):
+class HamiltonianGlobalPauli(object):
+    def __init__(self, pauli: str, code=State):
         super().__init__()
+        self.code = code
         self.pauli = pauli
         if self.pauli == 'X':
-            self.operator = tools.X
+            self.operator = code.X
         elif self.pauli == 'Y':
-            self.operator = tools.Y
+            self.operator = code.Y
         elif self.pauli == 'Z':
-            self.operator = tools.Z
+            self.operator = code.Z
 
-    def evolve(self, s: State, alpha, overwrite = True):
-        # TODO: make this more efficient (low priority)
-        s.multiply(np.cos(alpha) * np.identity(2 ** s.N) - 1j * np.sin(alpha) * self.operator(n=s.N))
+    def evolve(self, s: State, alpha, overwrite=True):
+        if overwrite:
+            s.state = s.multiply(np.cos(alpha) * np.identity(2 ** s.N) - 1j * np.sin(alpha) * tools.tensor_product([self.operator]*int(s.N/s.n)))
+            return s.state
+        return s.multiply(np.cos(alpha) * np.identity(2 ** s.N) - 1j * np.sin(alpha) * tools.tensor_product([self.operator]*int(s.N/s.n)))
 
-    def left_multiply(self, s: State, overwrite = True):
-        # TODO: make this more efficient (low priority)
-        if self.pauli == 'X':
-            s.state = np.flip(s.state, 0)
+
+    def left_multiply(self, s: State, overwrite=True):
+        if overwrite:
+            if self.pauli == 'X' and isinstance(s, State):
+                s.state = np.flip(s.state, 0)
+            else:
+                for i in range(int(s.N/s.n)):
+                    if self.pauli == 'X':
+                        s.opX(i, overwrite=overwrite)
+                    elif self.pauli == 'Y':
+                        s.opY(i, overwrite=overwrite)
+                    elif self.pauli == 'Z':
+                        s.opZ(i, overwrite=overwrite)
+            return s.state
         else:
-            s.state = self.operator(n=s.N) @ s.state
+            if self.pauli == 'X':
+                return np.flip(s.state, 0)
+            else:
+                temp = np.empty_like(s.state)
+                for i in range(int(s.N / s.n)):
+                    if self.pauli == 'X':
+                        temp = s.opX(i, overwrite=overwrite)
+                    elif self.pauli == 'Y':
+                        s.opY(i, overwrite=overwrite)
+                    elif self.pauli == 'Z':
+                        s.opZ(i, overwrite=overwrite)
 
-    def right_multiply(self, s: State, overwrite = True):
-        s.state = s.state @ self.operator(n=s.N).conj().T
+    def right_multiply(self, s: State, overwrite=True):
+        s.state = s.state @ tools.tensor_product([self.operator]*int(s.N/s.n)).conj().T
 
 
-class HamiltonianBookatzPenalty(Hamiltonian):
+class HamiltonianBookatzPenalty(object):
     def __init__(self):
         super().__init__()
 
-    def evolve(self, s: State, penalty, overwrite = True):
+    def evolve(self, s: State, penalty, overwrite=True):
         # Term for a single qubit
         projector = np.identity(2 ** s.n) - s.proj
         op = np.exp(-1j * penalty) * projector - projector + np.identity(2 ** s.n)
         for i in range(int(s.N / s.n)):
             s.single_qubit_operation(i, op)
 
-    def left_multiply(self, s: State, overwrite = True):
+    def left_multiply(self, s: State, overwrite=True):
         projector = np.identity(2 ** s.n) - s.proj
         out = np.zeros(s.state.shape, dtype=np.complex128)
         for i in range(int(s.N / s.n)):
@@ -189,7 +185,7 @@ class HamiltonianBookatzPenalty(Hamiltonian):
                 out = out + operations.left_multiply(s.state, i, projector, is_ket=s.is_ket)
         s.state = out
 
-    def right_multiply(self, s: State, overwrite = True):
+    def right_multiply(self, s: State, overwrite=True):
         projector = np.identity(2 ** s.n) - s.proj
         out = np.zeros(s.state.shape, dtype=np.complex128)
         for i in range(int(s.N / s.n)):
@@ -197,7 +193,7 @@ class HamiltonianBookatzPenalty(Hamiltonian):
         s.state = out
 
 
-class HamiltonianMarvianPenalty(Hamiltonian):
+class HamiltonianMarvianPenalty(object):
     def __init__(self, Nx, Ny):
         super().__init__()
         self.Nx = Nx
@@ -240,9 +236,8 @@ class HamiltonianMarvianPenalty(Hamiltonian):
         self.hamiltonian = -1 * hp
 
 
-
-class HamiltonianRydberg(Hamiltonian):
-    def __init__(self, graph: nx.Graph, mis=True, code=State, penalty = 1):
+class HamiltonianRydberg(object):
+    def __init__(self, graph: nx.Graph, mis=True, code=State, penalty=1):
         # If MIS is true, create an MIS Hamiltonian. Otherwise, make a MaxCut Hamiltonian
         r"""
         Generate a vector corresponding to the diagonal of the C Hamiltonian.
@@ -269,7 +264,7 @@ class HamiltonianRydberg(Hamiltonian):
         self.hamiltonian_diag = C
         super().__init__(hamiltonian=np.diag(np.squeeze(C)))
 
-    def evolve(self, s: State, gamma, overwrite = True):
+    def evolve(self, s: State, gamma, overwrite=True):
         if s.is_ket:
             if overwrite:
                 s.state = np.exp(-1j * gamma * self.hamiltonian_diag) * s.state
@@ -277,19 +272,17 @@ class HamiltonianRydberg(Hamiltonian):
         else:
             if overwrite:
                 s.state = np.exp(-1j * gamma * self.hamiltonian_diag) * s.state * np.exp(
-                1j * gamma * self.hamiltonian_diag).T
+                    1j * gamma * self.hamiltonian_diag).T
             return np.exp(-1j * gamma * self.hamiltonian_diag) * s.state * np.exp(
                 1j * gamma * self.hamiltonian_diag).T
 
-    def left_multiply(self, s: State, overwrite = True):
+    def left_multiply(self, s: State, overwrite=True):
         if overwrite:
             s.state = self.hamiltonian_diag * s.state
         return self.hamiltonian_diag * s.state
 
-    def right_multiply(self, s: State, overwrite = True):
+    def right_multiply(self, s: State, overwrite=True):
         # Already real, so you don't need to conjugate
         if overwrite:
             s.state = s.state * self.hamiltonian_diag.T
         return s.state * self.hamiltonian_diag.T
-
-

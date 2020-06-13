@@ -2,7 +2,7 @@ import networkx as nx
 from qsim.noise import noise_models
 from qsim.qaoa import simulate
 from qsim import hamiltonian
-from qsim.state import TwoQubitCode
+from qsim.state.state import TwoQubitCode
 
 # Construct a regular graph with v nodes and degree d
 v = 2
