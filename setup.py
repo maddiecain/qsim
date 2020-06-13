@@ -8,7 +8,7 @@ setup(
     version='1.0',
     description='Quantum simulation for NISQ computers',
     long_description=long_description,
-    author='Leo Zhou, Madelyn Cain',
-    author_email='leozhou@g.harvard.edu, mcain@g.harvard.edu',
+    author='Madelyn Cain',
+    author_email='mcain@g.harvard.edu',
     packages=['qsim']
 )
