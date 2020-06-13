@@ -1,4 +1,3 @@
-import networkx as nx
 import numpy as np
 from qsim import tools
 from qsim.tools.operations import *
@@ -37,7 +36,7 @@ class State(object):
         """Returns ``True`` if :py:attr:`state` is a pure state."""
         return np.array_equal(self.state @ self.state, self.state) or self.is_ket
 
-    def is_valid_dmatrix(self, verbose = True):
+    def is_valid_dmatrix(self, verbose=True):
         """Returns ``True`` if :py:attr:`state` is a valid density matrix or a ket."""
         if self.is_ket:
             return np.linalg.norm(self.state) == 1
@@ -52,43 +51,55 @@ class State(object):
                     np.all(np.real(np.linalg.eigvals(self.state)) >= -1 * 1e-05) and
                     np.isclose(np.absolute(np.trace(self.state)), 1))
 
-    def opX(self, i: int, overwrite=True):
-        result = single_qubit_pauli(self.state, i, 'X', is_ket=self.is_ket, d=self.d)
+    def opX(self, i: int, state=None, overwrite=True):
+        if state is None:
+            state = self.state
+        state = single_qubit_pauli(state, i, 'X', is_ket=self.is_ket, d=self.d)
         if overwrite:
-            self.state = result
-        return result
+            self.state = state
+        return state
 
-    def opY(self, i: int, overwrite=True):
-        result = single_qubit_pauli(self.state, i, 'Y', is_ket=self.is_ket, d=self.d)
+    def opY(self, i: int, state=None, overwrite=True):
+        if state is None:
+            state = self.state
+        state = single_qubit_pauli(state, i, 'Y', is_ket=self.is_ket, d=self.d)
         if overwrite:
-            self.state = result
-        return result
+            self.state = state
+        return state
 
-    def opZ(self, i: int, overwrite=True):
+    def opZ(self, i: int, state=None, overwrite=True):
+        if state is None:
+            state = self.state
         result = single_qubit_pauli(self.state, i, 'Z', is_ket=self.is_ket, d=self.d)
         if overwrite:
             self.state = result
         return result
 
-    def rotX(self, i: int, angle, overwrite=True):
-        result = single_qubit_rotation(self.state, i, angle, State.X, is_ket=self.is_ket, d=self.d)
+    def rotX(self, i: int, angle, state=None, overwrite=True):
+        if state is None:
+            state = self.state
+        state = single_qubit_rotation(state, i, angle, State.X, is_ket=self.is_ket, d=self.d)
         if overwrite:
-            self.state = result
-        return result
+            self.state = state
+        return state
 
-    def rotY(self, i: int, angle, overwrite=True):
-        result = single_qubit_rotation(self.state, i, angle, State.Y, is_ket=self.is_ket, d=self.d)
+    def rotY(self, i: int, angle, state=None, overwrite=True):
+        if state is None:
+            state = self.state
+        state = single_qubit_rotation(state, i, angle, State.Y, is_ket=self.is_ket, d=self.d)
         if overwrite:
-            self.state = result
-        return result
+            self.state = state
+        return state
 
-    def rotZ(self, i: int, angle, overwrite=True):
-        result = single_qubit_rotation(self.state, i, angle, State.Z, is_ket=self.is_ket, d=self.d)
+    def rotZ(self, i: int, angle, state=None, overwrite=True):
+        if state is None:
+            state = self.state
+        state = single_qubit_rotation(state, i, angle, State.Z, is_ket=self.is_ket, d=self.d)
         if overwrite:
-            self.state = result
-        return result
+            self.state = state
+        return state
 
-    def single_qubit_operation(self, i: int, op, overwrite=True):
+    def single_qubit_operation(self, i: int, op, state=None, overwrite=True):
         """Apply a single qubit operation on the input state.
         Efficient implementation using reshape and transpose.
 
@@ -96,44 +107,52 @@ class State(object):
         :type i: Boolean
         :param op: :math:`2 \\times 2` single-qubit operator to be applied
         """
-        result = single_qubit_operation(self.state, i, op, is_ket=self.is_ket, d=self.d)
+        if state is None:
+            state = self.state
+        state = single_qubit_operation(state, i, op, is_ket=self.is_ket, d=self.d)
         if overwrite:
-            self.state = result
-        return result
+            self.state = state
+        return state
 
-    def single_qubit_rotation(self, i: int, angle: float, op, overwrite=True):
+    def single_qubit_rotation(self, i: int, angle: float, op, state=None, overwrite=True):
         """Apply a single qubit rotation :math:`\\exp(-i \\theta * op)` to wavefunction
 
         :param i: zero-based index of qubit location to apply pauli
         :param angle: rotation angle
         :param op: projection operator or basis pauli index
         """
-        result = single_qubit_rotation(self.state, i, angle, op, is_ket=self.is_ket, d=self.d)
+        if state is None:
+            state = self.state
+        state = single_qubit_rotation(state, i, angle, op, is_ket=self.is_ket, d=self.d)
         if overwrite:
-            self.state = result
-        return result
+            self.state = state
+        return state
 
-    def all_qubit_rotation(self, angle: float, op, overwrite=True):
+    def all_qubit_rotation(self, angle: float, op, state=None, overwrite=True):
         """Apply rotation :math:`\\exp(-i \\theta * op)` to every qubit
 
         :param angle: rotation angle :math:`\theta`
         :param op: operation to perform on a single qubit
         """
-        result = all_qubit_rotation(self.state, angle, op, is_ket=self.is_ket, d=self.d)
+        if state is None:
+            state = self.state
+        state = all_qubit_rotation(state, angle, op, is_ket=self.is_ket, d=self.d)
         if overwrite:
-            self.state = result
-        return result
+            self.state = state
+        return state
 
-    def all_qubit_operation(self, op, overwrite=True):
+    def all_qubit_operation(self, op, state=None, overwrite=True):
         """ Apply a qubit operation ``op`` to every qubit
 
         :param is_pauli: If True, op should be a string denoting the Pauli matrix to apply.
         :param op: :math:`2 \\times 2` single-qubit operator to be applied
         """
-        result = all_qubit_operation(self.state, op, is_ket=self.is_ket, d=self.d)
+        if state is None:
+            state = self.state
+        state = all_qubit_operation(state, op, is_ket=self.is_ket, d=self.d)
         if overwrite:
-            self.state = result
-        return result
+            self.state = state
+        return state
 
     def expectation(self, operator):
         """
@@ -191,7 +210,7 @@ class State(object):
             i = np.random.choice(operator.shape[0], p=np.absolute(probs))
             return eigenvalues[i], outcomes[i] / probs
 
-    def multiply(self, operator, overwrite = True):
+    def multiply(self, operator, overwrite=True):
         """Applies ``operator`` to :py:attr:`state`."""
         if overwrite:
             self.state = tools.multiply(self.state, operator, is_ket=self.is_ket)
@@ -210,37 +229,58 @@ class TwoQubitCode(State):
         # Simple two qubit code with |0>_L = |00>, |1>_L = |11>
         super().__init__(state, TwoQubitCode.n * N, is_ket)
 
-    def opX(self, i: int, overwrite=True):
+    def opX(self, i: int, state=None, overwrite=True):
         # I_i X_{i+1}
-        return super().opX(TwoQubitCode.n * i + 1, overwrite=overwrite)
+        if state is None:
+            state = self.state
+        state = super().opX(TwoQubitCode.n * i + 1, state=state, overwrite=overwrite)
+        if overwrite:
+            self.state = state
+        return state
 
-    def opY(self, i: int, overwrite=True):
+    def opY(self, i: int, state=None, overwrite=True):
         # Y_i Z_{i+1}
-        result = single_qubit_pauli(self.state, TwoQubitCode.n * i, 'Y', is_ket=self.is_ket)
-        result = single_qubit_pauli(result, TwoQubitCode.n * i + 1, 'Z', is_ket=self.is_ket)
+        if state is None:
+            state = self.state
+        state = single_qubit_pauli(state, TwoQubitCode.n * i, 'Y', is_ket=self.is_ket)
+        state = single_qubit_pauli(state, TwoQubitCode.n * i + 1, 'Z', is_ket=self.is_ket)
         if overwrite:
-            self.state = result
-        return result
+            self.state = state
+        return state
 
-    def opZ(self, i: int, overwrite=True):
+    def opZ(self, i: int, state=None, overwrite=True):
         # Z_i Z_{i+1}
-        result = single_qubit_pauli(self.state, TwoQubitCode.n * i, 'Z', is_ket=self.is_ket)
-        result = single_qubit_pauli(result, TwoQubitCode.n * i + 1, 'Z', is_ket=self.is_ket)
+        if state is None:
+            state = self.state
+        state = single_qubit_pauli(state, TwoQubitCode.n * i, 'Z', is_ket=self.is_ket)
+        state = single_qubit_pauli(state, TwoQubitCode.n * i + 1, 'Z', is_ket=self.is_ket)
         if overwrite:
-            self.state = result
-        return result
+            self.state = state
+        return state
 
-    def rotX(self, i: int, angle, overwrite=True):
-        # TODO
-        pass
+    def rotX(self, i: int, angle, state=None, overwrite=True):
+        if state is None:
+            state = self.state
+        state = single_qubit_rotation(state, TwoQubitCode.n * i + 1, angle, tools.X(), is_ket=self.is_ket)
+        if overwrite:
+            self.state = state
+        return state
 
-    def rotY(self, i: int, angle, overwrite=True):
-        # TODO
-        pass
+    def rotY(self, i: int, angle, state=None, overwrite=True):
+        if state is None:
+            state = self.state
+        state = single_qubit_rotation(state, TwoQubitCode.n * i, angle, TwoQubitCode.Y, is_ket=self.is_ket)
+        if overwrite:
+            self.state = state
+        return state
 
-    def rotZ(self, i: int, angle, overwrite=True):
-        # TODO
-        pass
+    def rotZ(self, i: int, angle, state=None, overwrite=True):
+        if state is None:
+            state = self.state
+        state = single_qubit_rotation(state, TwoQubitCode.n * i, angle, TwoQubitCode.Z, is_ket=self.is_ket)
+        if overwrite:
+            self.state = state
+        return state
 
 
 class JordanFarhiShor(State):
@@ -257,27 +297,33 @@ class JordanFarhiShor(State):
     def __init__(self, state, N, is_ket=True):
         super().__init__(state, self.n * N, is_ket)
 
-    def opX(self, i: int, overwrite=True):
-        result = single_qubit_pauli(self.state, JordanFarhiShor.n * i, 'Y', is_ket=self.is_ket)
-        result = single_qubit_pauli(result, JordanFarhiShor.n * i + 2, 'Y', is_ket=self.is_ket)
+    def opX(self, i: int, state=None, overwrite=True):
+        if state is None:
+            state = self.state
+        state = single_qubit_pauli(state, JordanFarhiShor.n * i, 'Y', is_ket=self.is_ket)
+        state = single_qubit_pauli(state, JordanFarhiShor.n * i + 2, 'Y', is_ket=self.is_ket)
         if overwrite:
-            self.state = result
-        return result
+            self.state = state
+        return state
 
-    def opY(self, i: int, overwrite=True):
-        result = -1 * self.state
-        result = single_qubit_pauli(result, JordanFarhiShor.n * i + 1, 'X', is_ket=self.is_ket)
-        result = single_qubit_pauli(result, JordanFarhiShor.n * i + 2, 'X', is_ket=self.is_ket)
+    def opY(self, i: int, state=None, overwrite=True):
+        if state is None:
+            state = self.state
+        state = -1 * state
+        state = single_qubit_pauli(state, JordanFarhiShor.n * i + 1, 'X', is_ket=self.is_ket)
+        state = single_qubit_pauli(state, JordanFarhiShor.n * i + 2, 'X', is_ket=self.is_ket)
         if overwrite:
-            self.state = result
-        return result
+            self.state = state
+        return state
 
-    def opZ(self, i: int, overwrite=True):
-        result = single_qubit_pauli(self.state, JordanFarhiShor.n * i, 'Z', is_ket=self.is_ket)
-        result = single_qubit_pauli(result, JordanFarhiShor.n * i + 1, 'Z', is_ket=self.is_ket)
+    def opZ(self, i: int, state=None, overwrite=True):
+        if state is None:
+            state = self.state
+        state = single_qubit_pauli(state, JordanFarhiShor.n * i, 'Z', is_ket=self.is_ket)
+        state = single_qubit_pauli(state, JordanFarhiShor.n * i + 1, 'Z', is_ket=self.is_ket)
         if overwrite:
-            self.state = result
-        return result
+            self.state = state
+        return state
 
 
 class ThreeQubitCode(State):
@@ -294,29 +340,35 @@ class ThreeQubitCode(State):
     def __init__(self, state, N, is_ket=True):
         super().__init__(state, ThreeQubitCode.n * N, is_ket)
 
-    def opX(self, i: int, overwrite=True):
-        result = single_qubit_pauli(self.state, ThreeQubitCode.n * i, 'X', is_ket=self.is_ket)
-        result = single_qubit_pauli(result, ThreeQubitCode.n * i + 1, 'X', is_ket=self.is_ket)
-        result = single_qubit_pauli(result, ThreeQubitCode.n * i + 2, 'X', is_ket=self.is_ket)
+    def opX(self, i: int, state=None, overwrite=True):
+        if state is None:
+            state = self.state
+        state = single_qubit_pauli(state, ThreeQubitCode.n * i, 'X', is_ket=self.is_ket)
+        state = single_qubit_pauli(state, ThreeQubitCode.n * i + 1, 'X', is_ket=self.is_ket)
+        state = single_qubit_pauli(state, ThreeQubitCode.n * i + 2, 'X', is_ket=self.is_ket)
         if overwrite:
-            self.state = result
-        return result
+            self.state = state
+        return state
 
-    def opY(self, i: int, overwrite=True):
-        result = single_qubit_operation(self.state, ThreeQubitCode.n * i, -1 * tools.Y(), is_ket=self.is_ket)
-        result = single_qubit_pauli(result, ThreeQubitCode.n * i + 1, 'Y', is_ket=self.is_ket)
-        result = single_qubit_pauli(result, ThreeQubitCode.n * i + 2, 'Y', is_ket=self.is_ket)
+    def opY(self, i: int, state=None, overwrite=True):
+        if state is None:
+            state = self.state
+        state = single_qubit_operation(state, ThreeQubitCode.n * i, -1 * tools.Y(), is_ket=self.is_ket)
+        state = single_qubit_pauli(state, ThreeQubitCode.n * i + 1, 'Y', is_ket=self.is_ket)
+        state = single_qubit_pauli(state, ThreeQubitCode.n * i + 2, 'Y', is_ket=self.is_ket)
         if overwrite:
-            self.state = result
-        return result
+            self.state = state
+        return state
 
-    def opZ(self, i: int, overwrite=True):
-        result = single_qubit_pauli(self.state, ThreeQubitCode.n * i, 'Z', is_ket=self.is_ket)
-        result = single_qubit_pauli(result, ThreeQubitCode.n * i + 1, 'Z', is_ket=self.is_ket)
-        result = single_qubit_pauli(result, ThreeQubitCode.n * i + 2, 'Z', is_ket=self.is_ket)
+    def opZ(self, i: int, state=None, overwrite=True):
+        if state is None:
+            state = self.state
+        state = single_qubit_pauli(state, ThreeQubitCode.n * i, 'Z', is_ket=self.is_ket)
+        state = single_qubit_pauli(state, ThreeQubitCode.n * i + 1, 'Z', is_ket=self.is_ket)
+        state = single_qubit_pauli(state, ThreeQubitCode.n * i + 2, 'Z', is_ket=self.is_ket)
         if overwrite:
-            self.state = result
-        return result
+            self.state = state
+        return state
 
 
 class ThreeQubitCodeTwoAncillas(State):
@@ -333,29 +385,35 @@ class ThreeQubitCodeTwoAncillas(State):
     def __init__(self, state, N, is_ket=True):
         super().__init__(state, ThreeQubitCodeTwoAncillas.n * N, is_ket)
 
-    def opX(self, i: int, overwrite=True):
-        result = single_qubit_pauli(self.state, ThreeQubitCodeTwoAncillas.n * i, 'X', is_ket=self.is_ket)
-        result = single_qubit_pauli(result, ThreeQubitCodeTwoAncillas.n * i + 1, 'X', is_ket=self.is_ket)
-        result = single_qubit_pauli(result, ThreeQubitCodeTwoAncillas.n * i + 2, 'X', is_ket=self.is_ket)
+    def opX(self, i: int, state=None, overwrite=True):
+        if state is None:
+            state = self.state
+        state = single_qubit_pauli(state, ThreeQubitCodeTwoAncillas.n * i, 'X', is_ket=self.is_ket)
+        state = single_qubit_pauli(state, ThreeQubitCodeTwoAncillas.n * i + 1, 'X', is_ket=self.is_ket)
+        state = single_qubit_pauli(state, ThreeQubitCodeTwoAncillas.n * i + 2, 'X', is_ket=self.is_ket)
         if overwrite:
-            self.state = result
-        return result
+            self.state = state
+        return state
 
-    def opY(self, i: int, overwrite=True):
-        result = single_qubit_operation(self.state, ThreeQubitCodeTwoAncillas.n * i, -1 * tools.Y(), is_ket=self.is_ket)
-        result = single_qubit_pauli(result, ThreeQubitCodeTwoAncillas.n * i + 1, 'Y', is_ket=self.is_ket)
-        result = single_qubit_pauli(result, ThreeQubitCodeTwoAncillas.n * i + 2, 'Y', is_ket=self.is_ket)
+    def opY(self, i: int, state=None, overwrite=True):
+        if state is None:
+            state = self.state
+        state = single_qubit_operation(state, ThreeQubitCodeTwoAncillas.n * i, -1 * tools.Y(), is_ket=self.is_ket)
+        state = single_qubit_pauli(state, ThreeQubitCodeTwoAncillas.n * i + 1, 'Y', is_ket=self.is_ket)
+        state = single_qubit_pauli(state, ThreeQubitCodeTwoAncillas.n * i + 2, 'Y', is_ket=self.is_ket)
         if overwrite:
-            self.state = result
-        return result
+            self.state = state
+        return state
 
-    def opZ(self, i: int, overwrite=True):
-        result = single_qubit_pauli(self.state, ThreeQubitCodeTwoAncillas.n * i, 'Z', is_ket=self.is_ket)
-        result = single_qubit_pauli(result, ThreeQubitCodeTwoAncillas.n * i + 1, 'Z', is_ket=self.is_ket)
-        result = single_qubit_pauli(result, ThreeQubitCodeTwoAncillas.n * i + 2, 'Z', is_ket=self.is_ket)
+    def opZ(self, i: int, state=None, overwrite=True):
+        if state is None:
+            state = self.state
+        state = single_qubit_pauli(state, ThreeQubitCodeTwoAncillas.n * i, 'Z', is_ket=self.is_ket)
+        state = single_qubit_pauli(state, ThreeQubitCodeTwoAncillas.n * i + 1, 'Z', is_ket=self.is_ket)
+        state = single_qubit_pauli(state, ThreeQubitCodeTwoAncillas.n * i + 2, 'Z', is_ket=self.is_ket)
         if overwrite:
-            self.state = result
-        return result
+            self.state = state
+        return state
 
 
 class FTThreeQubitCode(State):
@@ -373,17 +431,20 @@ class FTThreeQubitCode(State):
     def __init__(self, state, N, is_ket=True):
         super().__init__(state, ThreeQubitCode.n * N, is_ket)
 
-    def opX(self, i: int, overwrite=True):
-        result = single_qubit_pauli(self.state, ThreeQubitCode.n * i, 'X', is_ket=self.is_ket)
-        result = single_qubit_pauli(result, ThreeQubitCode.n * i + 1, 'X', is_ket=self.is_ket)
-        result = single_qubit_pauli(result, ThreeQubitCode.n * i + 2, 'X', is_ket=self.is_ket)
+    def opX(self, i: int, state=None, overwrite=True):
+        if state is None:
+            state = self.state
+        state = single_qubit_pauli(state, ThreeQubitCode.n * i, 'X', is_ket=self.is_ket)
+        state = single_qubit_pauli(state, ThreeQubitCode.n * i + 1, 'X', is_ket=self.is_ket)
+        state = single_qubit_pauli(state, ThreeQubitCode.n * i + 2, 'X', is_ket=self.is_ket)
         if overwrite:
-            self.state = result
-        return result
+            self.state = state
+        return state
 
-
-    def opZ(self, i: int, overwrite=True):
-        result = self.single_qubit_operation(i, FTThreeQubitCode.Z, overwrite=overwrite)
+    def opZ(self, i: int, state=None, overwrite=True):
+        if state is None:
+            state = self.state
+        state = self.single_qubit_operation(i, FTThreeQubitCode.Z, state=state, overwrite=overwrite)
         if overwrite:
-            self.state = result
-        return result
+            self.state = state
+        return state
