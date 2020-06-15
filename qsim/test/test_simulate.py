@@ -3,7 +3,7 @@ import networkx as nx
 import unittest
 
 from qsim.qaoa import simulate
-from qsim.noise import noise_models
+from qsim.dissipation import quantum_channels
 from qsim import hamiltonian
 
 # Generate sample graph
@@ -33,9 +33,9 @@ sim.hamiltonian = [hamiltonian.HamiltonianC(g, mis=False), hamiltonian.Hamiltoni
 sim_ket.hamiltonian = [hamiltonian.HamiltonianC(g, mis=False), hamiltonian.HamiltonianB()]
 sim_noisy.hamiltonian = [hamiltonian.HamiltonianC(g, mis=False), hamiltonian.HamiltonianB()]
 
-sim.noise = [noise_models.LindbladNoise(), noise_models.LindbladNoise()]
-sim_ket.noise = [noise_models.LindbladNoise(), noise_models.LindbladNoise()]
-sim_noisy.noise = [noise_models.DepolarizingNoise(.001), noise_models.DepolarizingNoise(.001)]
+sim.noise = [quantum_channels.QuantumChannel(), quantum_channels.QuantumChannel()]
+sim_ket.noise = [quantum_channels.QuantumChannel(), quantum_channels.QuantumChannel()]
+sim_noisy.noise = [quantum_channels.DepolarizingChannel(.001), quantum_channels.DepolarizingChannel(.001)]
 
 
 class TestSimulate(unittest.TestCase):
@@ -84,7 +84,7 @@ class TestSimulate(unittest.TestCase):
         self.assertAlmostEqual(sim.run([1, .5]), 1.897011131463)
         self.assertAlmostEqual(sim_ket.run([1, .5]), 1.897011131463)
 
-        # See how things look with noise
+        # See how things look with dissipation
         self.assertAlmostEqual(sim_noisy
                                .run([1, .5]), 1.8869139555669938)
 

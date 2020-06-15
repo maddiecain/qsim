@@ -1,7 +1,7 @@
 from .tools import tools
 from .tools import operations
 from . import qaoa
-from . import noise
+from . import dissipation
 # Example Sphinx docstring
 
 """[Summary]

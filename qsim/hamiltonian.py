@@ -70,7 +70,7 @@ class HamiltonianC(object):
         self.graph = graph
         self.N = self.graph.number_of_nodes()
         C = np.zeros([2 ** (self.code.n * self.N), 1])
-
+        # TODO: make this work for non-diagonal Z_L
         Z = np.expand_dims(np.diagonal(self.code.Z), axis=0).T
         myeye = lambda n: np.ones(np.asarray(Z.shape) ** n)
 
@@ -79,12 +79,11 @@ class HamiltonianC(object):
                 temp = a
                 a = b
                 b = temp
-            # TODO: change this to be the correct MaxCut hamiltonian
+            # TODO: change this to be the correct MIS hamiltonian
             C = C + self.graph[a][b]['weight'] * tools.tensor_product(
                 [myeye(a), Z, myeye(b - a - 1), Z, myeye(self.N - b - 1)])
         if self.mis:
             for c in self.graph.nodes:
-                print(self.graph[c])
                 C = C + tools.tensor_product([myeye(c), Z, myeye(self.N - c - 1)])
         self.hamiltonian_diag = C
 

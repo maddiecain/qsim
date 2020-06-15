@@ -159,6 +159,44 @@ def single_qubit_operation(state, i: int, op, is_ket=False, d=2):
     return state
 
 
+def multi_qubit_operation(state, i: int, op, apply_to, is_ket=False, d=2):
+    """
+    Apply a single qubit operator on the ith qubit of the input wavefunction.
+
+    :param state: input wavefunction or density matrix
+    :type state: np.ndarray
+    :param i: zero-based index of qudit location to apply the Pauli operator
+    :type i: int
+    :param op: Operator to act with.
+    :type op: np.ndarray
+    :param is_ket: Boolean dictating whether the input is a density matrix or a ket
+    :type is_ket: bool
+    :param d: Integer representing the dimension of the qudit
+    :type d: int
+    """
+    N_op = int(op.shape[0])
+    N = int(math.log(state.shape[0], d))
+    ind = N_op ** i
+    n = int(math.log(N_op, d))
+    if is_ket:
+        # Left multiply
+        out = state.reshape((-1, N_op, ind), order='F').transpose([1, 0, 2])
+        out = np.dot(op, out.reshape((N_op, -1), order='F'))
+        out = out.reshape((N_op, -1, ind), order='F').transpose([1, 0, 2])
+    else:
+        # Left multiply
+        out = state.reshape((d ** (N - n * i - n), N_op, -1), order='F').transpose([1, 0, 2])
+        out = np.dot(op, out.reshape((N_op, -1), order='F'))
+        out = out.reshape((N_op, d ** (N - n * i - n), -1), order='F').transpose([1, 0, 2])
+        # Right multiply
+        out = out.reshape((d ** (2 * N - n * (i + 1)), N_op, -1), order='F').transpose([0, 2, 1])
+        out = np.dot(out.reshape((-1, N_op), order='F'), op.conj().T)
+        out = out.reshape((d ** (2 * N - n * (i + 1)), -1, N_op), order='F').transpose([0, 2, 1])
+
+    state = out.reshape(state.shape, order='F')
+    return state
+
+
 def single_qubit_rotation(state, i: int, angle: float, op, is_ket=False, d=2, is_involutary=True):
     """
     Apply a single qubit rotation :math:`e^{-i \\alpha A}` to the input ``state``.

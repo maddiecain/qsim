@@ -1,5 +1,5 @@
 import numpy as np
-from qsim.noise import noise_models
+from qsim.dissipation import lindblad_operators
 from qsim import master_equation
 from qsim import hamiltonian
 from qsim import tools
@@ -57,13 +57,13 @@ G.add_edge(1, 5, weight=1)
 G.add_edge(2, 5, weight=1)
 G.add_edge(3, 5, weight=1)"""
 #plot.draw_graph(G)
-# Goal: numerically integrate master equation with (1) spontaneous emission and (2) IS constraint noise
+# Goal: numerically integrate master equation with (1) spontaneous emission and (2) IS constraint dissipation
 # with Hb hamiltonian
 p = 2
 spacing = 20
 #se_noise_rate = 0.01
 #se_noise = noise_models.SpontaneousEmission(se_noise_rate)
-rydberg_noise = noise_models.RydbergNoise(N, rydberg_noise_rate, G)
+rydberg_noise = lindblad_operators.RydbergNoise(N, rydberg_noise_rate, G)
 hb_x = hamiltonian.HamiltonianB(pauli = 'x')
 hb_y = hamiltonian.HamiltonianB(pauli = 'y')
 hb_z = hamiltonian.HamiltonianB(pauli = 'y')

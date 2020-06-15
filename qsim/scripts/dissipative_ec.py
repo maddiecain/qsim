@@ -1,5 +1,5 @@
 import numpy as np
-from qsim.noise import noise_models
+from qsim.dissipation import lindblad_operators
 from qsim import tools
 import matplotlib.pyplot as plt
 from qsim.state import *
@@ -82,10 +82,10 @@ p_len = 10
 kappa = 1  # np.linspace(0, 10, 10)
 # Bit flip rate
 p_error = 1 * dt
-bit_flip = noise_models.PauliNoise((p_error, 0, 0))
-# Dissipative noise rate
+bit_flip = lindblad_operators.PauliNoise((p_error, 0, 0))
+# Dissipative dissipation rate
 rate = np.linspace(0, n, p_len)
-corrective = noise_models.AmplitudeDampingNoise(1)
+corrective = lindblad_operators.AmplitudeDampingNoise(1)
 
 noisy_results = np.zeros((p_len, n))
 ec_results = np.zeros((p_len, n))
@@ -100,7 +100,7 @@ for j in range(p_len):
     corrective.p = rate[j] * dt
     for i in range(n):
         # Evolve density matrix
-        # Apply bit flip noise
+        # Apply bit flip dissipation
         hamiltonian.evolve(ec, dt * kappa)
         for l in range(3):
             noisy.state = bit_flip.channel(noisy.state, l)
