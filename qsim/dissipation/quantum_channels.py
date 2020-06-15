@@ -107,7 +107,7 @@ class DepolarizingChannel(QuantumChannel):
 
 
 class PauliChannel(QuantumChannel):
-    def __init__(self, p: Tuple[float]):
+    def __init__(self, p: Tuple[float, float, float]):
         assert len(p) == 3
         povm = []
         # Only include nonzero terms
@@ -120,7 +120,7 @@ class PauliChannel(QuantumChannel):
                 elif i == 2:
                     povm.append(np.sqrt(p[i]) * tools.Z())
         if p[0] + p[1] + p[2] < 1:
-            povm.append(np.sqrt(1 - np.sum(p))) * np.identity(2)
+            povm.append(np.sqrt(1 - np.sum(p)) * np.identity(2))
         super().__init__(povm=povm)
         self.p = p
 
@@ -196,7 +196,7 @@ class AmplitudeDampingChannel(QuantumChannel):
 
 
 class ZenoChannel(QuantumChannel):
-    def __init__(self, p: Tuple[float]):
+    def __init__(self, p: Tuple[float, float, float]):
         """Zeno-type dissipation."""
         assert len(p) == 3
         povm = []
@@ -213,7 +213,7 @@ class ZenoChannel(QuantumChannel):
                     povm.append(np.sqrt(p[i]) * np.array([[0, -1j], [0, 0]]))
                     povm.append(np.sqrt(p[i]) * np.array([[0, 0], [1j, 0]]))
         if p[0] + p[1] + p[2] < 1:
-            povm.append(np.sqrt(1 - np.sum(p))) * np.identity(2)
+            povm.append(np.sqrt(1 - np.sum(p)) * np.identity(2))
         super().__init__(povm=povm)
         self.p = p
 
