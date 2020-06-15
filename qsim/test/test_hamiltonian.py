@@ -3,7 +3,7 @@ import networkx as nx
 import unittest
 
 from qsim.qaoa import simulate
-from qsim.state.state import State
+from qsim.state import State
 from qsim import tools, hamiltonian
 
 # Generate sample graph

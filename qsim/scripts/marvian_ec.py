@@ -1,7 +1,6 @@
 import numpy as np
 import networkx as nx
 from qsim import schrodinger_equation
-from qsim.state.state import *
 from qsim.tools import tools
 import matplotlib.pyplot as plt
 

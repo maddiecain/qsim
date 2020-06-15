@@ -3,7 +3,6 @@ from qsim.noise import noise_models
 from qsim import master_equation
 from qsim import hamiltonian
 from qsim import tools
-from qsim.state.state import *
 import matplotlib.pyplot as plt
 import networkx as nx
 

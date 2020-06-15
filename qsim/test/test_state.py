@@ -1,15 +1,15 @@
 import unittest
-from qsim.state.state import State, TwoQubitCode
+from qsim.state import *
 import numpy as np
 from qsim import tools
 
 mixed_state = State(np.array([[.75, 0], [0, .25]]), 1, is_ket=False)
 pure_state = State(np.array([[1, 0]]).T, 1, is_ket=True)
 invalid_state = State(np.array([[-1, 0], [0, 0]]), 1, is_ket=False)
-psi = np.zeros((2**4, 1))
-psi[0,0] = 1
-logical_state = TwoQubitCode(psi, 2, is_ket=True)
-normal_state = State(psi, 4, is_ket=True)
+two_qubit_code_logical_state = TwoQubitCode(tools.tensor_product([TwoQubitCode.basis[0], TwoQubitCode.basis[0]]), 2, is_ket=True)
+jfs_logical_state = JordanFarhiShor(tools.tensor_product([JordanFarhiShor.basis[0], JordanFarhiShor.basis[0]]), 2, is_ket=True)
+three_qubit_code_logical_state = ThreeQubitCode(tools.tensor_product([ThreeQubitCode.basis[0], ThreeQubitCode.basis[0]]), 2, is_ket=True)
+three_qubit_code_density_matrix = ThreeQubitCode(tools.outer_product(tools.tensor_product([ThreeQubitCode.basis[0], ThreeQubitCode.basis[0]]), tools.tensor_product([ThreeQubitCode.basis[0], ThreeQubitCode.basis[0]])), 2, is_ket=False)
 
 class TestState(unittest.TestCase):
     def test_is_pure_state(self):
@@ -36,17 +36,17 @@ class TestState(unittest.TestCase):
         state0 = State(psi0, N, is_ket=True)
 
         # Apply sigma_y on the second qubit to get 1j|010000>
-        state0.opY(1)
+        state0.single_qubit_pauli(1, 'Y', overwrite=True)
         self.assertTrue(state0.state[2 ** (N - 2), 0] == 1j)
 
         # Apply sigma_z on the second qubit, state is -1j|010000>
-        state0.opZ(1)
+        state0.single_qubit_pauli(1, 'Z', overwrite=True)
         self.assertTrue(state0.state[2 ** (N - 2), 0] == -1j)
 
         # Apply sigma_x on qubit 0 through 3
         for i in range(N):
             if i != 1:
-                state0.opX(i)
+                state0.single_qubit_pauli(i, 'X', overwrite=True)
 
         # Vector is still normalized
         self.assertTrue(np.vdot(state0.state, state0.state) == 1)
@@ -62,24 +62,24 @@ class TestState(unittest.TestCase):
         psi2 = np.array([np.kron([1, -1], [1, 0]) * -1j / 2 ** (1 / 2)]).T
         rho2 = tools.outer_product(psi2, psi2)
 
-        state1.opY(0)
+        state1.single_qubit_pauli(0, 'Y')
         self.assertTrue(np.linalg.norm(state1.state - rho2) <= 1e-10)
 
         # Test pauli
         state0 = State(psi0, N, is_ket=True)
 
         # Apply sigma_y on the second qubit to get 1j|010000>
-        state0.opY(1)
+        state0.single_qubit_pauli(1, 'Y')
         self.assertTrue(state0.state[2 ** (N - 2), 0] == 1j)
 
         # Apply sigma_z on the second qubit, state is -1j|010000>
-        state0.opZ(1)
+        state0.single_qubit_pauli(1, 'Z')
         self.assertTrue(state0.state[2 ** (N - 2), 0] == -1j)
 
         # Apply sigma_x on qubits
         for i in range(N):
             if i != 1:
-                state0.opX(i)
+                state0.single_qubit_pauli(i, 'X')
 
         # Vector is still normalized
         self.assertTrue(np.vdot(state0.state, state0.state) == 1)
@@ -95,7 +95,7 @@ class TestState(unittest.TestCase):
         psi2 = np.array([np.kron([1, -1], [1, 0]) * -1j / 2 ** (1 / 2)]).T
         rho2 = tools.outer_product(psi2, psi2)
 
-        state1.opY(0)
+        state1.single_qubit_pauli(0, 'Y')
         self.assertTrue(np.linalg.norm(state1.state - rho2) <= 1e-10)
 
     def test_single_qubit_rotation(self):
@@ -135,21 +135,77 @@ class TestState(unittest.TestCase):
         self.assertTrue(np.linalg.norm(state1.state - psi2) <= 1e-10)
 
     def test_logical_qubit(self):
-        logical_state.opY(1)
-        normal_state.opY(2)
-        normal_state.opZ(3)
-        # Should get out 1j|0010>
-        self.assertTrue(np.allclose(logical_state.state, normal_state.state))
-        logical_state.opX(0)
-        normal_state.opX(1)
-        self.assertTrue(np.allclose(logical_state.state, normal_state.state))
+        two_qubit_code_logical_state.single_qubit_pauli(1, 'Y', overwrite=True)
+        # Should get out 1j|0L>|1L>
+        self.assertTrue(np.allclose(two_qubit_code_logical_state.state, 1j*tools.tensor_product([TwoQubitCode.basis[0], TwoQubitCode.basis[1]])))
+        self.assertTrue(np.allclose(two_qubit_code_logical_state.single_qubit_pauli(1, 'Z', overwrite=False), -1j*tools.tensor_product([TwoQubitCode.basis[0], TwoQubitCode.basis[1]])))
+        two_qubit_code_logical_state.single_qubit_pauli(0, 'X', overwrite=True)
+        # Should get out -1j|1L>|1L>
+        self.assertTrue(np.allclose(two_qubit_code_logical_state.state, 1j*tools.tensor_product([TwoQubitCode.basis[1], TwoQubitCode.basis[1]])))
 
-        logical_state.all_qubit_rotation(np.pi / 2, logical_state.X)
-        normal_state.single_qubit_rotation(0, np.pi / 2, normal_state.X)
-        normal_state.single_qubit_rotation(2, np.pi / 2, normal_state.X)
+        two_qubit_code_logical_state.all_qubit_rotation(np.pi / 2, two_qubit_code_logical_state.X, overwrite=True)
+        self.assertTrue(np.allclose(two_qubit_code_logical_state.state, -1j*tools.tensor_product([TwoQubitCode.basis[0], TwoQubitCode.basis[0]])))
 
-        # Should get 1j|0010>
-        self.assertTrue(np.allclose(logical_state.state, normal_state.state))
+
+        jfs_logical_state.single_qubit_pauli(1, 'Y', overwrite=True)
+        # Should get out 1j|0L>|1L>
+        self.assertTrue(np.allclose(jfs_logical_state.state,
+                                    1j * tools.tensor_product([JordanFarhiShor.basis[0], JordanFarhiShor.basis[1]])))
+        self.assertTrue(np.allclose(jfs_logical_state.single_qubit_pauli(1, 'Z', overwrite=False),
+                                    -1j * tools.tensor_product([JordanFarhiShor.basis[0], JordanFarhiShor.basis[1]])))
+        jfs_logical_state.single_qubit_pauli(0, 'X', overwrite=True)
+        # Should get out 1j|1L>|1L>
+        self.assertTrue(np.allclose(jfs_logical_state.state,
+                                    1j * tools.tensor_product([JordanFarhiShor.basis[1], JordanFarhiShor.basis[1]])))
+
+        jfs_logical_state.all_qubit_rotation(np.pi / 2, jfs_logical_state.X, overwrite=True)
+
+        # Should get -1j|0L>|0L>
+        self.assertTrue(np.allclose(jfs_logical_state.state, -1j*tools.tensor_product([JordanFarhiShor.basis[0], JordanFarhiShor.basis[0]])))
+
+        three_qubit_code_logical_state.single_qubit_pauli(1, 'Y', overwrite=True)
+        # Should get out 1j|0L>|1L>
+        self.assertTrue(np.allclose(three_qubit_code_logical_state.state,
+                                    1j * tools.tensor_product([ThreeQubitCode.basis[0], ThreeQubitCode.basis[1]])))
+        self.assertTrue(np.allclose(three_qubit_code_logical_state.single_qubit_pauli(1, 'Z', overwrite=False),
+                                    -1j * tools.tensor_product([ThreeQubitCode.basis[0], ThreeQubitCode.basis[1]])))
+        three_qubit_code_logical_state.single_qubit_pauli(0, 'X', overwrite=True)
+        # Should get out 1j|1L>|1L>
+        self.assertTrue(np.allclose(three_qubit_code_logical_state.state,
+                                    1j * tools.tensor_product([ThreeQubitCode.basis[1], ThreeQubitCode.basis[1]])))
+
+        three_qubit_code_logical_state.all_qubit_rotation(np.pi / 2, three_qubit_code_logical_state.X, overwrite=True)
+
+        # Should get -1j|0L>|0L>
+        self.assertTrue(np.allclose(three_qubit_code_logical_state.state,
+                                    -1j * tools.tensor_product([ThreeQubitCode.basis[0], ThreeQubitCode.basis[0]])))
+
+        # Test density matrix single qubit operations
+        three_qubit_code_density_matrix.single_qubit_pauli(1, 'Y', overwrite=True)
+        # Should get out 1j|0L>|1L>
+        self.assertTrue(np.allclose(three_qubit_code_density_matrix.state, tools.outer_product(
+            1j * tools.tensor_product([ThreeQubitCode.basis[0], ThreeQubitCode.basis[1]]),
+            1j * tools.tensor_product([ThreeQubitCode.basis[0], ThreeQubitCode.basis[1]]))
+                                    ))
+        self.assertTrue(np.allclose(three_qubit_code_density_matrix.single_qubit_pauli(1, 'Z', overwrite=False),
+                                    tools.outer_product(
+                                        -1j * tools.tensor_product([ThreeQubitCode.basis[0], ThreeQubitCode.basis[1]]),
+                                        -1j * tools.tensor_product([ThreeQubitCode.basis[0], ThreeQubitCode.basis[1]]))
+                                    ))
+        three_qubit_code_density_matrix.single_qubit_pauli(0, 'X', overwrite=True)
+        # Should get out 1j|1L>|1L>
+        self.assertTrue(np.allclose(three_qubit_code_density_matrix.state, tools.outer_product(
+            1j * tools.tensor_product([ThreeQubitCode.basis[1], ThreeQubitCode.basis[1]]),
+            1j * tools.tensor_product([ThreeQubitCode.basis[1], ThreeQubitCode.basis[1]]))
+                                    ))
+
+        three_qubit_code_density_matrix.all_qubit_rotation(np.pi / 2, three_qubit_code_density_matrix.X, overwrite=True)
+
+        # Should get -1j|0L>|0L>
+        self.assertTrue(np.allclose(three_qubit_code_density_matrix.state, tools.outer_product(
+            -1j * tools.tensor_product([ThreeQubitCode.basis[0], ThreeQubitCode.basis[0]]),
+            -1j * tools.tensor_product([ThreeQubitCode.basis[0], ThreeQubitCode.basis[0]]))
+                                    ))
 
 
 if __name__ == '__main__':

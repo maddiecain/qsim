@@ -3,7 +3,7 @@ import plot
 from qsim.noise import noise_models
 from qsim.qaoa import simulate
 from qsim import hamiltonian
-from qsim.state.state import JordanFarhiShor
+from qsim.state import JordanFarhiShor
 
 # Construct a simple graph
 G = nx.random_regular_graph(1, 2)

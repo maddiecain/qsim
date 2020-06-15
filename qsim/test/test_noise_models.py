@@ -3,7 +3,7 @@ import unittest
 
 from qsim.noise import noise_models
 from qsim import tools
-from qsim.state.state import State
+from qsim.state import State
 
 psi0 = np.zeros((4, 1))
 psi0[0] = 1

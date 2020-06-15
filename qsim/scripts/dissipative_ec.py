@@ -1,9 +1,9 @@
 import numpy as np
 from qsim.noise import noise_models
 from qsim import tools
-from qsim.state.state import *
 import matplotlib.pyplot as plt
-
+from qsim.state import *
+from qsim.hamiltonian import Hamiltonian
 
 def ham_term(*argv):
     def decode(code):

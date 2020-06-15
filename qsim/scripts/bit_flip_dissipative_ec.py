@@ -2,7 +2,7 @@ from qsim import master_equation
 from qsim.tools import operations
 from qsim import tools
 from qsim.noise.noise_models import PauliNoise
-from qsim.state.state import FTThreeQubitCode, ThreeQubitCode
+from qsim.state import ETThreeQubitCode, ThreeQubitCode
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.sparse
@@ -10,11 +10,11 @@ import scipy.linalg
 
 # Initial state is 1/sqrt(2)(|000>+|111>)
 N = 2
-#psi = FTThreeQubitCode.basis[0]
-psi = (FTThreeQubitCode.basis[0] + FTThreeQubitCode.basis[1]) / np.sqrt(2)
+#psi = ETThreeQubitCode.basis[0]
+psi = (ETThreeQubitCode.basis[0] + ETThreeQubitCode.basis[1]) / np.sqrt(2)
 psi = tools.outer_product(psi, psi)
 psi = tools.tensor_product([psi]*N)
-state = FTThreeQubitCode(psi, 1, is_ket=False)
+state = ETThreeQubitCode(psi, 1, is_ket=False)
 
 edges = [[0, 1]]#, [1, 2], [0 ,2]]
 ham = None
@@ -37,32 +37,32 @@ def hamiltonian_commutator_basic(s):
 def lindbladian_corr(coefficient=1):
     # Bit flip on the third qubit
     c1 = 1 / 4 * tools.tensor_product([tools.identity(2), tools.X()]) @ (
-            tools.identity(FTThreeQubitCode.n) + FTThreeQubitCode.stabilizers[0]) @ (
-                 tools.identity(FTThreeQubitCode.n) - FTThreeQubitCode.stabilizers[1])
+            tools.identity(ETThreeQubitCode.n) + ETThreeQubitCode.stabilizers[0]) @ (
+                 tools.identity(ETThreeQubitCode.n) - ETThreeQubitCode.stabilizers[1])
     # Bit flip on the first qubit
     c2 = 1 / 4 * tools.tensor_product([tools.X(), tools.identity(2)]) @ (
-            tools.identity(FTThreeQubitCode.n) - FTThreeQubitCode.stabilizers[0]) @ (
-                 tools.identity(FTThreeQubitCode.n) + FTThreeQubitCode.stabilizers[1])
+            tools.identity(ETThreeQubitCode.n) - ETThreeQubitCode.stabilizers[0]) @ (
+                 tools.identity(ETThreeQubitCode.n) + ETThreeQubitCode.stabilizers[1])
     # Bit flip on the second qubit
     c3 = 1 / 4 * tools.tensor_product([tools.identity(1), tools.X(), tools.identity(1)]) @ (
-            tools.identity(FTThreeQubitCode.n) - FTThreeQubitCode.stabilizers[0]) @ (
-                 tools.identity(FTThreeQubitCode.n) - FTThreeQubitCode.stabilizers[1])
+            tools.identity(ETThreeQubitCode.n) - ETThreeQubitCode.stabilizers[0]) @ (
+                 tools.identity(ETThreeQubitCode.n) - ETThreeQubitCode.stabilizers[1])
     return [c1, c2, c3]
 
 def lindbladian_corr_extra(coefficient=1):
     # Bit flip on the third qubit
     global ham_basic_2local
     c1 = 1 / 4 * scipy.linalg.expm(-1j * 2 * ham_basic_2local/corr_rate) * tools.tensor_product([tools.identity(2), tools.X()]) @ (
-            tools.identity(FTThreeQubitCode.n) + FTThreeQubitCode.stabilizers[0]) @ (
-                 tools.identity(FTThreeQubitCode.n) - FTThreeQubitCode.stabilizers[1])
+            tools.identity(ETThreeQubitCode.n) + ETThreeQubitCode.stabilizers[0]) @ (
+                 tools.identity(ETThreeQubitCode.n) - ETThreeQubitCode.stabilizers[1])
     # Bit flip on the first qubit
     c2 = 1 / 4 * scipy.linalg.expm(-1j * 2 * ham_basic_2local/corr_rate) * tools.tensor_product([tools.X(), tools.identity(2)]) @ (
-            tools.identity(FTThreeQubitCode.n) - FTThreeQubitCode.stabilizers[0]) @ (
-                 tools.identity(FTThreeQubitCode.n) + FTThreeQubitCode.stabilizers[1])
+            tools.identity(ETThreeQubitCode.n) - ETThreeQubitCode.stabilizers[0]) @ (
+                 tools.identity(ETThreeQubitCode.n) + ETThreeQubitCode.stabilizers[1])
     # Bit flip on the second qubit
     c3 = 1 / 4 * scipy.linalg.expm(-1j * 2 * ham_basic_2local/corr_rate) * tools.tensor_product([tools.identity(1), tools.X(), tools.identity(1)]) @ (
-            tools.identity(FTThreeQubitCode.n) - FTThreeQubitCode.stabilizers[0]) @ (
-                 tools.identity(FTThreeQubitCode.n) - FTThreeQubitCode.stabilizers[1])
+            tools.identity(ETThreeQubitCode.n) - ETThreeQubitCode.stabilizers[0]) @ (
+                 tools.identity(ETThreeQubitCode.n) - ETThreeQubitCode.stabilizers[1])
     return [c1, c2, c3]
 
 def corr_all_qubit_liouvillian(s, povm, weights):
@@ -92,7 +92,7 @@ me = master_equation.MasterEquation(hamiltonian=None, noise_model=None)
                              func=lambda s, t: -1j * hamiltonian_commutator(
                                  s) + noise_rate * lindbladX.all_qubit_liouvillian(
                                  s)  +  corr_all_qubit_liouvillian(s, corr_povm_basic,
-                                                                          [corr_rate_basic] * FTThreeQubitCode.n))
+                                                                          [corr_rate_basic] * ETThreeQubitCode.n))
 """
 print('res_corr_basic')
 print('res_noisy')
@@ -118,14 +118,14 @@ for c in [.01, .1, 1, 2, 5, 10]:
         ham = np.zeros(state.state.shape)
         for i in range(N):
             # Sum of Z_L's
-            ham = ham + tools.tensor_product([tools.identity(i * FTThreeQubitCode.n), FTThreeQubitCode.Z,
-                                              tools.identity(FTThreeQubitCode.n * (N - i - 1))])
+            ham = ham + tools.tensor_product([tools.identity(i * ETThreeQubitCode.n), ETThreeQubitCode.Z,
+                                              tools.identity(ETThreeQubitCode.n * (N - i - 1))])
         for j in range(len(edges)):
             # Sum of Z_L Z_L's
             ham = ham + tools.tensor_product(
-                [tools.identity(FTThreeQubitCode.n * edges[j][0]), FTThreeQubitCode.Z,
-                 tools.identity(FTThreeQubitCode.n * (edges[j][1] - edges[j][0] - 1)), FTThreeQubitCode.Z,
-                 tools.identity(FTThreeQubitCode.n * (N - edges[j][1] - 1))])
+                [tools.identity(ETThreeQubitCode.n * edges[j][0]), ETThreeQubitCode.Z,
+                 tools.identity(ETThreeQubitCode.n * (edges[j][1] - edges[j][0] - 1)), ETThreeQubitCode.Z,
+                 tools.identity(ETThreeQubitCode.n * (N - edges[j][1] - 1))])
 
         ham = scipy.sparse.diags(np.diagonal(ham * coefficient))
         ham_basic = np.zeros(state.state.shape)
@@ -151,14 +151,14 @@ for c in [.01, .1, 1, 2, 5, 10]:
         ham = np.zeros(state.state.shape)
         for i in range(N):
             # Sum of Z_L's
-            ham = ham + tools.tensor_product([tools.identity(i * FTThreeQubitCode.n), FTThreeQubitCode.X,
-                                              tools.identity(FTThreeQubitCode.n * (N - i - 1))])
+            ham = ham + tools.tensor_product([tools.identity(i * ETThreeQubitCode.n), ETThreeQubitCode.X,
+                                              tools.identity(ETThreeQubitCode.n * (N - i - 1))])
         for j in range(len(edges)):
             # Sum of Z_L Z_L's
             ham = ham + tools.tensor_product(
-                [tools.identity(FTThreeQubitCode.n * edges[j][0]), FTThreeQubitCode.X,
-                 tools.identity(FTThreeQubitCode.n * (edges[j][1] - edges[j][0] - 1)), FTThreeQubitCode.X,
-                 tools.identity(FTThreeQubitCode.n * (N - edges[j][1] - 1))])
+                [tools.identity(ETThreeQubitCode.n * edges[j][0]), ETThreeQubitCode.X,
+                 tools.identity(ETThreeQubitCode.n * (edges[j][1] - edges[j][0] - 1)), ETThreeQubitCode.X,
+                 tools.identity(ETThreeQubitCode.n * (N - edges[j][1] - 1))])
 
         ham = scipy.sparse.diags(np.diagonal(ham * coefficient))
         ham_basic = np.zeros(state.state.shape)

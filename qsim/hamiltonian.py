@@ -1,7 +1,6 @@
 import numpy as np
 import networkx as nx
-
-from qsim.state.state import *
+from qsim.state import State
 from qsim import tools, operations
 
 __all__ = ['HamiltonianBookatzPenalty', 'HamiltonianGlobalPauli', 'HamiltonianB', 'HamiltonianC',
@@ -20,11 +19,11 @@ class HamiltonianB(object):
             if s.is_ket:
                 # Use op because it's a little bit faster
                 if self.pauli == 'X':
-                    out = out + s.opX(i, overwrite=False)
+                    out = out + s.single_qubit_pauli(i, 'X', overwrite=False)
                 elif self.pauli == 'Y':
-                    out = out + s.opY(i, overwrite=False)
+                    out = out + s.single_qubit_pauli(i, 'Y', overwrite=False)
                 elif self.pauli == 'Z':
-                    out = out + s.opZ(i, overwrite=False)
+                    out = out + s.single_qubit_pauli(i, 'Z', overwrite=False)
             else:
                 if self.pauli == 'X':
                     out = out + operations.left_multiply(s.state, i, s.X, is_ket=s.is_ket)
@@ -173,7 +172,7 @@ class HamiltonianBookatzPenalty(object):
         projector = np.identity(2 ** s.n) - s.proj
         op = np.exp(-1j * penalty) * projector - projector + np.identity(2 ** s.n)
         for i in range(int(s.N / s.n)):
-            s.single_qubit_operation(i, op)
+            s.single_qubit_operation(i, op, overwrite=True)
 
     def left_multiply(self, s: State, overwrite=True):
         projector = np.identity(2 ** s.n) - s.proj

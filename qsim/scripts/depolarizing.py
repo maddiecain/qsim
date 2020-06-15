@@ -2,7 +2,6 @@ import numpy as np
 import networkx as nx
 from qsim.noise import noise_models
 from qsim.qaoa.simulate import SimulateQAOA
-from qsim.state.state import *
 from qsim import master_equation
 from qsim.tools import tools
 import matplotlib.pyplot as plt

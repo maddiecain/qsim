@@ -15,9 +15,8 @@ import networkx as nx
 import numpy as np
 from timeit import default_timer as timer
 
-
-from qsim.state.state import *
 from qsim import tools
+from qsim.state import State
 from qsim.hamiltonian import HamiltonianC
 
 
