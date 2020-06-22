@@ -2,9 +2,8 @@ import numpy as np
 import networkx as nx
 import unittest
 
-from qsim.qaoa import simulate
-from qsim.dissipation import quantum_channels
-from qsim import hamiltonian
+from qsim.graph_algorithms import qaoa
+from qsim.evolution import quantum_channels, hamiltonian
 
 # Generate sample graph
 g = nx.Graph()
@@ -19,9 +18,11 @@ g.add_edge(1, 5, weight=1)
 g.add_edge(2, 5, weight=1)
 g.add_edge(3, 5, weight=1)
 
-sim = simulate.SimulateQAOA(g, 1, 2, is_ket=False, mis=False)
-sim_ket = simulate.SimulateQAOA(g, 1, 2, is_ket=True, mis=False)
-sim_noisy = simulate.SimulateQAOA(g, 1, 2, is_ket=False, mis=False)
+hc = hamiltonian.HamiltonianC(g, mis=False)
+hb = hamiltonian.HamiltonianB()
+sim = qaoa.SimulateQAOA(g, 1, 2, is_ket=False, C=hc)
+sim_ket = qaoa.SimulateQAOA(g, 1, 2, is_ket=True, C=hc)
+sim_noisy = qaoa.SimulateQAOA(g, 1, 2, is_ket=False, C=hc)
 sim_noisy.noise = []
 
 N = 10
@@ -29,83 +30,82 @@ N = 10
 psi0 = np.zeros((2 ** N, 1))
 psi0[0, 0] = 1
 
-sim.hamiltonian = [hamiltonian.HamiltonianC(g, mis=False), hamiltonian.HamiltonianB()]
-sim_ket.hamiltonian = [hamiltonian.HamiltonianC(g, mis=False), hamiltonian.HamiltonianB()]
-sim_noisy.hamiltonian = [hamiltonian.HamiltonianC(g, mis=False), hamiltonian.HamiltonianB()]
+sim.hamiltonian = [hc, hb]
+sim_ket.hamiltonian = [hc, hb]
+sim_noisy.hamiltonian = [hc, hb]
 
 sim.noise = [quantum_channels.QuantumChannel(), quantum_channels.QuantumChannel()]
 sim_ket.noise = [quantum_channels.QuantumChannel(), quantum_channels.QuantumChannel()]
 sim_noisy.noise = [quantum_channels.DepolarizingChannel(.001), quantum_channels.DepolarizingChannel(.001)]
 
 
-class TestSimulate(unittest.TestCase):
+class TestSimulateQAOA(unittest.TestCase):
     def test_variational_grad(self):
         # Test that the calculated objective function and gradients are correct
         # p = 1
         F, Fgrad = sim_ket.variational_grad(np.array([1, 0.5]))
-        self.assertTrue(np.abs(F - 1.897011131463) <= 1e-5)
-        self.assertTrue(np.all(np.abs(Fgrad - np.array([14.287009047096, -0.796709998210])) <= 1e-5))
+        self.assertTrue(np.abs(F - 0.6803639446061733) <= 1e-5)
+        self.assertTrue(np.all(np.abs(Fgrad - np.array([5.88054974, -3.9215107])) <= 1e-5))
 
         # p = 1 density matrix
         F, Fgrad = sim.variational_grad(np.array([1, 0.5]))
-        self.assertTrue(np.abs(F - 1.897011131463) <= 1e-5)
-        self.assertTrue(np.all(np.abs(Fgrad - np.array([14.287009047096, -0.796709998210])) <= 1e-5))
+        self.assertTrue(np.abs(F - 0.6803639446061733) <= 1e-5)
+        self.assertTrue(np.all(np.abs(Fgrad - np.array([5.88054974, -3.9215107])) <= 1e-5))
 
         # p = 1 noisy
         F, Fgrad = sim_noisy.variational_grad(np.array([1, 0.5]))
-        self.assertTrue(np.abs(F - 1.8869139555669938) <= 1e-5)
-        self.assertTrue(np.all(np.abs(Fgrad - np.array([14.21096392, -0.79246937])) <= 1e-5))
+        self.assertTrue(np.abs(F - 0.6767425876683083) <= 1e-5)
+        self.assertTrue(np.all(np.abs(Fgrad - np.array([5.84924948, -3.90063777])) <= 1e-5))
 
         # p = 2
         F, Fgrad = sim_ket.variational_grad(np.array([3, 4, 2, 5]))
-        self.assertTrue(np.abs(F + 0.5868545288327245) <= 1e-5)
-        self.assertTrue(np.all(np.abs(Fgrad - np.array([3.82877928, 2.10271544, 5.21809702, 4.99717856])) <= 1e-5))
+        self.assertTrue(np.abs(F + 2.0226700483187735) <= 1e-5)
+        self.assertTrue(np.all(np.abs(Fgrad - np.array([10.81352397, 0.71592146, 4.23395355, 4.61234153])) <= 1e-5))
 
         F, Fgrad = sim.variational_grad(np.array([3, 4, 2, 5]))
-        self.assertTrue(np.abs(F + 0.5868545288327245) <= 1e-5)
-        self.assertTrue(np.all(np.abs(Fgrad - np.array([3.82877928, 2.10271544, 5.21809702, 4.99717856])) <= 1e-5))
+        self.assertTrue(np.abs(F + 2.0226700483187735) <= 1e-5)
+        self.assertTrue(np.all(np.abs(Fgrad - np.array([10.81352397, 0.71592146, 4.23395355, 4.61234153])) <= 1e-5))
 
         # p = 3
         params = np.array([-1, 4, 15, 5, -6, 7])
         F, Fgrad = sim.variational_grad(params)
-        self.assertTrue(np.abs(F + 1.2541687509598878) <= 1e-5)
-        self.assertTrue(np.all(np.abs(Fgrad - np.array([-5.5862387, -3.99650097, -2.43971594, -0.29729297, -3.66785565,
-                                                        -3.35531478])) <= 1e-5))
+        self.assertTrue(np.abs(F - 0.22553595528885761) <= 1e-5)
+        self.assertTrue(np.all(np.abs(Fgrad - np.array([0.4198359, -7.88749038, -3.13170928, 11.61837198, 0.89197165,
+                                                        -2.60541832])) <= 1e-5))
 
         F, Fgrad = sim.variational_grad(params)
-        self.assertTrue(np.abs(F + 1.2541687509598878) <= 1e-5)
-        self.assertTrue(np.all(np.abs(Fgrad - np.array([-5.5862387, -3.99650097, -2.43971594, -0.29729297, -3.66785565,
-                                                        -3.35531478])) <= 1e-5))
+        self.assertTrue(np.abs(F - 0.22553595528885761) <= 1e-5)
+        self.assertTrue(np.all(np.abs(Fgrad - np.array([0.4198359, -7.88749038, -3.13170928, 11.61837198, 0.89197165,
+                                                        -2.60541832])) <= 1e-5))
 
     def test_run(self):
         sim.p = 1
+        sim_ket.p = 1
         sim_noisy.p = 1
         # p = 1 density matrix
-        self.assertAlmostEqual(sim.run([1, .5]), 1.897011131463)
-        self.assertAlmostEqual(sim_ket.run([1, .5]), 1.897011131463)
+        self.assertAlmostEqual(sim_ket.run([1, .5]), 0.6803639446061733)
+        self.assertAlmostEqual(sim.run([1, .5]), 0.6803639446061733)
 
-        # See how things look with dissipation
-        self.assertAlmostEqual(sim_noisy
-                               .run([1, .5]), 1.8869139555669938)
+        # See how things look with evolution
+        self.assertAlmostEqual(sim_noisy.run([1, .5]), 0.6767425876683083)
 
         # Higher depth circuit
         params = np.array([-1, 4, 15, 5, -6, 7])
         F, Fgrad = sim.variational_grad(params)
-        self.assertTrue(np.abs(F + 1.2541687509598878) <= 1e-5)
-        self.assertTrue(np.all(np.abs(Fgrad - np.array([-5.5862387, -3.99650097, -2.43971594, -0.29729297, -3.66785565,
-                                                        -3.35531478])) <= 1e-5))
+        self.assertTrue(np.abs(F - 0.22553595528885761) <= 1e-5)
+        self.assertTrue(np.all(np.abs(Fgrad - np.array([0.4198359,  -7.88749038, -3.13170928, 11.61837198,  0.89197165, -2.60541832]) < 1e-5)))
 
     def test_find_optimal_params(self):
-        sim.p = 3
+        sim_ket.p = 3
         sim_noisy.p = 3
         print('Noiseless:')
-        params = sim.find_parameters_minimize()
-        self.assertTrue(
-            np.allclose(params.x, np.array([0.2042597, 0.42876983, 0.52240463, -0.50668092, -0.34297845, -0.16922362])))
+        params = sim_ket.find_parameters_minimize()
+        self.assertTrue(np.allclose(params.x, np.array([-1.19850235, -0.12806045, 0.68848687, -1.11236156, 0.68044366,
+                                                        -0.21707696])))
+
         print('Noisy:')
         params = sim_noisy.find_parameters_minimize()
-        self.assertTrue(
-            np.allclose(params.x, np.array([0.20340663, 0.42731716, 0.52019853, -0.50669633, -0.3437759, -0.17029569])))
+        self.assertTrue(np.allclose(params.x, np.array([-1.20106506, -0.12751502, 0.68816092, -1.10802233, 0.67443895, -0.21750499])))
 
     def test_fix_param_gauge(self):
         """

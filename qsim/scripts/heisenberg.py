@@ -1,7 +1,7 @@
 import numpy as np
 from qsim.tools import operations, tools
 from qsim import schrodinger_equation
-from qsim import hamiltonian
+from qsim.evolution import hamiltonian
 import matplotlib.pyplot as plt
 import networkx as nx
 from networkx.algorithms import approximation
@@ -29,7 +29,7 @@ class StochasticWavefunction(object):
     def run(self, s, t0, tf, dt):
         # Compute probability that we have a jump
         times = np.arange(t0, tf, dt)
-        outputs = np.zeros((times.shape[0], s.shape[0], s.shape[1]), dtype=np.complex64)
+        outputs = np.zeros((times.shape[0], s.shape[0], s.shape[1]), dtype=np.complex128)
         se = schrodinger_equation.SchrodingerEquation(hamiltonians=self.hamiltonians, is_ket=True)
         for (j, time) in zip(range(times.shape[0]), times):
             output = se.run_ode_solver(s, time, time+2*dt, dt)[-1]
@@ -172,7 +172,7 @@ class Graph(object):
         if rates is None:
             rates = [1,1]
         times = np.arange(t0, tf, dt)
-        outputs = np.zeros((times.shape[0], self.configuration.shape[0], 1), dtype=np.complex64)
+        outputs = np.zeros((times.shape[0], self.configuration.shape[0], 1), dtype=np.complex128)
         for (j, time) in zip(range(times.shape[0]), times):
             if j == 0:
                 outputs[0, :] = np.array([self.configuration.copy()]).T
@@ -510,8 +510,8 @@ def domain_wall_dissipation(n:list, dt=0.001, trials = 30):
         greedy = GreedyNoise(graph, rate = pump_rate)
         heisenberg = HamiltonianHeisenberg(graph, k=100)
         sw = StochasticWavefunction(hamiltonians=[heisenberg, greedy], jumps=[greedy])
-        quantum_outputs = np.zeros((trials, np.arange(0, tf, dt).shape[0], psi0.shape[0]), dtype=np.complex64)
-        classical_outputs = np.zeros((trials, np.arange(0, tf, dt).shape[0], graph.n), dtype=np.complex64)
+        quantum_outputs = np.zeros((trials, np.arange(0, tf, dt).shape[0], psi0.shape[0]), dtype=np.complex128)
+        classical_outputs = np.zeros((trials, np.arange(0, tf, dt).shape[0], graph.n), dtype=np.complex128)
         for k in range(trials):
             quantum_output = sw.run(s.state.copy(), 0, tf, dt)
             quantum_outputs[k,...] = np.squeeze(quantum_output, axis=-1)
@@ -552,8 +552,8 @@ def random_erdos_renyi(n, p=.3, dt=0.001, trials = 30):
     psi0 = np.zeros((2 ** n, 1))
     psi0[-1, 0] = 1
     s = State(psi0, n, is_ket=True)
-    quantum_outputs = np.zeros((trials, np.arange(0, tf, dt).shape[0], psi0.shape[0]), dtype=np.complex64)
-    classical_outputs = np.zeros((trials, np.arange(0, tf, dt).shape[0], n), dtype=np.complex64)
+    quantum_outputs = np.zeros((trials, np.arange(0, tf, dt).shape[0], psi0.shape[0]), dtype=np.complex128)
+    classical_outputs = np.zeros((trials, np.arange(0, tf, dt).shape[0], n), dtype=np.complex128)
     # Generate a new graph
     g = nx.erdos_renyi_graph(n, p)
     graph = Graph(g)

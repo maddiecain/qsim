@@ -1,9 +1,7 @@
 import networkx as nx
-from qsim.dissipation import quantum_channels
-from qsim.qaoa import simulate
-from qsim import hamiltonian
-from qsim.state import TwoQubitCode, JordanFarhiShor
-
+from qsim.evolution import quantum_channels, hamiltonian
+from qsim.graph_algorithms import qaoa
+from qsim.state import two_qubit_code, jordan_farhi_shor
 # Construct a known graph
 G = nx.random_regular_graph(1, 2)
 for e in G.edges:
@@ -13,14 +11,14 @@ for e in G.edges:
 # plot.draw_graph(G)
 p = 1
 print('No logical encoding:')
-sim = simulate.SimulateQAOA(G, p, 2, is_ket=False, mis=True)
+hc_qubit = hamiltonian.HamiltonianC(G, mis=True)
+sim = qaoa.SimulateQAOA(G, p, 2, is_ket=False, C=hc_qubit)
 # Set the default variational operators
-sim.hamiltonian = [hamiltonian.HamiltonianC(G, mis=True),
-                   hamiltonian.HamiltonianB()]
+sim.hamiltonian = [hc_qubit, hamiltonian.HamiltonianB()]
 
-sim_penalty = simulate.SimulateQAOA(G, p, 3, is_ket=False, mis=True)
+sim_penalty = qaoa.SimulateQAOA(G, p, 3, is_ket=False, C=hc_qubit)
 # Set the default variational operators with a penalty Hamiltonian
-sim_penalty.hamiltonian = [hamiltonian.HamiltonianC(G, mis=True),  hamiltonian.HamiltonianBookatzPenalty(),
+sim_penalty.hamiltonian = [hc_qubit, hamiltonian.HamiltonianBookatzPenalty(),
                            hamiltonian.HamiltonianB()]
 sim.noise = [quantum_channels.PauliChannel((.025, 0, 0)), quantum_channels.PauliChannel((.025, 0, 0))]
 sim_penalty.noise = [quantum_channels.PauliChannel((.025, 0, 0)), quantum_channels.QuantumChannel(), quantum_channels.PauliChannel((.025, 0, 0))]
@@ -29,20 +27,19 @@ sim_penalty.noise = [quantum_channels.PauliChannel((.025, 0, 0)), quantum_channe
 sim.find_parameters_brute(n=20)
 sim_penalty.find_parameters_brute(n=20)
 print('Two qubit code:')
-sim_code = simulate.SimulateQAOA(G, p, 2, is_ket=False, code=TwoQubitCode, mis=True)
+hc_two_qubit_code = hamiltonian.HamiltonianC(G, code=two_qubit_code)
+sim_code = qaoa.SimulateQAOA(G, p, 2, is_ket=False, code=two_qubit_code, C =hc_two_qubit_code)
 
 # Set the default variational operators
-sim_code.hamiltonian = [hamiltonian.HamiltonianC(G, code=TwoQubitCode),
-                               hamiltonian.HamiltonianB()]
+sim_code.hamiltonian = [hc_two_qubit_code, hamiltonian.HamiltonianB(code=two_qubit_code)]
 
 sim_code.noise = [quantum_channels.PauliChannel((.025, 0, 0)), quantum_channels.PauliChannel((.025, 0, 0))]
 
-sim_penalty = simulate.SimulateQAOA(G, p, 3, is_ket=False, code=TwoQubitCode)
+sim_penalty = qaoa.SimulateQAOA(G, p, 3, is_ket=False, code=two_qubit_code)
 
-# Set the default variational parameters and dissipation
-sim_penalty.hamiltonian = [hamiltonian.HamiltonianC(G, code=TwoQubitCode),
-                                  hamiltonian.HamiltonianB(),
-                                  hamiltonian.HamiltonianBookatzPenalty()]
+# Set the default variational parameters and evolution
+sim_penalty.hamiltonian = [hc_two_qubit_code, hamiltonian.HamiltonianB(code=two_qubit_code),
+                           hamiltonian.HamiltonianBookatzPenalty(code=two_qubit_code)]
 sim_penalty.noise = [quantum_channels.PauliChannel((.025, 0, 0)), quantum_channels.PauliChannel((.025, 0, 0)),
                      quantum_channels.QuantumChannel()]
 
@@ -50,19 +47,19 @@ sim_penalty.noise = [quantum_channels.PauliChannel((.025, 0, 0)), quantum_channe
 sim_code.find_parameters_brute(n=10)
 sim_penalty.find_parameters_brute(n=10)
 print('Jordan-Farhi-Shor code:')
-sim_code = simulate.SimulateQAOA(G, p, 2, is_ket=False, code=JordanFarhiShor, mis=True)
+hc_jordan_farhi_shor = hamiltonian.HamiltonianC(G, code=jordan_farhi_shor)
+sim_code = qaoa.SimulateQAOA(G, p, 2, is_ket=False, code=jordan_farhi_shor, C = hc_jordan_farhi_shor)
 
 # Set the default variational operators
-sim_code.hamiltonian = [hamiltonian.HamiltonianC(G, code=JordanFarhiShor),
-                               hamiltonian.HamiltonianB()]
+sim_code.hamiltonian = [hc_jordan_farhi_shor, hamiltonian.HamiltonianB(code=jordan_farhi_shor)]
 
 sim_code.noise = [quantum_channels.PauliChannel((.025, 0, 0)), quantum_channels.PauliChannel((.025, 0, 0))]
 
-sim_penalty = simulate.SimulateQAOA(G, p, 3, is_ket=False, code=JordanFarhiShor)
+sim_penalty = qaoa.SimulateQAOA(G, p, 3, is_ket=False, code=jordan_farhi_shor)
 
-# Set the default variational parameters and dissipation
-sim_penalty.hamiltonian = [hamiltonian.HamiltonianC(G, code=JordanFarhiShor), hamiltonian.HamiltonianBookatzPenalty(),
-                                  hamiltonian.HamiltonianB()]
+# Set the default variational parameters and evolution
+sim_penalty.hamiltonian = [hc_jordan_farhi_shor, hamiltonian.HamiltonianBookatzPenalty(),
+                           hamiltonian.HamiltonianB()]
 sim_penalty.noise = [quantum_channels.PauliChannel((.025, 0, 0)), quantum_channels.PauliChannel((.025, 0, 0)),
                      quantum_channels.QuantumChannel()]
 sim_code.find_parameters_brute(n=10)

@@ -1,7 +1,7 @@
 from qsim import master_equation
 from qsim.tools import operations
 from qsim import tools
-from qsim.dissipation.lindblad_operators import PauliNoise
+from qsim.evolution.lindblad_operators import PauliNoise
 from qsim.state import ETThreeQubitCode, ThreeQubitCode
 import numpy as np
 import matplotlib.pyplot as plt

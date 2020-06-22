@@ -232,19 +232,19 @@ class MarvianCode(object):
         elif len(b_list.shape) - len(a_list.shape) == 1:
             return np.array([tools.fidelity(a_list @ b_list[i]) for i in range(b_list.shape[0])])
 
-    def run_fidelity(self, s: State, Ep, mag, freq, error='tracenorm', vec=None, fid_proj=True, fid=True, hc=None, t0=0, tf=50, dt=0.005):
+    def run_fidelity(self, s, Ep, mag, freq, error='tracenorm', vec=None, fid_proj=True, fid=True, hc=None, t0=0, tf=50, dt=0.005):
         if hc is None:
             hc = np.zeros([2**self.N, 2**self.N])
         hfield = self.Hfield(mag=mag, vec=vec)
         # Integrate the clean state
         eq = schrodinger_equation.SchrodingerEquation(lambda t: hc + Ep * self.hp)
-        res = eq.run_ode_solver(s.state, t0, tf, dt=dt)
+        res = eq.run_ode_solver(s, t0, tf, dt=dt)
         # Numerically integrates the Schrodinger equation
         eq_error = schrodinger_equation.SchrodingerEquation(lambda t: hc + Ep * self.hp + hfield * np.cos(freq * t))
         print('Running error state with Ep = ' + str(Ep))
         print('Frequency = ', str(freq))
         print('Field Magnitude =', str(mag))
-        res_error = eq_error.run_ode_solver(s.state, t0, tf, dt=dt)
+        res_error = eq_error.run_ode_solver(s, t0, tf, dt=dt)
         if error == 'tracenorm':
             if fid:
                 fidelity = self.trace_fidelity(res, res_error)
@@ -262,23 +262,23 @@ class MarvianCode(object):
         elif fid_proj:
             return proj_fidelity, res_error
 
-    def run_expectation(self, s: State, var, Ep, mag, freq, vec=None, hc=None, t0=0, tf=50, dt=0.005):
+    def run_expectation(self, s, var, Ep, mag, freq, vec=None, hc=None, t0=0, tf=50, dt=0.005):
         if hc is None:
             hc = np.zeros([2**self.N, 2**self.N])
         hfield = self.Hfield(mag=mag, vec=vec)
         # Integrate the clean state
         eq = schrodinger_equation.SchrodingerEquation(lambda t: hc)
-        res = eq.run_ode_solver(s.state, t0, tf, dt=dt)
+        res = eq.run_ode_solver(s, t0, tf, dt=dt)
         # Numerically integrates the Schrodinger equation
         eq_error = schrodinger_equation.SchrodingerEquation(lambda t: hc + Ep * self.hp + hfield * np.cos(freq * t))
         print('Running error state with Ep = ' + str(Ep))
         print('Frequency = ', str(freq))
         print('Field Magnitude =', str(mag))
-        res_error = eq_error.run_ode_solver(s.state, t0, tf, dt=dt)
+        res_error = eq_error.run_ode_solver(s, t0, tf, dt=dt)
         return res_error
 
 
-    def plot_fidelity_vs_time(self, s:State, Ep, mag, freq, error='tracenorm', hc=None, t0=0, tf=50, dt=0.005):
+    def plot_fidelity_vs_time(self, s, Ep, mag, freq, error='tracenorm', hc=None, t0=0, tf=50, dt=0.005):
         # Plots fidelity versus time
         gridspec = {'width_ratios': [1, 1]}
         fig, ax = plt.subplots(1, 2, figsize=(12, 6), gridspec_kw=gridspec)
@@ -308,7 +308,7 @@ class MarvianCode(object):
         plt.legend(loc='lower right')
         plt.show()
 
-    def plot_frequency_vs_magnitude(self, s: State, Ep, error='tracenorm', n=10, hc=None, t0=0, tf=50):
+    def plot_frequency_vs_magnitude(self, s, Ep, error='tracenorm', n=10, hc=None, t0=0, tf=50):
         gridspec = {'width_ratios': [1, 0.2, 1, 0.2]}
         fig, ax = plt.subplots(1, 4, figsize=(14, 5), gridspec_kw=gridspec)
         for ep in Ep:
@@ -378,7 +378,7 @@ class MarvianCode(object):
         for j in range(len(N)):
             print('Size = ' + str(N[j]))
             temp = MarvianCode(N[j][0], N[j][1])
-            s = State(temp.ZeroL(), temp.N)
+            s = temp.ZeroL()
             sizes[j] = temp.N
             fid = np.zeros(n)
             for k in range(n):
@@ -439,7 +439,7 @@ class MarvianCode(object):
 # Assume logical qubit layout is a Ny x Nx grid
 code = MarvianCode(1, 2)
 #code.plot_hp_gap([[2,2]])
-s = State(code.ZeroL(), code.N)
+s = code.ZeroL()
 code.plot_fidelity_vs_time(s, [10,25,50,100], 4, 0, hc=code.hb, tf=10)
 #code.plot_fidelity_vs_time(s, [10,25,50,100], 4, 1, hc=code.hc, tf=10)
 

@@ -1,9 +1,8 @@
 import numpy as np
-from qsim.dissipation import lindblad_operators
+from qsim.evolution import lindblad_operators
 from qsim import tools
 import matplotlib.pyplot as plt
-from qsim.state import *
-from qsim.hamiltonian import Hamiltonian
+from qsim.evolution.hamiltonian import Hamiltonian
 
 def ham_term(*argv):
     def decode(code):
@@ -83,7 +82,7 @@ kappa = 1  # np.linspace(0, 10, 10)
 # Bit flip rate
 p_error = 1 * dt
 bit_flip = lindblad_operators.PauliNoise((p_error, 0, 0))
-# Dissipative dissipation rate
+# Dissipative evolution rate
 rate = np.linspace(0, n, p_len)
 corrective = lindblad_operators.AmplitudeDampingNoise(1)
 
@@ -100,7 +99,7 @@ for j in range(p_len):
     corrective.p = rate[j] * dt
     for i in range(n):
         # Evolve density matrix
-        # Apply bit flip dissipation
+        # Apply bit flip evolution
         hamiltonian.evolve(ec, dt * kappa)
         for l in range(3):
             noisy.state = bit_flip.channel(noisy.state, l)

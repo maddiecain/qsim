@@ -16,12 +16,12 @@ import numpy as np
 from timeit import default_timer as timer
 
 from qsim import tools
-from qsim.state import State
-from qsim.hamiltonian import HamiltonianC
+from qsim import state
+from qsim.evolution.hamiltonian import HamiltonianC
 
 
 class SimulateQAOA(object):
-    def __init__(self, graph: nx.Graph, p, m, hamiltonian=None, noise=None, is_ket=True, code=State, mis=True):
+    def __init__(self, graph: nx.Graph, p, m, hamiltonian=None, noise=None, is_ket=True, code=None, C=None):
         self.graph = graph
         self.hamiltonian = hamiltonian
         self.noise = noise
@@ -29,18 +29,14 @@ class SimulateQAOA(object):
         # Depth of circuit
         self.p = p
         self.m = m
-        self.code = code
-        self.mis = mis
-        self.C = HamiltonianC(graph, mis=mis, code=self.code).hamiltonian_diag
-        self.is_ket = is_ket
-
-    def cost_function(self, s: State):
-        # Returns <s|C|s>
-        if self.is_ket:
-            return np.real(np.vdot(s.state, self.C * s.state))
+        if code is None:
+            self.code = state.qubit
         else:
-            # Density matrix
-            return np.real(np.squeeze(tools.trace(self.C * s.state)))
+            self.code = code
+        if C is None:
+            C = HamiltonianC(graph, mis=True, code=self.code)
+        self.C = C
+        self.is_ket = is_ket
 
     def variational_grad(self, param):
         """Calculate the objective function F and its gradient exactly
@@ -56,55 +52,53 @@ class SimulateQAOA(object):
         param = param.reshape(m, p).T
         # Preallocate space for storing mp+2 copies of wavefunction - necessary for efficient computation of analytic
         # gradient
-        psi = np.ones((2 ** self.N, 1)) / 2 ** (self.N / 2)
+        psi = tools.equal_superposition(self.N, basis=self.code.logical_basis)
         if self.is_ket:
             memo = np.zeros([2 ** self.N, 2 * m * p + 2], dtype=np.complex128)
             memo[:, 0] = np.squeeze(psi.T)
-            s = self.code(psi, self.N, is_ket=self.is_ket)
+            tester = psi[:]
         else:
             memo = np.zeros([2 ** self.N, 2 ** self.N, m * p + 1], dtype=np.complex128)
             memo[..., 0] = np.squeeze(tools.outer_product(psi, psi))
-            s = self.code(memo[..., 0], self.N, is_ket=self.is_ket)
-
-        tester = self.code(memo[..., 0], self.N, is_ket=self.is_ket)
+            tester = tools.outer_product(psi, psi)
         # Evolving forward
         for j in range(p):
             for i in range(m):
                 if self.is_ket:
-                    self.hamiltonian[i].evolve(s, param[j][i])
-                    memo[:, j * m + i + 1] = np.squeeze(s.state.T)
+                    tester = self.hamiltonian[i].evolve(tester, param[j][i], is_ket=self.is_ket)
+                    memo[:, j * m + i + 1] = np.squeeze(tester.T)
                 else:
-                    self.hamiltonian[i].evolve(tester, param[j][i])
+                    self.hamiltonian[i].evolve(tester, param[j][i], is_ket=self.is_ket)
                     # Goes through memo, evolves every density matrix in it, and adds one more in the j*m+i+1 position
                     # corresponding to H_i*p
-                    s0_prenoise = self.code(memo[..., 0], self.N, is_ket=self.is_ket)
+                    s0_prenoise = memo[..., 0]
                     for k in range(m * j + i + 1):
-                        s = self.code(memo[..., k], self.N, is_ket=self.is_ket)
-                        self.hamiltonian[i].evolve(s, param[j][i])
+                        s = memo[..., k]
+                        s = self.hamiltonian[i].evolve(s, param[j][i], is_ket=self.is_ket)
                         if k == 0:
-                            s0_prenoise.state = s.state
-                        s.state = self.noise[i].all_qubit_channel(s.state)
-                        memo[..., k] = s.state
-                    self.hamiltonian[i].left_multiply(s0_prenoise)
-                    s0_prenoise.state = self.noise[i].all_qubit_channel(s0_prenoise.state)
-                    memo[..., m * j + i + 1] = s0_prenoise.state
+                            s0_prenoise = s
+                        s = self.noise[i].all_qubit_channel(s)
+                        memo[..., k] = s[:]
+                    s0_prenoise = self.hamiltonian[i].left_multiply(s0_prenoise, is_ket=self.is_ket)
+                    s0_prenoise = self.noise[i].all_qubit_channel(s0_prenoise)
+                    memo[..., m * j + i + 1] = s0_prenoise[:]
 
         # Multiply by C
         if self.is_ket:
-            memo[:, m * p + 1] = np.squeeze(self.C.T) * memo[:, m * p]
-            s.state = np.array([memo[:, m * p + 1]]).T
+            memo[:, m * p + 1] = np.squeeze(self.C.hamiltonian.T) * memo[:, m * p]
+            s = np.array([memo[:, m * p + 1]]).T
         else:
             for k in range(m * p + 1):
-                s = self.code(memo[..., k], self.N, is_ket=self.is_ket)
-                s.state = self.C * s.state
-                memo[..., k] = s.state
+                s = memo[..., k]
+                s = self.C.hamiltonian * s
+                memo[..., k] = s
 
         # Evolving backwards, if ket:
         if self.is_ket:
             for k in range(p):
                 for l in range(m):
-                    self.hamiltonian[m - l - 1].evolve(s, -1 * param[p - k - 1][m - l - 1])
-                    memo[:, (p + k) * m + 2 + l] = np.squeeze(s.state.T)
+                    s = self.hamiltonian[m - l - 1].evolve(s, -1 * param[p - k - 1][m - l - 1], is_ket=self.is_ket)
+                    memo[:, (p + k) * m + 2 + l] = np.squeeze(s.T)
 
         # Evaluating objective function
         if self.is_ket:
@@ -117,27 +111,27 @@ class SimulateQAOA(object):
         for q in range(p):
             for r in range(m):
                 if self.is_ket:
-                    s = self.code(np.array([memo[:, m * (2 * p - q) + 1 - r]]).T, self.N, is_ket=self.is_ket)
-                    self.hamiltonian[r].left_multiply(s)
-                    Fgrad[q * m + r] = -2 * np.imag(np.vdot(memo[:, q * m + r], np.squeeze(s.state.T)))
+                    s = np.array([memo[:, m * (2 * p - q) + 1 - r]]).T
+                    s = self.hamiltonian[r].left_multiply(s, is_ket=self.is_ket)
+                    Fgrad[q * m + r] = -2 * np.imag(np.vdot(memo[:, q * m + r], np.squeeze(s.T)))
                 else:
                     Fgrad[q * m + r] = 2 * np.imag(np.trace(memo[..., q * m + r + 1]))
         return F, Fgrad
 
     def run(self, param):
-        psi0 = tools.equal_superposition(self.N, basis=self.code.basis)
+        psi0 = tools.equal_superposition(self.N, basis=self.code.logical_basis)
         if self.is_ket:
-            s = self.code(psi0, self.N, is_ket=self.is_ket)
+            s = psi0
         else:
-            s = self.code(tools.outer_product(psi0, psi0), self.N, is_ket=self.is_ket)
+            s = tools.outer_product(psi0, psi0)
 
         for i in range(self.p):
             for j in range(self.m):
-                self.hamiltonian[j].evolve(s, param[j * self.p + i])
-                s.state = self.noise[j].all_qubit_channel(s.state)
+                s = self.hamiltonian[j].evolve(s, param[j * self.p + i], is_ket=self.is_ket)
+                s = self.noise[j].all_qubit_channel(s)
         # Return the expected value of the cost function
         # Note that the state's defined expectation function won't work here due to the shape of C
-        return self.cost_function(s)
+        return self.C.cost_function(s, is_ket=self.is_ket)
 
     def fix_param_gauge(self, param, gamma_period=np.pi, beta_period=np.pi / 2, degree_parity=None):
         EVEN_DEGREE_ONLY, ODD_DEGREE_ONLY = 0, 1
@@ -156,7 +150,7 @@ class SimulateQAOA(object):
         gammas = gammas % 1
         betas = betas % 1
 
-        # Use time-reversal Ymmetry to make first gamma small
+        # Use time-reversal symmetry to make first gamma small
         if (gammas[0] > 0.25 and gammas[0] < 0.5) or gammas[0] > 0.75:
             gammas = -gammas % 1
             betas = -betas % 1
@@ -188,7 +182,7 @@ class SimulateQAOA(object):
 
         return np.concatenate((gammas * gamma_period, -betas * beta_period, param[2 * p:])).tolist()
 
-    def find_initial_parameters(self, init_param_guess=None, verbose=False, print_results=True):
+    def find_initial_parameters(self, init_param_guess=None, verbose=False):
         r"""
         Given a graph, find QAOA parameters that minimizes C=\sum_{<ij>} w_{ij} Z_i Z_j
 
@@ -206,7 +200,13 @@ class SimulateQAOA(object):
 
 
         # Construct function to be passed to scipy.optimize.minimize
-        min_c = min(self.C)
+        if self.C.optimization == 'min':
+            opt_c = min(self.C.hamiltonian)
+            f = lambda param: self.variational_grad(param)[0]
+        if self.C.optimization == 'max':
+            opt_c = -1*max(self.C.hamiltonian)
+            f = lambda param: -1*self.variational_grad(param)[0]
+
 
         # check if the node degrees are always odd or even
         degree_list = np.array([deg for (node, deg) in self.graph.degree]) % 2
@@ -234,21 +234,21 @@ class SimulateQAOA(object):
 
             start = timer()
             if param0 is not None:
-                results = minimize(lambda param: self.variational_grad(param)[0], param0, jac=None, method='BFGS',
+                results = minimize(f, param0, jac=None, method='BFGS',
                                    tol=.01)
             else:  # Run with 10 random guesses of parameters and keep best one
                 # Will only apply to the lowest depth (p=0 here)
                 # First run with a guess known to work most of the time
                 param0 = np.ones((p + 1) * self.m) * np.pi / 8
                 param0[p:2 * p] = param0[p:2 * p] * -1
-                results = minimize(lambda param: self.variational_grad(param)[0], param0, jac=None, method='BFGS',
+                results = minimize(f, param0, jac=None, method='BFGS',
                                    tol=.01)
 
                 for _ in range(1, 10):
                     # Some reasonable random guess
                     param0 = np.ones((p + 1) * self.m) * np.random.rand((p + 1) * self.m) * np.pi / 2
                     param0[p:2 * p] = param0[0:p] * -1 / 4
-                    test_results = minimize(lambda param: self.variational_grad(param)[0], param0, jac=None,
+                    test_results = minimize(f, param0, jac=None,
                                             method='BFGS', tol=.01)
                 if test_results.fun < results.fun:  # found a better minimum
                     results = test_results
@@ -256,25 +256,25 @@ class SimulateQAOA(object):
             if verbose:
                 end = timer()
                 print(
-                    f'-- p={p + 1}, F = {results.fun:0.3f} / {min_c}, nfev={results.nfev}, time={end - start:0.2f} s')
+                    f'-- p={p + 1}, F = {results.fun:0.3f} / {opt_c}, nfev={results.nfev}, time={end - start:0.2f} s')
 
             Fvals[p] = np.real(results.fun)
             params[p] = self.fix_param_gauge(results.x, degree_parity=parity)
 
-        if print_results:
+        if verbose:
             for p, f_val, param in zip(np.arange(1, self.p + 1), Fvals, params):
                 print('p:', p)
                 print('f_val:', f_val)
                 print('params:', np.array(param).reshape(self.m, -1))
-                print('approximation_ratio:', f_val / min_c[0])
+                print('approximation_ratio:', f_val / opt_c[0])
 
         return [OptimizeResult(p=p,
                                f_val=f_val,
                                params=np.array(param).reshape(self.m, -1),
-                               approximation_ratio=f_val / min_c)
+                               approximation_ratio=f_val / opt_c)
                 for p, f_val, param in zip(np.arange(1, self.p + 1), Fvals, params)]
 
-    def find_parameters_brute(self, n=20, print_results=True):
+    def find_parameters_brute(self, n=20, verbose=True):
         r"""
         Given a graph, find QAOA parameters that minimizes C=\sum_{<ij>} w_{ij} Z_i Z_j by brute-force methods
         by evaluating on a grid
@@ -283,17 +283,23 @@ class SimulateQAOA(object):
         ranges = [(0, np.pi)] * self.m * self.p
         # Set a reasonable grid size
 
-        results = brute(self.run, ranges, Ns=n, full_output=True)
-        min_c = min(self.C)
 
-        if print_results:
+        if self.C.optimization == 'min':
+            opt_c = min(self.C.hamiltonian)
+            f = self.run
+        if self.C.optimization == 'max':
+            opt_c = -1*max(self.C.hamiltonian)
+            f = lambda param: -1*self.run(param)
+        results = brute(f, ranges, Ns=n, full_output=True)
+
+        if verbose:
             print('p:', self.p)
             print('f_val:', np.real(results[1]))
             print('params:', np.array(results[0]).reshape(self.m, -1))
-            print('approximation_ratio:', np.real(results[1]) / min_c[0])
+            print('approximation_ratio:', np.real(results[1]) / opt_c[0])
         return results
 
-    def find_parameters_minimize(self, init_param_guess=None, print_results=True):
+    def find_parameters_minimize(self, init_param_guess=None, verbose=True):
         """a graph, find QAOA parameters that minimizes C=\sum_{<ij>} w_{ij} Z_i Z_j
 
         Uses the interpolation-based heuristic from arXiv:1812.01041
@@ -312,13 +318,17 @@ class SimulateQAOA(object):
                                                np.linspace(-0.5, -0.1, self.p),
                                                np.zeros(self.p * (self.m - 2))))
 
-        results = minimize(lambda param: self.variational_grad(param)[0], init_param_guess)
-        min_c = min(self.C)
+        if self.C.optimization == 'min':
+            opt_c = min(self.C.hamiltonian)
+            results = minimize(lambda param: self.variational_grad(param)[0], init_param_guess)
+        if self.C.optimization == 'max':
+            opt_c = -1*max(self.C.hamiltonian)
+            results = minimize(lambda param: -1*self.variational_grad(param)[0], init_param_guess)
 
-        if print_results:
+        if verbose:
             print('p:', self.p)
             print('f_val:', np.real(results.fun))
             print('params:', np.array(results.x).reshape(self.m, -1))
-            print('approximation_ratio:', np.real(results.fun) / min_c[0])
+            print('approximation_ratio:', np.real(results.fun) / opt_c[0])
 
         return results

@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.linalg as sp
 
+
 def int_to_binary(n):
     """Converts an integer :math:`n` to a size-:math:`\\log_2(n)` binary array.
 
@@ -129,15 +130,15 @@ def is_orthonormal(B):
     return np.array_equal(np.linalg.inv(B) @ B, np.identity(B.shape[-1]))
 
 
-def equal_superposition(N: int, basis=np.array([[[1], [0]], [[0], [1]]])):
+def equal_superposition(N: int, basis=np.array([[[1], [0]], [[0], [1]]]), dtype=np.complex128):
     """
     :param N:  N is the number of logical qubits.
     :type N: int
     :param basis: Basis is an array of dimension :math:`(2, 2^n, 1)` containing the two basis states of the code comprised of :math:`n` qubits.
     :return: An equal superposition of logical basis states, :math:`\\frac{1}{2^{N/2}}(|0_L\\rangle+|1_L\\rangle)^{\\otimes N}`.
     """
-    plus = (basis[0] + basis[1]) / np.sqrt(2)
-    return tensor_product([plus] * N).astype(np.complex128)
+    plus = (basis[0] + basis[1])
+    return tensor_product([plus] * N) / np.sqrt(2 ** N)
 
 
 def multiply(state, operator, is_ket=False):
@@ -193,6 +194,7 @@ def is_projector(A):
     """
     return np.allclose(A, A @ A)
 
+
 def is_involutary(A):
     """
     :param A: Operator to check if it is involutary
@@ -201,3 +203,53 @@ def is_involutary(A):
     """
     return np.allclose(A @ A, np.identity(A.shape[0]))
 
+
+def is_pure_state(state):
+    """Returns ``True`` if :py:attr:`state` is a pure state."""
+    return np.array_equal(state @ state, state)
+
+
+def is_valid_state(state, is_ket=False, verbose=True):
+    """Returns ``True`` if :py:attr:`state` is a valid density matrix or a ket."""
+    if is_ket:
+        return np.linalg.norm(state) == 1
+    else:
+        print('Eigenvalues real?', (np.allclose(np.imag(np.linalg.eigvals(state)), np.zeros(state.shape[0]))))
+        print('Eigenvalues positive?', np.all(np.real(np.linalg.eigvals(state)) >= -1e-10))
+        print('Trace 1?', np.isclose(np.absolute(np.trace(state)), 1))
+        if verbose:
+            print('Eigenvalues:', np.linalg.eigvals(state))
+            print('Trace:', np.trace(state))
+        return (np.allclose(np.imag(np.linalg.eigvals(state)), np.zeros(state.shape[0]), atol=1e-06) and
+                np.all(np.real(np.linalg.eigvals(state)) >= -1 * 1e-05) and
+                np.isclose(np.absolute(np.trace(state)), 1))
+
+
+def is_diagonal(A):
+    """Checks if a matrix :math:`A` is diagonal."""
+    if np.count_nonzero(A - np.diag(np.diagonal(A))) == 0:
+        return True
+    return False
+
+
+def is_sorted(A, unique = True):
+    """Returns True if and only if A is a sorted list or numpy array. """
+    for i in range(len(A) - 1):
+        if unique:
+            if A[i + 1] < A[i]:
+                return False
+        else:
+            if A[i + 1] <= A[i]:
+                return False
+    return True
+
+
+
+def is_ket(A):
+    """Return True if and only if A is a ket and not a density matrix."""
+    assert len(A.shape) == 2
+    if A.shape[-1] == 1:
+        return True
+    else:
+        assert A.shape[0] == A.shape[1]
+        return False

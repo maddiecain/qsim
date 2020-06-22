@@ -1,7 +1,7 @@
 from .tools import tools
 from .tools import operations
-from . import qaoa
-from . import dissipation
+from . import graph_algorithms
+from . import evolution
 # Example Sphinx docstring
 
 """[Summary]

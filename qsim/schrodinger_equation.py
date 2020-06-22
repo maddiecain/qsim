@@ -6,10 +6,11 @@ __all__ = ['SchrodingerEquation']
 
 
 class SchrodingerEquation(object):
-    def __init__(self, hamiltonians=None, is_ket=False):
+    def __init__(self, hamiltonians=None):
         # Hamiltonian is a function of time
+        if hamiltonians is None:
+            hamiltonians=[]
         self.hamiltonians = hamiltonians
-        self.is_ket = is_ket
 
     def run_time_independent_solver(self, t0, tf, dt=.1, func=None):
         """Returns the state of the system under unitary time evolution of a time
@@ -18,11 +19,15 @@ class SchrodingerEquation(object):
 
     def run_ode_solver(self, s, t0, tf, dt=.1, func=None):
         """Numerically integrates the Schrodinger equation"""
+        is_ket = tools.is_ket(s)
         if func is None:
-            if not self.is_ket:
+            if not is_ket:
+                print('Are you really sure you want to solve the Schrodinger equation with a density matrix input?')
                 def f(s, t):
-                    # hbar is set to one
-                    return -1j * tools.commutator(self.hamiltonian(t), s)
+                    res = np.zeros(s.shape)
+                    for hamiltonian in self.hamiltonians:
+                        res = res - 1j * hamiltonian.left_multiply(s, is_ket=is_ket) + 1j * hamiltonian.right_multiply(s, is_ket=is_ket)
+                    return res
             else:
                 def f(s, t):
                     res = np.zeros(s.shape)

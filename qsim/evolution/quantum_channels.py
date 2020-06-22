@@ -197,7 +197,7 @@ class AmplitudeDampingChannel(QuantumChannel):
 
 class ZenoChannel(QuantumChannel):
     def __init__(self, p: Tuple[float, float, float]):
-        """Zeno-type dissipation."""
+        """Zeno-type evolution."""
         assert len(p) == 3
         povm = []
         # Only include nonzero terms

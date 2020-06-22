@@ -1,6 +1,7 @@
 # QSim
 
-QSim is an optimized Python package for simulating noisy quantum computers. 
+QSim is an optimized Python package for simulating noisy quantum computers, with a focus on quantum graph algorithms
+and error correcting codes. 
 The following simulation methods are supported:
 - Lindblad master equation solver,
 - Schrodinger equation integrator, which supports time-dependent and time-independent Hamiltonians,
@@ -8,10 +9,11 @@ The following simulation methods are supported:
 - Quantum channel evolution, including noisy channels.
 
 QSim supports simulating and performing outer loop optimization for the 
-Quantum Approximate Optimization Algorithm (QAOA). Analytic gradients
+Quantum Approximate Optimization Algorithm (QAOA), and simulating the quantum adiabatic algorithm with a flexible 
+annealing schedule. Analytic gradients
 can be calculated under noisy channel evolution and noiseless evolution.
 Maximum independent set (MIS; includes Rydberg MIS) and MaxCut Hamiltonians can be generated from
-networkx Graph objects. 
+networkx Graph objects. Classical Monte Carlo and simulated annealing scripts are also included for comparison.
 
 QSim also includes functionality for 
 simulating the following error-correcting and error-detecting codes:

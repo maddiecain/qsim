@@ -263,4 +263,53 @@ def expectation(state, op, is_ket=False):
     else:
         return tools.trace(state @ op)
 
+def measurement_outcomes(self, operator):
+    """
+    Determines the measurement outcomes on an ``operator`` in the given ``state``.
+
+    :param operator: The operator to simulate a measurement on.
+    :type operator: np.array
+    :return: The probabilities, eigenvalues, and eigenvectors of the possible measurement outcomes
+    """
+    assert not self.is_ket
+    eigenvalues, eigenvectors = np.linalg.eig(operator)
+    # Change the basis
+    if not self.is_ket:
+        state = eigenvectors.conj().T @ self.state.copy() @ eigenvectors
+    else:
+        state = eigenvectors @ self.state.copy()
+    if self.is_ket:
+        return np.absolute(state.T) ** 2, eigenvalues, eigenvectors
+    else:
+        n = eigenvectors.shape[0]
+        outcomes = np.matmul(np.reshape(eigenvectors.conj(), (n, n, 1)),
+                             np.reshape(eigenvectors, (n, 1, n))) @ state
+        probs = np.trace(outcomes, axis1=-2, axis2=-1)
+        return probs, eigenvalues, outcomes
+
+
+def measurement(state, operator, is_ket=False):
+    """
+    Simulates measuring ``operator`` in the given ``state``.
+
+    :param operator: The operator to simulate a measurement on
+    :type operator: np.array
+    :return: The eigenvalue and eigenvector of the measurement outcome
+    """
+    eigenvalues, eigenvectors = np.linalg.eig(operator)
+    if not is_ket:
+        state = eigenvectors.conj().T @ state.copy() @ eigenvectors
+    else:
+        state = eigenvectors @ state.copy()
+    if is_ket:
+        probs = np.absolute(state.T) ** 2
+        i = np.random.choice(operator.shape[0], p=probs[0])
+        return eigenvalues[i], eigenvectors[i]
+    else:
+        n = eigenvectors.shape[0]
+        outcomes = np.matmul(np.reshape(eigenvectors.conj(), (n, n, 1)),
+                             np.reshape(eigenvectors, (n, 1, n))) @ state
+        probs = np.trace(outcomes, axis1=-2, axis2=-1)
+        i = np.random.choice(operator.shape[0], p=np.absolute(probs))
+        return eigenvalues[i], outcomes[i] / probs
 
