@@ -50,7 +50,7 @@ def X(n=1):
     """
     :return: Returns :math:`X^{\\otimes n}`
     """
-    x = [np.array([[0, 1], [1, 0]])] * n
+    x = [np.array([[0, 1], [1, 0]], dtype=np.complex128)] * n
     return tensor_product(x)
 
 
@@ -58,7 +58,7 @@ def Y(n=1):
     """
     :return: Returns :math:`Y^{\\otimes n}`
     """
-    y = [np.array([[0, -1j], [1j, 0]])] * n
+    y = [np.array([[0, -1j], [1j, 0]], dtype=np.complex128)] * n
     return tensor_product(y)
 
 
@@ -66,7 +66,7 @@ def Z(n=1):
     """
     :return: Returns :math:`Z^{\\otimes n}`
     """
-    z = [np.array([[1, 0], [0, -1]])] * n
+    z = [np.array([[1, 0], [0, -1]], dtype=np.complex128)] * n
     return tensor_product(z)
 
 
@@ -138,7 +138,7 @@ def equal_superposition(N: int, basis=np.array([[[1], [0]], [[0], [1]]]), dtype=
     :return: An equal superposition of logical basis states, :math:`\\frac{1}{2^{N/2}}(|0_L\\rangle+|1_L\\rangle)^{\\otimes N}`.
     """
     plus = (basis[0] + basis[1])
-    return tensor_product([plus] * N) / np.sqrt(2 ** N)
+    return tensor_product([plus] * N) / np.sqrt(2 ** N).astype(dtype)
 
 
 def multiply(state, operator, is_ket=False):

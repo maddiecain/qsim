@@ -20,12 +20,13 @@ g.add_edge(1, 5, weight=1)
 g.add_edge(2, 5, weight=1)
 g.add_edge(3, 5, weight=1)
 
-sim = qaoa.SimulateQAOA(g, 1, 2, is_ket=False, C = hamiltonian.HamiltonianC(g, mis=False))
+sim = qaoa.SimulateQAOA(g, 1, 2, is_ket=False, C=hamiltonian.HamiltonianC(g, mis=False))
 
 N = 10
 # Initialize in |000000>
 
 sim.hamiltonian = [hamiltonian.HamiltonianC(g, mis=False), hamiltonian.HamiltonianB()]
+
 
 class TestHamiltonian(unittest.TestCase):
     def test_hamiltonian_B(self):
@@ -38,7 +39,7 @@ class TestHamiltonian(unittest.TestCase):
 
         # Should get (-1j)^N |111111>
         self.assertTrue(np.vdot(psi0, psi0) == 1)
-        self.assertTrue(psi0[-1,0] == (-1j) ** N)
+        self.assertTrue(psi0[-1, 0] == (-1j) ** N)
 
         # Evolve by e^{-i (\pi/2) \sum_i X_i}
         psi1 = sim.hamiltonian[1].evolve(psi1, np.pi / 2, is_ket=False)
@@ -55,13 +56,12 @@ class TestHamiltonian(unittest.TestCase):
             psi1[2 ** i, 0] = 1
         self.assertTrue(np.allclose(psi0, psi1))
 
-
     def test_hamiltonian_C(self):
         # Graph has six nodes and nine edges
         # First compute MIS energies
         hc = hamiltonian.HamiltonianC(g, mis=True)
-        self.assertTrue(hc.hamiltonian[0,0] == -3)
-        self.assertTrue(hc.hamiltonian[-1,0] == -15)
+        self.assertTrue(hc.hamiltonian[0, 0] == -3)
+        self.assertTrue(hc.hamiltonian[-1, 0] == -15)
         self.assertTrue(hc.hamiltonian[2, 0] == 1)
 
         # Then compute MaxCut energies
@@ -72,7 +72,7 @@ class TestHamiltonian(unittest.TestCase):
 
     def test_rydberg_hamiltonian(self):
         # Test for qubits
-        hr = hamiltonian.HamiltonianRydberg(g, blockade_energy=100, detuning=1)
+        hr = hamiltonian.HamiltonianRydberg(g, energy=100, detuning=1)
         self.assertTrue(hr.hamiltonian[0, 0] == 906)
         self.assertTrue(hr.hamiltonian[-1, 0] == 0)
         self.assertTrue(hr.hamiltonian[2, 0] == 605)
@@ -85,7 +85,7 @@ class TestHamiltonian(unittest.TestCase):
         self.assertTrue(hr.cost_function(psi0) == 0)
 
         # Test for rydberg EIT
-        hr = hamiltonian.HamiltonianRydberg(g, blockade_energy=100, detuning=1, code=rydberg_EIT)
+        hr = hamiltonian.HamiltonianRydberg(g, energy=100, detuning=1, code=rydberg_EIT)
         self.assertTrue(hr.hamiltonian[0, 0] == 906)
         self.assertTrue(hr.hamiltonian[-1, 0] == 0)
         self.assertTrue(hr.hamiltonian[6, 0] == 605)
@@ -96,9 +96,24 @@ class TestHamiltonian(unittest.TestCase):
         self.assertTrue(hr.cost_function(psi1) == 0)
         self.assertTrue(hr.cost_function(psi0) == 0)
 
+    def test_hamiltonian_laser(self):
+        N = 3
+        hl = hamiltonian.HamiltonianLaser(transition=(0, 1), code=rydberg_EIT)
+        psi0 = np.zeros((rydberg_EIT.d ** N, 1), dtype=np.complex128)
+        psi0[5, 0] = 1
+        psi1 = tools.outer_product(psi0, psi0)
+        psi0 = hl.left_multiply(psi0, is_ket=True)
 
+        self.assertTrue(psi0[2, 0] == 1)
+        self.assertTrue(psi0[14, 0] == 1)
+        psi1 = hl.left_multiply(psi1, is_ket=False)
+        self.assertTrue(psi1[2, 5] == 1)
+        self.assertTrue(psi1[14, 5] == 1)
 
-
+        psi0 = np.zeros((rydberg_EIT.d ** N, 1), dtype=np.complex128)
+        psi0[5, 0] = 1
+        psi0 = hl.evolve(psi0, np.pi / 2, is_ket=True)
+        self.assertTrue(np.isclose(psi0[11, 0], -1))
 
 
 if __name__ == '__main__':

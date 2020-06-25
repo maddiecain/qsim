@@ -1,6 +1,6 @@
 import numpy as np
 from qsim.evolution import lindblad_operators, hamiltonian
-from qsim import master_equation
+from qsim import lindblad_master_equation
 from qsim import tools
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -71,7 +71,7 @@ for i in np.linspace(0, 2 * np.pi/np.sqrt(3), spacing):
     for l in np.linspace(0, 2 * np.pi/np.sqrt(3), spacing):
         print(m, n, i, l)
         s = zero
-        me = master_equation.MasterEquation(hamiltonians = [hb_x, hb_y], jump_operators = [rydberg_noise])
+        me = lindblad_master_equation.MasterEquation(hamiltonians = [hb_x, hb_y], jump_operators = [rydberg_noise])
         def f_MIS(state, t):
             # hbar is set to zero
             global i

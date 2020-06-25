@@ -7,16 +7,7 @@ from qsim.evolution import quantum_channels, hamiltonian
 
 # Generate sample graph
 g = nx.Graph()
-
-g.add_edge(0, 1, weight=1)
-g.add_edge(0, 2, weight=1)
-g.add_edge(2, 3, weight=1)
-g.add_edge(0, 4, weight=1)
-g.add_edge(1, 4, weight=1)
-g.add_edge(3, 4, weight=1)
-g.add_edge(1, 5, weight=1)
-g.add_edge(2, 5, weight=1)
-g.add_edge(3, 5, weight=1)
+g.add_edges_from([(0, 1), (0, 2), (2, 3), (0, 4), (1, 4), (3, 4), (1, 5), (2, 5), (3, 5)])
 
 hc = hamiltonian.HamiltonianC(g, mis=False)
 hb = hamiltonian.HamiltonianB()

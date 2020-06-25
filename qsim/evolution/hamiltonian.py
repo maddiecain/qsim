@@ -8,13 +8,13 @@ from qsim.graph_algorithms import graph
 
 
 class HamiltonianB(object):
-    def __init__(self, pauli='X', code=None):
+    def __init__(self, pauli='X', code=None, energy=1):
         super().__init__()
         self.pauli = pauli
-        self.time_independent = True
         if code is None:
             code = qubit
         self.code = code
+        self.energy = energy
 
     def left_multiply(self, state, is_ket=True):
         out = np.zeros_like(state, dtype=np.complex128)
@@ -26,7 +26,7 @@ class HamiltonianB(object):
                 out = out + self.code.left_multiply(state, [i], ['Y'], is_ket=is_ket, pauli=True)
             elif self.pauli == 'Z':
                 out = out + self.code.left_multiply(state, [i], ['Z'], is_ket=is_ket, pauli=True)
-        return out
+        return self.energy * out
 
     def right_multiply(self, state, is_ket=True):
         out = np.zeros_like(state, dtype=np.complex128)
@@ -37,19 +37,19 @@ class HamiltonianB(object):
                 out = out + self.code.right_multiply(state, [i], ['Y'], is_ket=is_ket, pauli=True)
             elif self.pauli == 'Z':
                 out = out + self.code.right_multiply(state, [i], ['Z'], is_ket=is_ket, pauli=True)
-        return out
+        return self.energy * out
 
-    def evolve(self, state, beta, is_ket=True):
+    def evolve(self, state, time, is_ket=True):
         r"""
         Use reshape to efficiently implement evolution under :math:`H_B=\\sum_i X_i`
         """
         for i in range(state_tools.num_qubits(state, self.code)):
             if self.pauli == 'X':
-                state = self.code.rotation(state, [i], beta, self.code.X, is_ket=is_ket, is_involutary=True)
+                state = self.code.rotation(state, [i], self.energy * time, self.code.X, is_ket=is_ket, is_involutary=True)
             elif self.pauli == 'Y':
-                state = self.code.rotation(state, [i], beta, self.code.X, is_ket=is_ket, is_involutary=True)
+                state = self.code.rotation(state, [i], self.energy * time, self.code.Y, is_ket=is_ket, is_involutary=True)
             elif self.pauli == 'Z':
-                state = self.code.rotation(state, [i], beta, self.code.X, is_ket=is_ket, is_involutary=True)
+                state = self.code.rotation(state, [i], self.energy * time, self.code.Z, is_ket=is_ket, is_involutary=True)
         return state
 
 
@@ -64,7 +64,6 @@ class HamiltonianC(object):
         else:
             self.code = code
         self.mis = mis
-        self.time_independent = True
         self.graph = G
         self.optimization = 'max'
         self.N = self.graph.number_of_nodes()
@@ -90,18 +89,18 @@ class HamiltonianC(object):
                 C = C + tools.tensor_product([myeye(c), Z, myeye(self.N - c - 1)])
         self.hamiltonian = C
 
-    def evolve(self, state, gamma, is_ket=True):
+    def evolve(self, state, time, is_ket=True):
         if is_ket:
             if self.is_diagonal:
-                return np.exp(-1j * gamma * self.hamiltonian) * state
+                return np.exp(-1j * time * self.hamiltonian) * state
             else:
-                return expm(-1j * gamma * self.hamiltonian) @ state
+                return expm(-1j * time * self.hamiltonian) @ state
         else:
             if self.is_diagonal:
-                return np.exp(-1j * gamma * self.hamiltonian) * state * np.exp(
-                    1j * gamma * self.hamiltonian).T
+                return np.exp(-1j * time * self.hamiltonian) * state * np.exp(
+                    1j * time * self.hamiltonian).T
             else:
-                temp = expm(-1j * gamma * self.hamiltonian)
+                temp = expm(-1j * time * self.hamiltonian)
                 return temp @ state @ temp.conj().T
 
     def left_multiply(self, state, is_ket=True):
@@ -236,7 +235,7 @@ class HamiltonianMarvianPenalty(object):
 
 
 class HamiltonianRydberg(object):
-    def __init__(self, G: nx.Graph, blockade_energy=1, detuning=0, code=None):
+    def __init__(self, G: nx.Graph, energy=1, detuning=0, code=None):
         r"""
         Generate a vector corresponding to the diagonal of the C Hamiltonian.
         """
@@ -245,10 +244,11 @@ class HamiltonianRydberg(object):
         self.code = code
         self.graph = G
         self.N = self.graph.number_of_nodes()
-        self.blockade_energy = blockade_energy
+        self.energy = energy
         self.detuning = detuning
         self.optimization = 'max'
         C = np.zeros([self.code.d ** self.N, 1]).T
+        C_cost = np.zeros([self.code.d ** self.N, 1]).T
 
         r = np.zeros(self.code.d)
         r[0] = 1
@@ -259,13 +259,18 @@ class HamiltonianRydberg(object):
                 temp = i
                 i = j
                 j = temp
-            C = C + self.blockade_energy * self.graph[i][j]['weight'] * tools.tensor_product(
+            C = C + self.energy * self.graph[i][j]['weight'] * tools.tensor_product(
+                [myeye(i), r, myeye(j - i - 1), r, myeye(self.N - j - 1)])
+            C_cost = C_cost + self.energy * self.graph[i][j]['weight'] * tools.tensor_product(
                 [myeye(i), r, myeye(j - i - 1), r, myeye(self.N - j - 1)])
         for c in G.nodes:
-            C = C + self.detuning * tools.tensor_product([myeye(c), r, myeye(self.N - c - 1)])
+            C_cost = C_cost + tools.tensor_product([myeye(c), r, myeye(self.N - c - 1)])
+            if self.detuning != 0:
+                C = C + self.detuning * tools.tensor_product([myeye(c), r, myeye(self.N - c - 1)])
         C = C.T
+        C_cost = C_cost.T
         self.hamiltonian = C
-        self.IS_projector = graph.IS_projector(self.graph, self.code)
+        self.hamiltonian_cost_function = C_cost * graph.IS_projector(self.graph, self.code)
 
     def evolve(self, state, is_ket=True):
         if is_ket:
@@ -285,21 +290,21 @@ class HamiltonianRydberg(object):
         # Need to project into the IS subspace
         # Returns <s|C|s>
         if is_ket:
-            return np.real(np.vdot(state, self.IS_projector*self.hamiltonian * state))
+            return np.real(np.vdot(state, self.hamiltonian_cost_function * state))
         else:
             # Density matrix
-            return np.real(np.squeeze(tools.trace(self.IS_projector*self.hamiltonian * state)))
+            return np.real(np.squeeze(tools.trace(self.hamiltonian_cost_function * state)))
 
 
 
-class HamiltonianRydbergHeisenberg(object):
-    def __init__(self, G: nx.Graph, blockade_energy=1, code=None):
+class HamiltonianHeisenberg(object):
+    def __init__(self, G: nx.Graph, energy=(1, 1, 0), code=None):
         if code is None:
             code = qubit
         self.code = code
         self.graph = G
         self.N = self.graph.number_of_nodes()
-        self.blockade_energy = blockade_energy
+        self.energy = energy
         self.hamiltonian = None
         self.IS_projector = graph.IS_projector(self.graph, self.code)
 
@@ -307,52 +312,58 @@ class HamiltonianRydbergHeisenberg(object):
     def left_multiply(self, s, is_ket=True):
         temp = np.zeros(s.shape)
         for edge in self.graph.edges:
-            term = self.code.left_multiply(s, [edge[0], edge[1]], ['X', 'X'], is_ket=is_ket, pauli=True)
-            temp = temp + term
-            term = self.code.left_multiply(s, [edge[0], edge[1]], ['Y', 'Y'], is_ket=is_ket, pauli=True)
-            temp = temp + term
-            term = self.code.left_multiply(s, [edge[0], edge[1]], tools.tensor_product([self.code.U, self.code.U]),
-                                           is_ket=is_ket, pauli=False)
-            temp = temp + self.blockade_energy * term
+            if self.energy[0] != 0:
+                term = self.code.left_multiply(s, [edge[0], edge[1]], ['X', 'X'], is_ket=is_ket, pauli=True)
+                temp = temp + self.energy[0] * term
+            if self.energy[1] != 0:
+                term = self.code.left_multiply(s, [edge[0], edge[1]], ['Y', 'Y'], is_ket=is_ket, pauli=True)
+                temp = temp + term
+            if self.energy[2] != 0:
+                term = self.code.left_multiply(s, [edge[0], edge[1]], tools.tensor_product([self.code.U, self.code.U]),
+                                               is_ket=is_ket, pauli=False)
+                temp = temp + self.energy[2] * term
         return temp
 
     def right_multiply(self, s, is_ket=True):
         temp = np.zeros(s.shape)
         for edge in self.graph.edges:
-            term = self.code.right_multiply(s, [edge[0], edge[1]], ['X', 'X'], is_ket=is_ket, pauli=True)
-            temp = temp + term
-            term = self.code.right_multiply(s, [edge[0], edge[1]], ['Y', 'Y'], is_ket=is_ket, pauli=True)
-            temp = temp + term
-            term = self.code.right_multiply(s, [edge[0], edge[1]], tools.tensor_product([self.code.U, self.code.U]),
-                                            is_ket=is_ket, pauli=False)
-            temp = temp + self.blockade_energy * term
+            if self.energy[0] != 0:
+                term = self.code.right_multiply(s, [edge[0], edge[1]], ['X', 'X'], is_ket=is_ket, pauli=True)
+                temp = temp + self.energy[0] * term
+            if self.energy[1] != 0:
+                term = self.code.right_multiply(s, [edge[0], edge[1]], ['Y', 'Y'], is_ket=is_ket, pauli=True)
+                temp = temp + term
+            if self.energy[2] != 0:
+                term = self.code.right_multiply(s, [edge[0], edge[1]], tools.tensor_product([self.code.U, self.code.U]),
+                                                is_ket=is_ket, pauli=False)
+                temp = temp + self.energy[2] * term
         return temp
 
-    def evolve(self, state, is_ket=True):
+    def evolve(self, state, time, is_ket=True):
         if self.hamiltonian is None:
             """Initialize the Hamiltonian."""
             hamiltonian = np.zeros((state.shape[0], state.shape[0]))
             for (i, j) in self.graph.edges:
-                hamiltonian = hamiltonian + \
+                hamiltonian = hamiltonian + self.energy[0] * \
                               tools.tensor_product([tools.identity(self.code.n * i, d=self.code.d), self.code.X,
                                                     tools.identity(self.code.n * (j - i - 1), d=self.code.d),
                                                     self.code.X,
                                                     tools.identity(self.code.n * (self.N - j - 1), d=self.code.d)])
-                hamiltonian = hamiltonian + \
+                hamiltonian = hamiltonian + self.energy[1] *\
                               tools.tensor_product([tools.identity(self.code.n * i, d=self.code.d), self.code.Y,
                                                     tools.identity(self.code.n * (j - i - 1), d=self.code.d),
                                                     self.code.Y,
                                                     tools.identity(self.code.n * (self.N - j - 1), d=self.code.d)])
-                hamiltonian = hamiltonian + self.blockade_energy * \
+                hamiltonian = hamiltonian +  self.energy[2] *\
                               tools.tensor_product([tools.identity(self.code.n * i, d=self.code.d), self.code.U,
                                                     tools.identity(self.code.n * (j - i - 1), d=self.code.d),
                                                     self.code.U,
                                                     tools.identity(self.code.n * (self.N - j - 1), d=self.code.d)])
             self.hamiltonian = hamiltonian
         if not is_ket:
-            return expm(-1j * self.hamiltonian) @ state @ expm(1j * self.hamiltonian)
+            return expm(-1j * time * self.hamiltonian) @ state @ expm(1j * time * self.hamiltonian)
         if is_ket:
-            return expm(-1j * self.hamiltonian) @ state
+            return expm(-1j * time * self.hamiltonian) @ state
 
     def cost_function(self, state, is_ket=True):
         # Need to project into the IS subspace
@@ -363,3 +374,118 @@ class HamiltonianRydbergHeisenberg(object):
             # Density matrix
             return np.real(np.squeeze(tools.trace(self.IS_projector * self.hamiltonian * state)))
 
+
+class HamiltonianLaser(object):
+    def __init__(self, transition: tuple, energy=1, pauli='X', code=None):
+        super().__init__()
+        # Ensure that transition is ordered properly
+        self.transition = sorted(transition)
+        self.energy = energy
+        self.pauli = pauli
+        if code is None:
+            code = qubit
+        self.code = code
+        if self.pauli == 'X':
+            self.operator = np.zeros((self.code.d, self.code.d))
+            self.operator[self.transition[1], self.transition[0]] = 1
+            self.operator[self.transition[0], self.transition[1]] = 1
+        if self.pauli == 'Y':
+            self.operator = np.zeros((self.code.d, self.code.d))
+            self.operator[self.transition[1], self.transition[0]] = 1j
+            self.operator[self.transition[0], self.transition[1]] = -1j
+        if self.pauli == 'Z':
+            self.operator = np.zeros((self.code.d, self.code.d))
+            self.operator[self.transition[1], self.transition[1]] = 1
+            self.operator[self.transition[1], self.transition[1]] = -1
+
+    def left_multiply(self, state, is_ket=True):
+        # op should be a list of Pauli operators, or
+        N = int(math.log(state.shape[0], self.code.d))
+        temp = np.zeros_like(state)
+        # For each physical qubit
+        for i in range(state_tools.num_qubits(state, self.code)):
+            out = state.copy()
+            ind = self.code.d ** i
+            if is_ket:
+                # Note index start from the right (sN,...,s3,s2,s1)
+                out = out.reshape((-1, self.code.d, ind), order='F')
+                if self.pauli == 'X':  # Sigma_X
+                    # We want to exchange two indicese
+                    out[:,[self.transition[0], self.transition[1]],:] = out[:,[self.transition[1], self.transition[0]],:]
+                elif self.pauli == 'Y':  # Sigma_Y
+                    out[:,[self.transition[0], self.transition[1]],:] = out[:,[self.transition[1], self.transition[0]],:]
+                    out[:, self.transition[0], :] = -1j * out[:, self.transition[0], :]
+                    out[:, self.transition[1], :] = 1j * out[:, self.transition[1], :]
+                elif self.pauli == 'Z':  # Sigma_Z
+                    out[:, self.transition[1], :] = -out[:, self.transition[1], :]
+
+                out = out.reshape(state.shape, order='F')
+            else:
+                out = out.reshape((-1, self.code.d, self.code.d ** (N - 1), self.code.d, ind), order='F')
+                if self.pauli  == 'X':  # Sigma_X
+                    out[:, [self.transition[0], self.transition[1]], :, :, :] = out[:, [self.transition[1],
+                                                                                        self.transition[0]], :, :, :]
+                elif self.pauli  == 'Y':  # Sigma_Y
+                    out[:, [self.transition[0], self.transition[1]], :, :, :] = out[:, [self.transition[1],
+                                                                                        self.transition[0]], :, :, :]
+                    out[:, self.transition[0], :, :, :] = -1j * out[:, self.transition[0], :, :, :]
+                    out[:, self.transition[1], :, :, :] = 1j * out[:, self.transition[1], :, :, :]
+                elif self.pauli == 'Z':  # Sigma_Z
+                    out[:, self.transition[1], :, :, :] = -1 * out[:, self.transition[1], :, :, :]
+
+                out = out.reshape(state.shape, order='F')
+            temp = temp + out
+        return self.energy * temp
+
+    def right_multiply(self, state, is_ket=True):
+        N = int(math.log(state.shape[0], self.code.d))
+        temp = np.zeros_like(state)
+        # For each physical qubit
+        for i in range(state_tools.num_qubits(state, self.code)):
+            ind = self.code.d ** i
+            out = state.copy()
+            if is_ket:
+                # Note index start from the right (sN,...,s3,s2,s1)
+                out = out.reshape((-1, self.code.d, ind), order='F')
+                if self.pauli == 'X':  # Sigma_X
+                    # We want to exchange two indicese
+                    out[:, [self.transition[0], self.transition[1]], :] = out[:,
+                                                                          [self.transition[1], self.transition[0]], :]
+                elif self.pauli == 'Y':  # Sigma_Y
+                    out[:, [self.transition[0], self.transition[1]], :] = out[:,
+                                                                          [self.transition[1], self.transition[0]], :]
+                    out[:, self.transition[0], :] = -1j * out[:, self.transition[0], :]
+                    out[:, self.transition[1], :] = 1j * out[:, self.transition[1], :]
+                elif self.pauli == 'Z':  # Sigma_Z
+                    out[:, self.transition[1], :] = -out[:, self.transition[1], :]
+
+                out = out.reshape(state.shape, order='F')
+            else:
+                out = out.reshape((-1, self.code.d, self.code.d ** (N - 1), self.code.d, ind), order='F')
+                if self.pauli == 'X':  # Sigma_X
+                    out[:, :, :, [self.transition[0], self.transition[1]], :] = out[:, :, :, [self.transition[1],
+                                                                                        self.transition[0]], :]
+                elif self.pauli == 'Y':  # Sigma_Y
+                    out[:, :, :, [self.transition[0], self.transition[1]], :] = out[:, :, :, [self.transition[1],
+                                                                                        self.transition[0]], :]
+                    out[:, :, :, self.transition[0], :] = -1j * out[:, :, :, self.transition[0], :]
+                    out[:, :, :, self.transition[1], :] = 1j * out[:, :, :, self.transition[1], :]
+                elif self.pauli == 'Z':  # Sigma_Z
+                    out[:, :, :, self.transition[1], :] = -1 * out[:, :, :, self.transition[1], :]
+
+                out = out.reshape(state.shape, order='F')
+            temp = temp + out
+        return self.energy * temp
+
+    def evolve(self, state, time, is_ket=True):
+        r"""
+        Use reshape to efficiently implement evolution under :math:`H_B=\\sum_i X_i`
+        """
+        for i in range(state_tools.num_qubits(state, self.code)):
+            if self.pauli == 'X':
+                state = self.code.rotation(state, [i], self.energy * time, self.operator, is_ket=is_ket)
+            elif self.pauli == 'Y':
+                state = self.code.rotation(state, [i], self.energy * time, self.operator, is_ket=is_ket)
+            elif self.pauli == 'Z':
+                state = self.code.rotation(state, [i], self.energy * time, self.operator, is_ket=is_ket)
+        return state

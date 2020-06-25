@@ -12,33 +12,23 @@ class SchrodingerEquation(object):
             hamiltonians=[]
         self.hamiltonians = hamiltonians
 
-    def run_time_independent_solver(self, t0, tf, dt=.1, func=None):
-        """Returns the state of the system under unitary time evolution of a time
-        independent Hamiltonian"""
-        pass
-
-    def run_ode_solver(self, s, t0, tf, dt=.1, func=None):
+    def run_ode_solver(self, s, t0, tf, dt=.1, schedule=None, return_infodict=False):
         """Numerically integrates the Schrodinger equation"""
-        is_ket = tools.is_ket(s)
-        if func is None:
-            if not is_ket:
-                print('Are you really sure you want to solve the Schrodinger equation with a density matrix input?')
-                def f(s, t):
-                    res = np.zeros(s.shape)
-                    for hamiltonian in self.hamiltonians:
-                        res = res - 1j * hamiltonian.left_multiply(s, is_ket=is_ket) + 1j * hamiltonian.right_multiply(s, is_ket=is_ket)
-                    return res
-            else:
-                def f(s, t):
-                    res = np.zeros(s.shape)
-                    for hamiltonian in self.hamiltonians:
-                        res = res - 1j * hamiltonian.left_multiply(s)
-                    return res
-            func = f
-        # s is a density matrix
+        assert not tools.is_ket(s)
+        if schedule is None:
+            def schedule(t):
+                return [1]*len(self.hamiltonians)
+
+        def f(s, t):
+            coefficients = schedule(t)
+            res = np.zeros(s.shape)
+            for i in range(len(self.hamiltonians)):
+                res = res - 1j * coefficients[i] * self.hamiltonians.left_multiply(s, is_ket=False)
+            return res
+        # s is a ket specifying the initial state
         # tf is the total simulation time
-        z, infodict = odeintw(func, s, np.arange(t0, tf, dt), full_output=True)
+        z, infodict = odeintw(f, s, np.arange(t0, tf, dt), full_output=True)
+        if return_infodict: return z, infodict
         return z
 
-    def run_mc_solver(self, s, t0, tf, dt=.1, func=None):
-        pass
+

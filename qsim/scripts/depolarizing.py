@@ -4,7 +4,7 @@ from qsim.state import jordan_farhi_shor
 from qsim.evolution import quantum_channels
 from qsim.evolution.hamiltonian import HamiltonianBookatzPenalty
 from qsim.graph_algorithms.qaoa import SimulateQAOA
-from qsim import master_equation
+from qsim import lindblad_master_equation
 from qsim.tools import tools
 import matplotlib.pyplot as plt
 
@@ -34,11 +34,11 @@ psi0 = tools.equal_superposition(qaoa.N, basis=jordan_farhi_shor.logical_basis)
 psi0 = tools.outer_product(psi0, psi0)
 s = psi0
 #h = lambda t: tools.identity(graph_algorithms.N * JordanFarhiShor.n) * graph_algorithms.C + penalty(1, graph_algorithms.N)
-m = master_equation.MasterEquation(hamiltonians = [HamiltonianBookatzPenalty()])
+m = lindblad_master_equation.MasterEquation(hamiltonians = [HamiltonianBookatzPenalty()])
 res = m.run_ode_solver(s, 0, 1)
 for Ep in np.linspace(1, 100, 10):
     times = np.linspace(0, 1, num=10)
-    m_error = master_equation.MasterEquation(hamiltonians = [HamiltonianBookatzPenalty()], noise_models = [quantum_channels.DepolarizingChannel(.05)])
+    m_error = lindblad_master_equation.MasterEquation(hamiltonians = [HamiltonianBookatzPenalty()], noise_models = [quantum_channels.DepolarizingChannel(.05)])
     res_error = m_error.run_ode_solver(s, 0, 1)
     fidelity = np.trace(np.transpose(res.conj(), axes = [0, 2, 1])@res_error, axis1=1, axis2=2)
 

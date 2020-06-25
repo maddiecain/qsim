@@ -53,7 +53,6 @@ def rotation(state, apply_to, angle: float, op, is_ket=False, pauli=False, is_in
             op = np.cos(angle) * np.identity(op.shape[0]) - op * 1j * np.sin(angle)
             return multiply(state, apply_to, op, is_ket=is_ket, pauli=False)
         elif is_idempotent:
-            op = (np.exp(-1j * angle) - 1) * op + np.identity(op.shape[0])
             return multiply(state, apply_to, op, is_ket=is_ket, pauli=False)
         else:
             return multiply(state, apply_to, expm(-1j * angle * op), is_ket=is_ket, pauli=False)
@@ -105,11 +104,12 @@ def left_multiply(state, apply_to: list, op, is_ket=False, pauli=False):
             return out
         else:
             # Need to reshape the operator given
-            new_shape = d * np.ones(2 * n_op)
+            apply_to = np.array(apply_to)
+            new_shape = d * np.ones(2 * n_op, dtype=int)
             permut = np.argsort(apply_to)
-            transpose_ord = np.zeros(2 * n_op)
+            transpose_ord = np.zeros(2 * n_op, dtype=int)
             transpose_ord[:n_op] = permut
-            transpose_ord[n_op:] = n_op * np.ones(n_op) + permut
+            transpose_ord[n_op:] = n_op * np.ones(n_op, dtype=int) + permut
 
             sorted_op = np.reshape(np.transpose(np.reshape(op, new_shape, order='F'), axes=transpose_ord),
                                    (d ** n_op, d ** n_op), order='F')
@@ -182,8 +182,9 @@ def right_multiply(state, apply_to: list, op, is_ket=False, pauli=False):
 
             shape4 = np.zeros(2 * n_op + 2, dtype=int)
             shape4[0] = N
-            shape4[1:-1] = np.reshape(preshape, (2 * n_op), order='C')
-            shape4[-1] = -1
+            shape4[1:n_op + 1] = preshape[0]
+            shape4[n_op + 1] = -1
+            shape4[n_op + 2:] = preshape[1]
 
             order3 = np.zeros(2 * n_op + 2, dtype=int)
             order3[0] = 0
@@ -195,7 +196,6 @@ def right_multiply(state, apply_to: list, op, is_ket=False, pauli=False):
             order4[1] = 1
             order4[2:] = np.flip(np.arange(2, 2 * n_op + 2).reshape((2, -1), order='C'), axis=0).reshape((-1),
                                                                                                          order='F')
-
             # right multiply
             out = state.reshape(shape3, order='F').transpose(order3)
             out = np.dot(out.reshape((-1, d ** n_op), order='F'), op.conj().T)

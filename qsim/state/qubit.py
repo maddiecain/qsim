@@ -71,6 +71,8 @@ def left_multiply(state, apply_to: list, op, is_ket=False, pauli=False):
     :param is_ket: Boolean dictating whether the input is a density matrix or a ket
     :type is_ket: bool
     """
+    if isinstance(apply_to, int):
+        apply_to = [apply_to]
     n_op = len(apply_to)
     N = state.shape[0]
     if not pauli:
@@ -166,6 +168,8 @@ def right_multiply(state, apply_to: list, op, is_ket=False, pauli=False):
     :param is_ket: Boolean dictating whether the input is a density matrix or a ket
     :type is_ket: bool
     """
+    if isinstance(apply_to, int):
+        apply_to = [apply_to]
     assert not is_ket, 'Right multiply functionality currently only exists for density matrices.'
     n_op = len(apply_to)
     N = state.shape[0]
@@ -219,12 +223,10 @@ def right_multiply(state, apply_to: list, op, is_ket=False, pauli=False):
     else:
         N = int(math.log(state.shape[0], d))
         out = state.copy()
-        # Type handler:
-        if isinstance(apply_to, int):
-            apply_to = [apply_to]
         for i in range(len(apply_to)):
             ind = d ** apply_to[i]
             if is_ket:
+                # TODO: so far this is the same as left_multiply for ket. Shouldn't we conjugate transpose the output?
                 # Note index start from the right (sN,...,s3,s2,s1)
                 out = out.reshape((-1, d, ind), order='F')
                 if op[i] == 'X':  # Sigma_X

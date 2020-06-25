@@ -1,4 +1,4 @@
-from qsim import master_equation
+from qsim import lindblad_master_equation
 from qsim.tools import operations
 from qsim import tools
 from qsim.evolution.lindblad_operators import PauliNoise
@@ -86,7 +86,7 @@ lindbladX = PauliNoise([1, 0, 0])
 t0 = 0
 tf = 100
 dt = .1
-me = master_equation.MasterEquation(hamiltonian=None, noise_model=None)
+me = lindblad_master_equation.MasterEquation(hamiltonian=None, noise_model=None)
 #print('res_corr')
 """res_corr = me.run_ode_solver(state.state, t0, tf, dt,
                              func=lambda s, t: -1j * hamiltonian_commutator(

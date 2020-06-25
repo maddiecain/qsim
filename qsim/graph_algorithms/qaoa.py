@@ -1,6 +1,6 @@
 """
 This is a collection of useful functions that help simulate QAOA efficiently
-Has been used on a standard laptop up to Ystem size N=24
+Has been used on a standard laptop up to system size N=24
 
 Based on arXiv:1812.01041 and https://github.com/leologist/GenQAOA
 
@@ -135,7 +135,7 @@ class SimulateQAOA(object):
 
     def fix_param_gauge(self, param, gamma_period=np.pi, beta_period=np.pi / 2, degree_parity=None):
         EVEN_DEGREE_ONLY, ODD_DEGREE_ONLY = 0, 1
-        """ Use Ymmetries to reduce redundancies in the parameter space
+        """ Use symmetries to reduce redundancies in the parameter space
         This is useful for the interp heuristic that relies on smoothness of parameters
 
         Based on arXiv:1812.01041 and https://github.com/leologist/GenQAOA/
