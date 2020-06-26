@@ -100,7 +100,7 @@ class LindbladMasterEquation(object):
         lindbladian = LinearOperator(shape=(len(state_flattened), len(state_flattened)), dtype=np.complex128,
                                      matvec=func)
         try:
-            return eigs(lindbladian, k=k, which='SR', v0=state_flattened)
+            return eigs(lindbladian, k=k, which='LR', v0=state_flattened)
         except ArpackNoConvergence as exception_info:
             return exception_info.eigenvalues, exception_info.eigenvectors
 
@@ -126,6 +126,6 @@ class LindbladMasterEquation(object):
         lindbladian = LinearOperator(shape=(len(state_flattened), len(state_flattened)), dtype=np.complex128,
                                      matvec=func)
         try:
-            return eigs(lindbladian, k=1, which='SM', v0=state_flattened)
+            return eigs(lindbladian, k=k, which='SM', v0=state_flattened)
         except ArpackNoConvergence as exception_info:
             return exception_info.eigenvalues, exception_info.eigenvectors

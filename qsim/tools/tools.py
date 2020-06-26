@@ -221,7 +221,7 @@ def is_valid_state(state, is_ket=False, verbose=True):
             print('Eigenvalues:', np.linalg.eigvals(state))
             print('Trace:', np.trace(state))
         return (np.allclose(np.imag(np.linalg.eigvals(state)), np.zeros(state.shape[0]), atol=1e-06) and
-                np.all(np.real(np.linalg.eigvals(state)) >= -1 * 1e-05) and
+                np.all(np.real(np.linalg.eigvals(state)) >= -1 * 1e-7) and
                 np.isclose(np.absolute(np.trace(state)), 1))
 
 

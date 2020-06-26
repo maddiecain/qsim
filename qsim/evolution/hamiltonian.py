@@ -403,77 +403,92 @@ class HamiltonianLaser(object):
         N = int(math.log(state.shape[0], self.code.d))
         temp = np.zeros_like(state)
         # For each physical qubit
+        out = np.zeros_like(state, dtype=np.complex128)
+        state_shape = state.shape
         for i in range(state_tools.num_qubits(state, self.code)):
-            out = state.copy()
             ind = self.code.d ** i
             if is_ket:
+                state = state.reshape((-1, self.code.d, ind), order='F')
                 # Note index start from the right (sN,...,s3,s2,s1)
                 out = out.reshape((-1, self.code.d, ind), order='F')
                 if self.pauli == 'X':  # Sigma_X
                     # We want to exchange two indicese
-                    out[:,[self.transition[0], self.transition[1]],:] = out[:,[self.transition[1], self.transition[0]],:]
+                    out[:,[self.transition[0], self.transition[1]],:] = state[:,[self.transition[1], self.transition[0]],:]
                 elif self.pauli == 'Y':  # Sigma_Y
-                    out[:,[self.transition[0], self.transition[1]],:] = out[:,[self.transition[1], self.transition[0]],:]
+                    out[:,[self.transition[0], self.transition[1]],:] = state[:,[self.transition[1], self.transition[0]],:]
                     out[:, self.transition[0], :] = -1j * out[:, self.transition[0], :]
                     out[:, self.transition[1], :] = 1j * out[:, self.transition[1], :]
                 elif self.pauli == 'Z':  # Sigma_Z
+                    out[:,[self.transition[0], self.transition[1]],:] = state[:,[self.transition[0], self.transition[1]],:]
                     out[:, self.transition[1], :] = -out[:, self.transition[1], :]
-
-                out = out.reshape(state.shape, order='F')
+                state = state.reshape(state_shape, order='F')
+                out = out.reshape(state_shape, order='F')
             else:
                 out = out.reshape((-1, self.code.d, self.code.d ** (N - 1), self.code.d, ind), order='F')
-                if self.pauli  == 'X':  # Sigma_X
-                    out[:, [self.transition[0], self.transition[1]], :, :, :] = out[:, [self.transition[1],
+                state = state.reshape((-1, self.code.d, self.code.d ** (N - 1), self.code.d, ind), order='F')
+
+                if self.pauli == 'X':  # Sigma_X
+                    out[:, [self.transition[0], self.transition[1]], :, :, :] = state[:, [self.transition[1],
                                                                                         self.transition[0]], :, :, :]
-                elif self.pauli  == 'Y':  # Sigma_Y
-                    out[:, [self.transition[0], self.transition[1]], :, :, :] = out[:, [self.transition[1],
+                elif self.pauli == 'Y':  # Sigma_Y
+                    out[:, [self.transition[0], self.transition[1]], :, :, :] = state[:, [self.transition[1],
                                                                                         self.transition[0]], :, :, :]
                     out[:, self.transition[0], :, :, :] = -1j * out[:, self.transition[0], :, :, :]
                     out[:, self.transition[1], :, :, :] = 1j * out[:, self.transition[1], :, :, :]
                 elif self.pauli == 'Z':  # Sigma_Z
+                    out[:, [self.transition[0], self.transition[1]], :, :, :] = state[:, [self.transition[0],
+                                                                                          self.transition[1]], :, :, :]
                     out[:, self.transition[1], :, :, :] = -1 * out[:, self.transition[1], :, :, :]
-
-                out = out.reshape(state.shape, order='F')
+                state = state.reshape(state_shape, order='F')
+                out = out.reshape(state_shape, order='F')
             temp = temp + out
         return self.energy * temp
 
     def right_multiply(self, state, is_ket=True):
         N = int(math.log(state.shape[0], self.code.d))
         temp = np.zeros_like(state)
+        out = np.zeros_like(state, dtype=np.complex128)
         # For each physical qubit
+        state_shape = state.shape
         for i in range(state_tools.num_qubits(state, self.code)):
             ind = self.code.d ** i
-            out = state.copy()
             if is_ket:
                 # Note index start from the right (sN,...,s3,s2,s1)
                 out = out.reshape((-1, self.code.d, ind), order='F')
+                state = state.reshape((-1, self.code.d, ind), order='F')
+
                 if self.pauli == 'X':  # Sigma_X
                     # We want to exchange two indicese
-                    out[:, [self.transition[0], self.transition[1]], :] = out[:,
+                    out[:, [self.transition[0], self.transition[1]], :] = state[:,
                                                                           [self.transition[1], self.transition[0]], :]
                 elif self.pauli == 'Y':  # Sigma_Y
-                    out[:, [self.transition[0], self.transition[1]], :] = out[:,
+                    out[:, [self.transition[0], self.transition[1]], :] = state[:,
                                                                           [self.transition[1], self.transition[0]], :]
                     out[:, self.transition[0], :] = -1j * out[:, self.transition[0], :]
                     out[:, self.transition[1], :] = 1j * out[:, self.transition[1], :]
                 elif self.pauli == 'Z':  # Sigma_Z
-                    out[:, self.transition[1], :] = -out[:, self.transition[1], :]
-
-                out = out.reshape(state.shape, order='F')
+                    out[:, [self.transition[0], self.transition[1]], :] = state[:,
+                                                                          [self.transition[0], self.transition[1]], :]
+                    out[:, self.transition[1], :] = -state[:, self.transition[1], :]
+                out = out.reshape(state_shape, order='F')
+                state = state.reshape(state_shape, order='F')
             else:
                 out = out.reshape((-1, self.code.d, self.code.d ** (N - 1), self.code.d, ind), order='F')
+                state = state.reshape((-1, self.code.d, self.code.d ** (N - 1), self.code.d, ind), order='F')
                 if self.pauli == 'X':  # Sigma_X
-                    out[:, :, :, [self.transition[0], self.transition[1]], :] = out[:, :, :, [self.transition[1],
+                    out[:, :, :, [self.transition[0], self.transition[1]], :] = state[:, :, :, [self.transition[1],
                                                                                         self.transition[0]], :]
                 elif self.pauli == 'Y':  # Sigma_Y
-                    out[:, :, :, [self.transition[0], self.transition[1]], :] = out[:, :, :, [self.transition[1],
+                    out[:, :, :, [self.transition[0], self.transition[1]], :] = state[:, :, :, [self.transition[1],
                                                                                         self.transition[0]], :]
                     out[:, :, :, self.transition[0], :] = -1j * out[:, :, :, self.transition[0], :]
                     out[:, :, :, self.transition[1], :] = 1j * out[:, :, :, self.transition[1], :]
                 elif self.pauli == 'Z':  # Sigma_Z
-                    out[:, :, :, self.transition[1], :] = -1 * out[:, :, :, self.transition[1], :]
-
-                out = out.reshape(state.shape, order='F')
+                    out[:, :, :, [self.transition[0], self.transition[1]], :] = state[:, :, :, [self.transition[0],
+                                                                                        self.transition[1]], :]
+                    out[:, :, :, self.transition[1], :] = -1 * state[:, :, :, self.transition[1], :]
+                state = state.reshape(state_shape, order='F')
+                out = out.reshape(state_shape, order='F')
             temp = temp + out
         return self.energy * temp
 
