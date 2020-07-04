@@ -185,14 +185,30 @@ def chain_graph(n):
 def IS_projector(graph: nx.Graph, code):
     """Returns a projector (represented as a column vector) into the space of independent sets for general codes."""
     n = graph.number_of_nodes()
-    proj = np.identity(code.d ** n)
-    for i, j in graph.edges:
-        if i > j:
-            # Requires i < j
-            temp = i
-            i = j
-            j = temp
-        temp = tools.tensor_product([tools.identity(i, d=code.d), code.U, tools.identity(j - i - 1, d=code.d), code.U,
-                                     tools.identity(n - j - 1, d=code.d)])
-        proj = proj @ (np.identity(code.d ** n) - temp)
-    return np.array([np.diagonal(proj)]).T
+    # Check if U is diagonal
+    if tools.is_diagonal(code.U):
+        U = np.diag(code.U)
+        proj = np.ones(code.d ** n)
+        for i, j in graph.edges:
+            if i > j:
+                # Requires i < j
+                temp = i
+                i = j
+                j = temp
+            temp = tools.tensor_product(
+                [np.ones(code.d ** i), U, np.ones(code.d ** (j - i - 1)), U,
+                 np.ones(code.d ** (n - j - 1))])
+            proj = proj * (np.ones(code.d ** n) - temp)
+        return np.array([proj]).T
+    else:
+        proj = np.identity(code.d ** n)
+        for i, j in graph.edges:
+            if i > j:
+                # Requires i < j
+                temp = i
+                i = j
+                j = temp
+            temp = tools.tensor_product([tools.identity(i, d=code.d), code.U, tools.identity(j - i - 1, d=code.d), code.U,
+                                         tools.identity(n - j - 1, d=code.d)])
+            proj = proj @ (np.identity(code.d ** n) - temp)
+        return np.array([np.diagonal(proj)]).T

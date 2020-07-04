@@ -232,7 +232,7 @@ def is_diagonal(A):
     return False
 
 
-def is_sorted(A, unique = True):
+def is_sorted(A, unique=True):
     """Returns True if and only if A is a sorted list or numpy array. """
     for i in range(len(A) - 1):
         if unique:
@@ -244,7 +244,6 @@ def is_sorted(A, unique = True):
     return True
 
 
-
 def is_ket(A):
     """Return True if and only if A is a ket and not a density matrix."""
     assert len(A.shape) == 2
@@ -253,3 +252,19 @@ def is_ket(A):
     else:
         assert A.shape[0] == A.shape[1]
         return False
+
+
+def is_pure(A):
+    """Return True if and only if A is a pure state or ket."""
+    if is_ket(A):
+        return True
+    if np.isclose(np.trace(A @ A), 1):
+        return True
+    return False
+
+
+def purity(A):
+    if not is_ket(A):
+        return np.trace(A @ A)
+    else:
+        return 1

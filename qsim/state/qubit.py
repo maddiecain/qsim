@@ -107,11 +107,14 @@ def left_multiply(state, apply_to: list, op, is_ket=False, pauli=False):
             return out
         else:
             # Need to reshape the operator given
+            apply_to = np.asarray(apply_to, dtype=int)
             new_shape = d * np.ones(2 * n_op, dtype=int)
             permut = np.argsort(apply_to)
             transpose_ord = np.zeros(2 * n_op, dtype=int)
-            transpose_ord[:n_op] = permut
-            transpose_ord[n_op:] = n_op * np.ones(n_op, dtype=int) + permut
+            #transpose_ord[:n_op] = permut
+            #transpose_ord[n_op:] = n_op * np.ones(n_op, dtype=int) + permut
+            transpose_ord[:n_op] = (n_op - 1) * np.ones(n_op, dtype=int) - np.flip(permut, axis=0)
+            transpose_ord[n_op:] = (2 * n_op - 1) * np.ones(n_op, dtype=int) - np.flip(permut, axis=0)
 
             sorted_op = np.reshape(np.transpose(np.reshape(op, new_shape, order='F'), axes=transpose_ord),
                                    (d ** n_op, d ** n_op), order='F')
@@ -212,8 +215,11 @@ def right_multiply(state, apply_to: list, op, is_ket=False, pauli=False):
             new_shape = 2 * np.ones(2 * n_op, dtype=int)
             permut = np.argsort(apply_to)
             transpose_ord = np.zeros(2 * n_op, dtype=int)
-            transpose_ord[:n_op] = permut
-            transpose_ord[n_op:] = n_op * np.ones(n_op, dtype=int) + permut
+            #transpose_ord[:n_op] = permut
+            #transpose_ord[n_op:] = n_op * np.ones(n_op, dtype=int) + permut
+            transpose_ord[:n_op] = (n_op-1) * np.ones(n_op, dtype=int) - np.flip(permut, axis=0)
+            transpose_ord[n_op:] = (2*n_op-1) * np.ones(n_op, dtype=int) - np.flip(permut, axis=0)
+
 
             sorted_op = np.reshape(np.transpose(np.reshape(op, new_shape, order='F'), axes=transpose_ord),
                                    (d ** n_op, d ** n_op), order='F')

@@ -38,7 +38,7 @@ class SimulateQAOA(object):
         self.C = C
         self.is_ket = is_ket
 
-    def variational_grad(self, param):
+    def variational_grad(self, param, initial_state=None):
         """Calculate the objective function F and its gradient exactly
             Input:
                 param = parameters of QAOA, should have dimensions (p, m) where m is the number of variational operators
@@ -52,7 +52,10 @@ class SimulateQAOA(object):
         param = param.reshape(m, p).T
         # Preallocate space for storing mp+2 copies of wavefunction - necessary for efficient computation of analytic
         # gradient
-        psi = tools.equal_superposition(self.N, basis=self.code.logical_basis)
+        if initial_state is None:
+            psi = tools.equal_superposition(self.N, basis=self.code.logical_basis)
+        else:
+            psi = initial_state
         if self.is_ket:
             memo = np.zeros([2 ** self.N, 2 * m * p + 2], dtype=np.complex128)
             memo[:, 0] = np.squeeze(psi.T)
@@ -118,17 +121,19 @@ class SimulateQAOA(object):
                     Fgrad[q * m + r] = 2 * np.imag(np.trace(memo[..., q * m + r + 1]))
         return F, Fgrad
 
-    def run(self, param):
-        psi0 = tools.equal_superposition(self.N, basis=self.code.logical_basis)
+    def run(self, param, initial_state=None):
+        if initial_state is None:
+            initial_state = tools.equal_superposition(self.N, basis=self.code.logical_basis)
         if self.is_ket:
-            s = psi0
+            s = initial_state
         else:
-            s = tools.outer_product(psi0, psi0)
+            s = tools.outer_product(initial_state, initial_state)
 
         for i in range(self.p):
             for j in range(self.m):
                 s = self.hamiltonian[j].evolve(s, param[j * self.p + i], is_ket=self.is_ket)
-                s = self.noise[j].all_qubit_channel(s)
+                if not (self.noise[j] is None):
+                    s = self.noise[j].all_qubit_channel(s)
         # Return the expected value of the cost function
         # Note that the state's defined expectation function won't work here due to the shape of C
         return self.C.cost_function(s, is_ket=self.is_ket)
@@ -294,12 +299,15 @@ class SimulateQAOA(object):
 
         if verbose:
             print('p:', self.p)
-            print('f_val:', np.real(results[1]))
+            if self.C.optimization == 'max':
+                print('f_val:', -1*np.real(results[1]))
+            else:
+                print('f_val:', *np.real(results[1]))
             print('params:', np.array(results[0]).reshape(self.m, -1))
             print('approximation_ratio:', np.real(results[1]) / opt_c[0])
         return results
 
-    def find_parameters_minimize(self, init_param_guess=None, verbose=True):
+    def find_parameters_minimize(self, init_param_guess=None, verbose=True, initial_state=None):
         """a graph, find QAOA parameters that minimizes C=\sum_{<ij>} w_{ij} Z_i Z_j
 
         Uses the interpolation-based heuristic from arXiv:1812.01041

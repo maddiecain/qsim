@@ -17,7 +17,7 @@ class LindbladMasterEquation(object):
         self.hamiltonians = hamiltonians
         self.jump_operators = jump_operators
 
-    def run_ode_solver(self, state, t0, tf, dt=1, schedule=None, return_infodict=False):
+    def run_ode_solver(self, state, t0, tf, num=50, schedule=None, return_infodict=False):
         """
 
         :param schedule:
@@ -48,7 +48,7 @@ class LindbladMasterEquation(object):
 
         # s is a ket or density matrix
         # tf is the total simulation time
-        z, infodict = odeintw(f, state, np.arange(t0, tf, step=dt), full_output=True)
+        z, infodict = odeintw(f, state, np.linspace(t0, tf, num=num), full_output=True)
         if return_infodict: return z, infodict
         return z
 
@@ -79,30 +79,38 @@ class LindbladMasterEquation(object):
             outputs[j, ...] = state
         return outputs
 
-    def eig(self, state, k=6, func=None, coefficients=None):
-        """Returns a list of the eigenvalues and the corresponding valid density matrix."""
-        is_ket = tools.is_ket(state)
-        assert not is_ket
+    def eig(self, state=None, shape=None, k=6, func=None, coefficients=None, which='LR'):
+        """Returns a list of the eigenvalues and the corresponding valid density matrix.
+        Functionality only for if input is a density matrix."""
+        if state is None:
+            assert not (shape is None)
+            state_flattened = None
+        else:
+            shape = state.shape
+            assert not tools.is_ket(state)
+            state_flattened = state.flatten()
+        lindbladian_shape = (shape[0] * shape[1], shape[0] * shape[1])
+
         if coefficients is None:
             coefficients = [[1] * len(self.hamiltonians), [1] * len(self.jump_operators)]
         if func is None:
             def f(flattened):
-                s = flattened.reshape(state.shape)
-                res = np.zeros(state.shape)
+                s = flattened.reshape(shape)
+                res = np.zeros(shape)
                 for i in range(len(self.hamiltonians)):
-                    res = res - 1j * coefficients[0][i] * (self.hamiltonians[i].left_multiply(s, is_ket=is_ket) -
-                                                           self.hamiltonians[i].right_multiply(s, is_ket=is_ket))
+                    res = res - 1j * coefficients[0][i] * (self.hamiltonians[i].left_multiply(s, is_ket=False) -
+                                                           self.hamiltonians[i].right_multiply(s, is_ket=False))
                 for i in range(len(self.jump_operators)):
-                    res = res + coefficients[1][i] * self.jump_operators[i].liouvillian(s, is_ket=is_ket)
+                    res = res + coefficients[1][i] * self.jump_operators[i].liouvillian(s, is_ket=False)
                 return res.reshape(flattened.shape)
             func = f
-        state_flattened = state.flatten()
-        lindbladian = LinearOperator(shape=(len(state_flattened), len(state_flattened)), dtype=np.complex128,
-                                     matvec=func)
+
+        lindbladian = LinearOperator(shape=lindbladian_shape, dtype=np.complex128, matvec=func)
         try:
-            return eigs(lindbladian, k=k, which='LR', v0=state_flattened)
+            return eigs(lindbladian, k=k, which=which, v0=state_flattened)
         except ArpackNoConvergence as exception_info:
             return exception_info.eigenvalues, exception_info.eigenvectors
+
 
     def steady_state(self, state, k=1, func=None, coefficients=None):
         """Returns a list of the eigenvalues and the corresponding valid density matrix."""
@@ -126,6 +134,6 @@ class LindbladMasterEquation(object):
         lindbladian = LinearOperator(shape=(len(state_flattened), len(state_flattened)), dtype=np.complex128,
                                      matvec=func)
         try:
-            return eigs(lindbladian, k=k, which='SM', v0=state_flattened)
+            return eigs(lindbladian, k=k, which='LR', v0=state_flattened)
         except ArpackNoConvergence as exception_info:
             return exception_info.eigenvalues, exception_info.eigenvectors

@@ -83,10 +83,12 @@ class HamiltonianC(object):
                 a = b
                 b = temp
             C = C - self.graph[a][b]['weight'] * tools.tensor_product(
-                [myeye(a), Z, myeye(b - a - 1), Z, myeye(self.N - b - 1)])
+                [myeye(a), Z, myeye(b - a - 1), Z, myeye(self.N - b - 1)]) + myeye(self.N)
         if self.mis:
             for c in self.graph.nodes:
                 C = C + tools.tensor_product([myeye(c), Z, myeye(self.N - c - 1)])
+        np.set_printoptions(threshold=np.inf)
+        print(C)
         self.hamiltonian = C
 
     def evolve(self, state, time, is_ket=True):
@@ -272,12 +274,12 @@ class HamiltonianRydberg(object):
         self.hamiltonian = C
         self.hamiltonian_cost_function = C_cost * graph.IS_projector(self.graph, self.code)
 
-    def evolve(self, state, is_ket=True):
+    def evolve(self, state, time, is_ket=True):
         if is_ket:
-            return np.exp(-1j * self.hamiltonian) * state
+            return np.exp(-1j * time * self.hamiltonian) * state
         else:
-            return np.exp(-1j * self.hamiltonian) * state * np.exp(
-                1j * self.hamiltonian).T
+            return np.exp(-1j * time * self.hamiltonian) * state * np.exp(
+                1j * time * self.hamiltonian).T
 
     def left_multiply(self, state, is_ket=True):
         return self.hamiltonian * state
@@ -286,14 +288,16 @@ class HamiltonianRydberg(object):
         # Already real, so you don't need to conjugate
         return state * self.hamiltonian.T
 
-    def cost_function(self, state, is_ket=True):
+    def cost_function(self, state, is_ket=True, hamiltonian=None):
         # Need to project into the IS subspace
         # Returns <s|C|s>
+        if hamiltonian is None:
+            hamiltonian = self.hamiltonian_cost_function
         if is_ket:
-            return np.real(np.vdot(state, self.hamiltonian_cost_function * state))
+            return np.real(np.vdot(state, hamiltonian * state))
         else:
             # Density matrix
-            return np.real(np.squeeze(tools.trace(self.hamiltonian_cost_function * state)))
+            return np.real(np.squeeze(tools.trace(hamiltonian * state)))
 
 
 
@@ -403,10 +407,10 @@ class HamiltonianLaser(object):
         N = int(math.log(state.shape[0], self.code.d))
         temp = np.zeros_like(state)
         # For each physical qubit
-        out = np.zeros_like(state, dtype=np.complex128)
         state_shape = state.shape
         for i in range(state_tools.num_qubits(state, self.code)):
             ind = self.code.d ** i
+            out = np.zeros_like(state, dtype=np.complex128)
             if is_ket:
                 state = state.reshape((-1, self.code.d, ind), order='F')
                 # Note index start from the right (sN,...,s3,s2,s1)
@@ -447,11 +451,11 @@ class HamiltonianLaser(object):
     def right_multiply(self, state, is_ket=True):
         N = int(math.log(state.shape[0], self.code.d))
         temp = np.zeros_like(state)
-        out = np.zeros_like(state, dtype=np.complex128)
         # For each physical qubit
         state_shape = state.shape
         for i in range(state_tools.num_qubits(state, self.code)):
             ind = self.code.d ** i
+            out = np.zeros_like(state, dtype=np.complex128)
             if is_ket:
                 # Note index start from the right (sN,...,s3,s2,s1)
                 out = out.reshape((-1, self.code.d, ind), order='F')

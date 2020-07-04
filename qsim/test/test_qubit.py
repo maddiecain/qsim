@@ -133,11 +133,22 @@ class TestQubit(unittest.TestCase):
         psi0 = np.zeros((2 ** N, 1), dtype=np.complex128)
         psi0[0, 0] = 1
         psi1 = psi0[:]
+        psi2 = psi0[:]
+        psi3 = psi0[:]
+        psi4 = psi0[:]
         psi0 = qubit.multiply(psi0, [1, 3, 4], ['X', 'Y', 'Z'], is_ket=True, pauli=True)
+        psi2 = qubit.multiply(psi2, [4, 1, 3], ['Z', 'X', 'Y'], is_ket=True, pauli=True)
+        psi3 = qubit.multiply(psi3, [1, 3, 4], tools.tensor_product([qubit.X, qubit.Y, qubit.Z]), is_ket=True, pauli=False)
+        psi4 = qubit.multiply(psi4, [4, 1, 3], tools.tensor_product([qubit.Z, qubit.X, qubit.Y]), is_ket=True, pauli=False)
         psi1 = qubit.multiply(psi1, [1], 'X', is_ket=True, pauli=True)
         psi1 = qubit.multiply(psi1, [3], 'Y', is_ket=True, pauli=True)
         psi1 = qubit.multiply(psi1, [4], 'Z', is_ket=True, pauli=True)
         self.assertTrue(np.allclose(psi0, psi1))
+        self.assertTrue(np.allclose(psi1, psi2))
+        self.assertTrue(np.allclose(psi2, psi3))
+        self.assertTrue(np.allclose(psi3, psi4))
+
+
 
 
 if __name__ == '__main__':

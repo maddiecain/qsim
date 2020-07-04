@@ -130,11 +130,21 @@ class TestRydbergEIT(unittest.TestCase):
         psi0 = np.zeros((rydberg_EIT.d ** N, 1), dtype=np.complex128)
         psi0[0, 0] = 1
         psi1 = psi0[:]
+        psi2 = psi0[:]
+        psi3 = psi0[:]
+        psi4 = psi0[:]
         psi0 = rydberg_EIT.multiply(psi0, [1, 3, 4], ['X', 'Y', 'Z'], is_ket=True, pauli=True)
         psi1 = rydberg_EIT.multiply(psi1, [1], 'X', is_ket=True, pauli=True)
         psi1 = rydberg_EIT.multiply(psi1, [3], 'Y', is_ket=True, pauli=True)
         psi1 = rydberg_EIT.multiply(psi1, [4], 'Z', is_ket=True, pauli=True)
+        psi2 = rydberg_EIT.multiply(psi2, [4, 1, 3], ['Z', 'X', 'Y'], is_ket=True, pauli=True)
+        psi3 = rydberg_EIT.multiply(psi3, [1, 3, 4], tools.tensor_product([rydberg_EIT.X, rydberg_EIT.Y, rydberg_EIT.Z]), is_ket=True, pauli=False)
+        psi4 = rydberg_EIT.multiply(psi4, [4, 1, 3], tools.tensor_product([rydberg_EIT.Z, rydberg_EIT.X, rydberg_EIT.Y]), is_ket=True, pauli=False)
         self.assertTrue(np.allclose(psi0, psi1))
+        self.assertTrue(np.allclose(psi1, psi2))
+        self.assertTrue(np.allclose(psi2, psi3))
+        self.assertTrue(np.allclose(psi3, psi4))
+
 
 
 if __name__ == '__main__':
