@@ -199,7 +199,7 @@ def multi_qubit_operation(state, i: int, op, apply_to, is_ket=False, d=2):
 
 def single_qubit_rotation(state, i: int, angle: float, op, is_ket=False, d=2, is_involutary=True):
     """
-    Apply a single qubit rotation :math:`e^{-i \\alpha A}` to the input ``state``.
+    Apply a single qubit rotation :math:`e^{-i \\alpha A}` to the input ``codes``.
 
     :param state: input wavefunction or density matrix
     :type state: np.ndarray
@@ -222,7 +222,7 @@ def single_qubit_rotation(state, i: int, angle: float, op, is_ket=False, d=2, is
 
 
 def all_qubit_rotation(state, angle: float, op, is_ket=False, d=2, is_involutary=True):
-    """ Apply rotation :math:`e^{-i \\alpha A}` to every qubit in the the input ``state``.
+    """ Apply rotation :math:`e^{-i \\alpha A}` to every qubit in the the input ``codes``.
 
     :param state: input wavefunction or density matrix
     :type state: np.ndarray
@@ -257,7 +257,7 @@ def all_qubit_operation(state, op, is_ket=False, d=2):
 def expectation(state, op, is_ket=False):
     """
     :param is_ket: True if the input is a ket, False if the input is a density matrix
-    :param op: Operator to take the expectation of in :py:attr:`state`. Current support only for `op.shape==self.state.shape`."""
+    :param op: Operator to take the expectation of in :py:attr:`codes`. Current support only for `op.shape==self.codes.shape`."""
     if is_ket:
         return state.conj().T @ op @ state
     else:
@@ -265,7 +265,7 @@ def expectation(state, op, is_ket=False):
 
 def measurement_outcomes(self, operator):
     """
-    Determines the measurement outcomes on an ``operator`` in the given ``state``.
+    Determines the measurement outcomes on an ``operator`` in the given ``codes``.
 
     :param operator: The operator to simulate a measurement on.
     :type operator: np.array
@@ -290,7 +290,7 @@ def measurement_outcomes(self, operator):
 
 def measurement(state, operator, is_ket=False):
     """
-    Simulates measuring ``operator`` in the given ``state``.
+    Simulates measuring ``operator`` in the given ``codes``.
 
     :param operator: The operator to simulate a measurement on
     :type operator: np.array

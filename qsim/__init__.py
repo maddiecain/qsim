@@ -1,7 +1,7 @@
-from .tools import tools
-from .tools import operations
-from . import graph_algorithms
-from . import evolution
+from qsim.tools import tools
+from qsim.tools import operations
+from qsim import graph_algorithms
+from qsim import evolution
 # Example Sphinx docstring
 
 """[Summary]

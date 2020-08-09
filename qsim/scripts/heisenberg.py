@@ -3,6 +3,7 @@ from qsim.tools import operations, tools
 from qsim import schrodinger_equation
 from qsim.evolution import hamiltonian
 import matplotlib.pyplot as plt
+from qsim.codes.quantum_state import State
 import networkx as nx
 from networkx.algorithms import approximation
 
@@ -19,6 +20,88 @@ def chain_graph(n):
         g.add_edge(i, i+1, weight=-1)
     return g
 
+class MISRaisingTwoLocal(object):
+    def __init__(self, graph: nx.Graph, rate=1):
+        self.graph = graph
+        self.rate = rate
+
+    def edge_jump(self, s, i, j, status, node):
+        """Left multiply by c_i"""
+        assert status == 0 or status == 1
+        assert node == 0 or node == 1
+
+        temp = s.copy()
+        if status == 0:
+            # Lower
+            # Decide which node to lower
+            temp = operations.single_qubit_operation(temp, j, up, is_ket=True)
+            temp = operations.single_qubit_operation(temp, i, up, is_ket=True)
+            if node == 0:
+                # Lower i
+                temp = operations.single_qubit_operation(temp, i, lower_spin, is_ket=True)
+            else:
+                temp = operations.single_qubit_operation(temp, j, lower_spin, is_ket=True)
+        else:
+            # Raise
+            # Decide which node to raise
+            temp = operations.single_qubit_operation(temp, j, down, is_ket=True)
+            temp = operations.single_qubit_operation(temp, i, down, is_ket=True)
+            if node == 0:
+                # Lower i
+                temp = operations.single_qubit_operation(temp, j, raise_spin, is_ket=True)
+            else:
+                temp = operations.single_qubit_operation(temp, i, raise_spin, is_ket=True)
+        return temp
+
+    def edge_probability(self, s, i, j, status):
+        """Compute probability for jump by c_i"""
+        assert status == 0 or status == 1
+        if status == 0:
+            # Lower a node
+            term = s.copy()
+            term = operations.single_qubit_operation(term, i, up, is_ket=True)
+            term = operations.single_qubit_operation(term, j, up, is_ket=True)
+            return np.real(np.squeeze(s.conj().T @ term * self.rate))
+        else:
+            # Raise a node
+            term = s.copy()
+            term = operations.single_qubit_operation(term, i, down, is_ket=True)
+            term = operations.single_qubit_operation(term, j, down, is_ket=True)
+            return np.real(np.squeeze(s.conj().T @ term * self.rate))
+
+    def random_jump(self, s):
+        # Compute all the probabilities
+        probabilities = np.zeros((self.graph.m, 4))
+        for (i, edge) in zip(range(self.graph.m), self.graph.edges):
+            probabilities[i, 0] = self.edge_probability(s, edge[0], edge[1], 0)
+            probabilities[i, 1] = probabilities[i, 0]
+            probabilities[i, 2] = self.edge_probability(s, edge[0], edge[1], 1)
+            probabilities[i, 3] = probabilities[i, 2]
+        total_probability = np.sum(probabilities)
+        index = np.random.choice(self.graph.m * 4, size=1, p=probabilities.flatten() / total_probability)[0]
+        row = (index - index % 4) // 4
+        if index % 4 == 0 or index % 4 == 1:
+            # Lower the node
+            return self.edge_jump(s, self.graph.edges[row][0], self.graph.edges[row][1], 0, index % 4)
+        else:
+            # Raise the node
+            return self.edge_jump(s, self.graph.edges[row][0], self.graph.edges[row][1], 1, index % 4 - 2)
+
+    def left_multiply(self, s):
+        """Left multiply by the effective Hamiltonian"""
+        temp = np.zeros(s.shape)
+        # Two terms for each edge
+        for edge in self.graph.edges:
+            # Term for each node
+            term = s.copy()
+            term = operations.single_qubit_pauli(term, edge[0], 'Z', is_ket=True)
+            term = operations.single_qubit_pauli(term, edge[1], 'Z', is_ket=True)
+            temp = temp + s + term
+        return -1j * self.rate * temp
+
+    def jump_rate(self, s):
+        """Compute the probability that a quantum jump happens on any node"""
+        return np.squeeze(1j * s.conj().T @ self.left_multiply(s))
 
 
 class StochasticWavefunction(object):
@@ -38,7 +121,7 @@ class StochasticWavefunction(object):
             if np.random.uniform() < jump_probability:
                 print('jumping up')
                 s = jump.random_jump(s)
-                # Renormalize state
+                # Renormalize codes
                 s = s / np.linalg.norm(s)
             else:
                 jump_probability_integrated = 1 - np.linalg.norm(np.squeeze(output.T)) ** 2
@@ -445,7 +528,7 @@ def simple_greedy_heisenberg(dt=0.001):
     s = State(psi0, graph.n, is_ket=True)
     greedy = GreedyNoise(graph, rate = 10)
     heisenberg = HamiltonianHeisenberg(graph, k=100)
-    mis_hamiltonian = hamiltonian.HamiltonianC(g)
+    mis_hamiltonian = hamiltonian.HamiltonianMIS(g)
     sw = StochasticWavefunction(hamiltonians=[heisenberg, greedy], jumps=[greedy])
     output = sw.run(s.state, 0, tf, dt)
     mis = np.zeros((2**graph.n, 1))
@@ -477,7 +560,7 @@ def domain_wall_dissipation(n:list, dt=0.001, trials = 30):
         # Ensure an odd number of nodes
         assert i % 2 == 1
         def psi0():
-            """Generates the initial domain wall state"""
+            """Generates the initial domain wall codes"""
             s = np.zeros((1, 2**i))
             middle = i//2-1
             arr = np.ones(i)
@@ -486,21 +569,21 @@ def domain_wall_dissipation(n:list, dt=0.001, trials = 30):
                     arr[j] = 0
                 elif j > middle+1 and j % 2 == 1:
                     arr[j] = 0
-            s[0,tools.binary_to_int(arr)] = 1
+            s[0,tools.nary_to_int(arr)] = 1
             return s.T
         def mis_state():
-            """Generates the initial domain wall state"""
+            """Generates the initial domain wall codes"""
             s = np.zeros((1, 2**i))
             arr = np.ones(i)
             for j in range(i):
                 if j % 2 == 0:
                     arr[j] = 0
-            s[0, tools.binary_to_int(arr)] = 1
+            s[0, tools.nary_to_int(arr)] = 1
             return s.T
         def spin_hamiltonian():
             s = np.zeros((1, 2 ** i))
             for j in range(2**i):
-                s[0,j] = i-np.sum(tools.int_to_binary(j))
+                s[0,j] = i-np.sum(np.array([tools.int_to_nary(j)]))
             return s.T
         g = chain_graph(i)
         graph = Graph(g)
@@ -518,7 +601,7 @@ def domain_wall_dissipation(n:list, dt=0.001, trials = 30):
             classical_output = graph.run(0, tf, dt, rates=[1, pump_rate], config=np.array([1,0,0,1,0]))
             classical_outputs[k,...] = np.squeeze(classical_output, axis=-1)
         mis_size = i//2+1
-        # Assume the amount in the ground state is very small
+        # Assume the amount in the ground codes is very small
         quantum_overlap_mis = np.abs(quantum_outputs@mis_state())**2
         quantum_spin = np.abs(quantum_outputs)**2 @ spin_hamiltonian()/mis_size
         classical_spin = np.sum(classical_outputs, axis=-1) / mis_size
@@ -546,7 +629,7 @@ def random_erdos_renyi(n, p=.3, dt=0.001, trials = 30):
     def spin_hamiltonian():
         s = np.zeros((1, 2 ** n))
         for j in range(2**n):
-            s[0,j] = n-np.sum(tools.int_to_binary(j))
+            s[0,j] = n-np.sum(np.array([tools.int_to_nary(j)]))
         return s.T
 
     psi0 = np.zeros((2 ** n, 1))
@@ -575,9 +658,9 @@ def random_erdos_renyi(n, p=.3, dt=0.001, trials = 30):
         if l in mis:
             binary[l] = 1
     mis_size = np.sum(binary)
-    mis_state[tools.binary_to_int(1-binary)] = 1
+    mis_state[tools.nary_to_int(1-binary)] = 1
     mis_state = np.array([mis_state]).T
-    # Assume the amount in the ground state is very small
+    # Assume the amount in the ground codes is very small
     #quantum_overlap_mis = np.abs(quantum_outputs@mis_state)**2
     quantum_spin = np.abs(quantum_outputs)**2 @ spin_hamiltonian()/mis_size
     classical_spin = np.sum(classical_outputs, axis=-1) / mis_size

@@ -4,11 +4,12 @@ import numpy as np
 
 
 class TestTools(unittest.TestCase):
-    def test_int_to_binary(self):
-        self.assertTrue(np.array_equal(tools.int_to_binary(17), np.array([[1, 0, 0, 0, 1]])))
+    def test_int_to_nary(self):
+        self.assertTrue(np.array_equal(tools.int_to_nary(17), np.array([1, 0, 0, 0, 1])))
 
-    def test_binary_to_int(self):
-        self.assertEqual(17, tools.binary_to_int(np.array([[1, 0, 0, 0, 1]])))
+    def test_nary_to_int(self):
+        self.assertEqual(17, tools.nary_to_int(np.array([1, 0, 0, 0, 1])))
+        self.assertEqual(7, tools.nary_to_int(np.array([2, 1]), base=3))
 
     def test_X(self):
         self.assertTrue(np.array_equal(tools.X(2), np.array([[0, 0, 0, 1], [0, 0, 1, 0], [0, 1, 0, 0], [1, 0, 0, 0]])))
@@ -38,6 +39,12 @@ class TestTools(unittest.TestCase):
         a = tools.outer_product(a, a)
         b = tools.outer_product(b, b)
         assert tools.fidelity(a, b) == 1
+
+    def test_make_valid_state(self):
+        rho = np.array([[1/4, 0], [0, 3/4]], dtype=np.complex128)+1e-4
+        assert not tools.is_valid_state(rho)
+        rho = tools.make_valid_state(rho)
+        assert tools.is_valid_state(rho)
 
 if __name__ == '__main__':
     unittest.main()

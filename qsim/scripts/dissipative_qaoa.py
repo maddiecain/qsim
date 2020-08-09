@@ -4,8 +4,51 @@ from qsim import lindblad_master_equation
 from qsim import tools
 import matplotlib.pyplot as plt
 import networkx as nx
+from qsim.tools import tools
+from qsim.codes import qubit
+from qsim.codes.quantum_state import State
+from scipy.sparse import csr_matrix
+from qsim.graph_algorithms.graph import Graph
 
 N = 3
+
+
+class MISLoweringJumpOperator(object):
+    """Jump operators which enforce the independent set constraint."""
+
+    def __init__(self, graph: nx.Graph, rate):
+        super().__init__(jump_operators=[np.array([[0, 0, 0, 0], [1, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]),
+                                         np.array([[0, 0, 0, 0], [0, 0, 0, 0], [1, 0, 0, 0], [0, 0, 0, 0]]),
+                                         np.array([[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [1, 0, 0, 0]])],
+                         weights=rate)
+        # Construct the right jump_operators operators
+        self.code = qubit
+        self.graph = graph
+        self.N = self.graph.number_of_nodes()
+        jump_operators = []
+
+        for (i, j) in graph.edges:
+            for p in range(len(self.jump_operators)):
+                temp = tools.tensor_product([self.jump_operators[p], tools.identity(self.N - 2)])
+                temp = np.reshape(temp, 2 * np.ones(2 * self.N, dtype=int))
+                temp = np.moveaxis(temp, [0, 1, self.N, self.N + 1], [i, j, self.N + i, self.N + j])
+                temp = np.reshape(temp, (2 ** self.N, 2 ** self.N))
+                jump_operators.append(temp)
+        self.jump_operators = jump_operators
+
+    def liouvillian(self, s, i):
+        a = np.zeros(s.shape)
+        a = a + self.weights * (self.jump_operators[i] @ s @ self.jump_operators[i].T -
+                                1 / 2 * s @ self.jump_operators[i].conj().T @ self.jump_operators[i] -
+                                1 / 2 * self.jump_operators[i].conj().T @ self.jump_operators[i] @ s)
+        return a
+
+    def all_qubit_liouvillian(self, s):
+        a = np.zeros(s.shape)
+        for i in range(len(self.jump_operators)):
+            a = a + self.liouvillian(s, i)
+        return a
+
 
 def IS_projector(G):
     global N
@@ -54,11 +97,11 @@ p = 2
 spacing = 10
 #se_noise_rate = 0.01
 #se_noise = jump_operators.SpontaneousEmission(se_noise_rate)
-rydberg_noise = lindblad_operators.RydbergJumpOperator(G, rydberg_noise_rate)
-hb_x = hamiltonian.HamiltonianB(pauli ='X')
-hb_y = hamiltonian.HamiltonianB(pauli ='Y')
-hb_z = hamiltonian.HamiltonianB(pauli ='Z')
-hMIS = hamiltonian.HamiltonianRydberg(G, blockade_energy=rydberg_noise_rate)
+rydberg_noise = MISLoweringJumpOperator(G, rydberg_noise_rate)
+hb_x = hamiltonian.HamiltonianDriver(pauli ='X')
+hb_y = hamiltonian.HamiltonianDriver(pauli ='Y')
+hb_z = hamiltonian.HamiltonianDriver(pauli ='Z')
+hMIS = hamiltonian.HamiltonianMIS(G, blockade_energy=rydberg_noise_rate)
 C = cost_function(G, rydberg_noise_rate)
 C = C/np.max(C)
 is_proj = IS_projector(G)
@@ -121,13 +164,13 @@ for i in np.linspace(0, 2 * np.pi/np.sqrt(3), spacing):
     m += 1
 print(costs)
 """
-s.state = zero
+s.codes = zero
 me = master_equation.MasterEquation(hamiltonians = [hb_x, hb_y], jump_operators = [rydberg_noise])
-def f_MIS(state, t):
+def f_MIS(codes, t):
     # hbar is set to zero
     global i
-    res = np.zeros(state.shape)
-    s.state = state
+    res = np.zeros(codes.shape)
+    s.codes = codes
     res = res + -1j * (
         hMIS.left_multiply(s, overwrite=False) - hMIS.right_multiply(s, overwrite=False))
     if t>0:
@@ -135,21 +178,21 @@ def f_MIS(state, t):
     else:
         res = res + -1j * (me.hamiltonians[1].left_multiply(s, overwrite=False) - me.hamiltonians[1].right_multiply(s, overwrite=False))
     return res
-def f_EIT(state, t):
+def f_EIT(codes, t):
     # hbar is set to zero
     global i
-    res = np.zeros(state.shape)
-    s.state = state
+    res = np.zeros(codes.shape)
+    s.codes = codes
     if t>0:
         res = res + -1j * (me.hamiltonians[0].left_multiply(s, overwrite=False) - me.hamiltonians[0].right_multiply(s, overwrite=False))
     else:
         res = res + -1j * (me.hamiltonians[1].left_multiply(s, overwrite=False) - me.hamiltonians[1].right_multiply(s, overwrite=False))
     for noise_model in me.jump_operators:
-        res = res + noise_model.all_qubit_liouvillian(state)
+        res = res + noise_model.all_qubit_liouvillian(codes)
     return res
 res = me.run_ode_solver(s, 0, np.pi/(2*np.sqrt(3))-.05, 1000, func = f_MIS)
 print(np.trace(res[-1] @ np.diag(C)@ is_proj))
-s.state = zero
+s.codes = zero
 res = me.run_ode_solver(s, 0, np.pi/(2*np.sqrt(3)), 1000, func = f_EIT)
 print(np.trace(res[-1] @ np.diag(C)@ is_proj))
 """

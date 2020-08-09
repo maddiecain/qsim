@@ -1,8 +1,8 @@
 import numpy as np
-import scipy.linalg as sp
+import scipy.linalg
 
 
-def int_to_binary(n):
+def int_to_nary(n, size=None, base=2, pad_with=0):
     """Converts an integer :math:`n` to a size-:math:`\\log_2(n)` binary array.
 
     :param n: Integer to convert
@@ -10,18 +10,31 @@ def int_to_binary(n):
     :return: Binary array representing :math:`n`.
     """
     assert n >= 0
-    return np.array([np.array(list(np.binary_repr(n)), dtype=int)])
+    if base == 2:
+        # Use pad_with faster implementation, if possible
+        if pad_with == 0:
+            nary_repr = np.array(list(np.binary_repr(n, width=size)), dtype=int)
+        else:
+            nary_repr = np.array(list(np.binary_repr(n)), dtype=int)
+            if not size is None:
+                # Pad with padwith
+                nary_repr = np.concatenate([np.ones(size - len(nary_repr), dtype=int) * pad_with, nary_repr])
+    else:
+            nary_repr = np.array(list(np.base_repr(n, base=base)), dtype=int)
+            nary_repr = np.concatenate([np.ones(size - len(nary_repr), dtype=int) * pad_with, nary_repr])
+    return nary_repr
 
 
-def binary_to_int(b):
-    """Converts a size-:math:`\\log_2(n)` binary array :math:`b` to an integer.
+def nary_to_int(b, base=2):
+    """Converts a size-:math:`\\log_{base}(n)` binary array :math:`b` to an integer.
 
+    :param base:
     :param b: Binary array representing :math:`n`
     :type b: np.array
     :return: Integer :math:`n` represented by :math:`b`.
     """
-    return int(b.dot(2 ** np.arange(b.size)[::-1]))
-
+    b = np.asarray(b)
+    return int(b.dot(base ** np.arange(b.size)[::-1]))
 
 def tensor_product(A):
     """
@@ -44,6 +57,16 @@ def outer_product(a, b):
     :return: Outer product :math:`| a\\rangle\\langle b|`
     """
     return a @ b.conj().T
+
+
+def is_ket(A):
+    """Return True if and only if A is a ket and not a density matrix."""
+    assert len(A.shape) == 2
+    if A.shape[-1] == 1:
+        return True
+    else:
+        assert A.shape[0] == A.shape[1]
+        return False
 
 
 def X(n=1):
@@ -130,7 +153,7 @@ def is_orthonormal(B):
     return np.array_equal(np.linalg.inv(B) @ B, np.identity(B.shape[-1]))
 
 
-def equal_superposition(N: int, basis=np.array([[[1], [0]], [[0], [1]]]), dtype=np.complex128):
+def equal_superposition(N: int, basis=np.array([[[1], [0]], [[0], [1]]])):
     """
     :param N:  N is the number of logical qubits.
     :type N: int
@@ -138,11 +161,11 @@ def equal_superposition(N: int, basis=np.array([[[1], [0]], [[0], [1]]]), dtype=
     :return: An equal superposition of logical basis states, :math:`\\frac{1}{2^{N/2}}(|0_L\\rangle+|1_L\\rangle)^{\\otimes N}`.
     """
     plus = (basis[0] + basis[1])
-    return tensor_product([plus] * N) / np.sqrt(2 ** N).astype(dtype)
+    return tensor_product([plus] * N) / np.sqrt(2 ** N).astype(np.complex128)
 
 
 def multiply(state, operator, is_ket=False):
-    # Multiplies a state by an operator
+    # Multiplies a codes by an operator
     if is_ket:
         return operator @ state
     else:
@@ -183,7 +206,7 @@ def fidelity(A, B):
     """
     :return:  The fidelity between density matrices :math:`A` and :math:`B`, given by :math:`\\text{tr}(\\sqrt{\\sqrt{A}B\\sqrt{A}})`.
     """
-    return np.trace(sp.sqrtm(sp.sqrtm(A) @ B @ sp.sqrtm(A))) ** 2
+    return np.trace(scipy.linalg.sqrtm(scipy.linalg.sqrtm(A) @ B @ scipy.linalg.sqrtm(A))) ** 2
 
 
 def is_projector(A):
@@ -205,14 +228,24 @@ def is_involutary(A):
 
 
 def is_pure_state(state):
-    """Returns ``True`` if :py:attr:`state` is a pure state."""
-    return np.array_equal(state @ state, state)
+    """Returns ``True`` if :py:attr:`codes` is a pure codes."""
+    if is_ket(state):
+        return True
+    # TODO: make this function more efficient
+    return np.isclose(np.trace(state @ state), 1)
+
+
+def operator_equal_freivald(f, g, k=None):
+    """f and g are functions which take in a codes and is_ket argument, and compute the action of a linear operator
+    on that codes."""
+    # Generate a random codes
+    raise NotImplementedError
 
 
 def is_valid_state(state, is_ket=False, verbose=True):
-    """Returns ``True`` if :py:attr:`state` is a valid density matrix or a ket."""
+    """Returns ``True`` if :py:attr:`codes` is a valid density matrix or a ket."""
     if is_ket:
-        return np.linalg.norm(state) == 1
+        return np.isclose(np.linalg.norm(state), 1)
     else:
         print('Eigenvalues real?', (np.allclose(np.imag(np.linalg.eigvals(state)), np.zeros(state.shape[0]))))
         print('Eigenvalues positive?', np.all(np.real(np.linalg.eigvals(state)) >= -1e-10))
@@ -244,27 +277,35 @@ def is_sorted(A, unique=True):
     return True
 
 
-def is_ket(A):
-    """Return True if and only if A is a ket and not a density matrix."""
-    assert len(A.shape) == 2
-    if A.shape[-1] == 1:
-        return True
-    else:
-        assert A.shape[0] == A.shape[1]
-        return False
-
-
-def is_pure(A):
-    """Return True if and only if A is a pure state or ket."""
-    if is_ket(A):
-        return True
-    if np.isclose(np.trace(A @ A), 1):
-        return True
-    return False
-
-
 def purity(A):
     if not is_ket(A):
         return np.trace(A @ A)
     else:
         return 1
+
+
+def is_pure(A):
+    """Return True if and only if A is a pure codes or ket."""
+    if is_ket(A):
+        return True
+    if np.isclose(purity(A), 1):
+        return True
+    return False
+
+
+def make_valid_state(state, is_ket=False):
+    """This function should take in a ket or density matrix that is almost valid, and convert it into a valid
+    codes. This is helpful because often the output of ODE solvers is a nearly valid codes, and when that
+    output is then used as an input into another ODE solver, the evolution is corrupted."""
+    # Get the eigenvalues and normalized eigenvectors
+    if not is_ket:
+        eigvals, eigvecs = np.linalg.eigh(state)
+        eigvals = eigvals.real
+        eigvals[eigvals < 0] = 0
+        eigvals = eigvals / np.sum(eigvals)
+        # Generate a diagonal array of the eigenvalues
+        res = np.diag(eigvals)
+        # Transform back using the eigenvector basis
+        return eigvecs @ res @ eigvecs.conj().T
+    else:
+        return state / np.sum(np.abs(state) ** 2)

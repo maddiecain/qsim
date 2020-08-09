@@ -94,7 +94,7 @@ for j in range(p_len):
     noisy = ThreeQubitCodeTwoAncillas(tools.outer_product(ideal, ideal), N, is_ket=False)
     # Dissipative error correction
     ec = ThreeQubitCodeTwoAncillas(tools.outer_product(ideal, ideal), N, is_ket=False)
-    # Ideal state for fidelity calculations
+    # Ideal codes for fidelity calculations
     ideal = ThreeQubitCodeTwoAncillas(tools.outer_product(ideal, ideal), N, is_ket=False)
     corrective.p = rate[j] * dt
     for i in range(n):

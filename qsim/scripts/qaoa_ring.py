@@ -3,7 +3,84 @@ from qsim.evolution import hamiltonian
 from qsim.graph_algorithms import qaoa
 import numpy as np
 import matplotlib.pyplot as plt
+from qsim.graph_algorithms.graph import Graph
+from qsim import tools
+from qsim.codes.quantum_state import State
+
+
 # Construct a known graph
+
+def lattice(n=2):
+    graph = nx.Graph()
+    if n == 1:
+        graph.add_node(0)
+    else:
+        for i in range(n):
+            for j in range(n):
+                graph.add_edge((j + 1) * i, (j + 1) * ((i + 1) % n), weight=1)
+                graph.add_edge((j + 1) * i, (j + 2) * (i % n), weight=1)
+
+
+def defect_ring(n=2, uniform=True):
+    # Assert n is even and greater than 2
+    assert n % 4 == 0 and n > 2
+    graph = nx.Graph()
+    graph.add_weighted_edges_from(
+        [(i, (i + 1) % n, 2) for i in range(n)])
+    graph.add_weighted_edges_from(
+        [(2 * i, (2 * i + int(n / 2)) % (n), 2) for i in range(1, int(n / 4))])
+    return [graph, np.floor(n / 2)]
+
+
+def special_defect_ring(n=2, uniform=True):
+    # Assert n is even and greater than 2
+    assert n % 4 == 0 and n > 2
+    graph = nx.Graph()
+    graph.add_weighted_edges_from(
+        [(i, (i + 1) % n, 2) for i in range(n)])
+    graph.add_weighted_edges_from(
+        [(2 * i, (2 * i + int(n / 2)) % (n), 2) for i in range(int(n / 4))])
+
+    return [graph, np.floor(n / 2)]
+
+
+def defect_ring_imperfect(n=2, uniform=True):
+    # Assert n is even and greater than 2
+    assert n % 4 == 0 and n > 2
+    graph = nx.Graph()
+    graph.add_weighted_edges_from(
+        [(i, (i + 1) % n, 2) for i in range(n)])
+    graph.add_weighted_edges_from(
+        [(2 * i, (2 * i + int(n / 2)) % (n), 2) for i in range(1, int(n / 4))])
+    return [graph, np.floor(n / 2)]
+
+
+def defect_ring_nearby(n=2, uniform=True):
+    # Assert n is even and greater than 2
+    assert n % 2 == 0 and n > 2
+    graph = nx.Graph()
+    graph.add_weighted_edges_from(
+        [(i, (i + 1) % n, 1) for i in range(n)])
+    graph.add_weighted_edges_from(
+        [(2 * i, (2 * i + 2) % (n), 1) for i in range(int(n / 2))])
+    return [graph, np.floor(n / 2)]
+
+
+def defect_ring_nearby_uniform_degree(n=5, uniform=True):
+    # Assert n is even and greater than 2
+    assert (n - 1) % 2 == 0 and n > 5
+    graph = nx.Graph()
+    graph.add_weighted_edges_from(
+        [(i, (i + 1) % (n - 1), 2) for i in range(n - 1)])
+    graph.add_weighted_edges_from(
+        [(2 * i, (2 * i + 2) % (n - 1), 2) for i in range(int((n - 1) / 2))])
+    # Add big boi node in the middle
+    graph.add_node(n - 1)
+    # Connect odd nodes to it
+    graph.add_weighted_edges_from(
+        [(2 * i + 1, n - 1, 2) for i in range(int((n - 1) / 2))])
+    return [graph, np.floor(n / 2)]
+
 
 def ring(n=2):
     graph = nx.Graph()
@@ -11,46 +88,129 @@ def ring(n=2):
         graph.add_node(0)
     else:
         graph.add_weighted_edges_from(
-            [(i, i + 1, 1) for i in range(n - 1)])
-        graph.add_edge(0, n-1, weight=1)
+            [(i, (i + 1) % n, 1) for i in range(n)])
     return [graph, np.floor(n / 2)]
 
 
+def double_ring(n=2):
+    graph = nx.Graph()
+    # First, make a ring
+    if n == 1:
+        graph.add_node(0)
+    else:
+        graph.add_weighted_edges_from(
+            [(i, (i + 1) % n, 1) for i in range(n)])
+    # Then, add a second ring
+    if n == 1:
+        graph.add_node(1)
+        graph.add_edge(0, 1)
+    else:
+        graph.add_weighted_edges_from(
+            [(i + n, (i + n + 1) % (2 * n), 1) for i in range(n)])
+    # Connect the rings
+    graph.add_edge(0, n - 1, weight=1)
+    if n != 1:
+        graph.add_weighted_edges_from(
+            [(i, i + n, 1) for i in range(n)])
+    return [graph, np.floor(n / 2)]
 
 
-def mis_vs_maxcut(n, method='minimize', show=True):
-    maxcut = [(2*p+1)/(2*p+2) for p in range(1, int(np.floor(n/2)))]
-    G, opt = ring(n)
-    # nx.draw_networkx(G)
-    # plt.show()
+def counterintuitive_graph(n=6):
+    graph = nx.complete_graph(n)
+    # First, make a ring
+    assert n % 2 == 0 and n >= 6
+    graph.add_weighted_edges_from([(n, i, 2) for i in range(n)])
+    graph.add_weighted_edges_from([(n + 1, i, 2) for i in range(n)])
+    return [graph, 2]
+
+def crossy_double_ring(n=2):
+    graph = nx.Graph()
+    # First, make a ring
+    if n == 1:
+        graph.add_node(0)
+    else:
+        graph.add_weighted_edges_from(
+            [(i, (i + 1) % n, 1) for i in range(n)])
+    # Then, add a second ring
+    if n == 1:
+        graph.add_node(1)
+        graph.add_edge(0, 1)
+    else:
+        graph.add_weighted_edges_from(
+            [(i + n, (i + n + 1) % (2 * n), 1) for i in range(n)])
+        graph.add_edge(n, 2 * n - 1, weight=1)
+    # Connect the rings
+    graph.add_edge(0, n - 1, weight=1)
+    if n != 1:
+        graph.add_weighted_edges_from(
+            [(i, i + n, 1) for i in range(n)])
+    # Add crossy terms
+    if n != 1:
+        graph.add_weighted_edges_from(
+            [(i, (i + 1) % n + n, 1) for i in range(n)])
+        graph.add_weighted_edges_from(
+            [(i, (i - 1) % n + n, 1) for i in range(n)])
+    return [graph, np.floor(n / 2)]
+
+
+def mis_qaoa(n, method='minimize', show=True, analytic_gradient=True):
+    penalty = 1
+    psi0 = tools.equal_superposition(n)
+    psi0 = State(psi0)
+    G, opt = defect_ring(n)
+    if show:
+        nx.draw_networkx(G)
+        plt.show()
+    G = Graph(G)
+
+    depths = [2 * i for i in range(1, 2 * n + 1)]
     mis = []
-    for p in range(1, int(np.floor(n/2))):
-        # Find MIS optimum
-        # Uncomment to visualize graph
+    # Find MIS optimum
+    # Uncomment to visualize graph
+    hc_qubit = hamiltonian.HamiltonianMIS(G, energies=[1, penalty])
+    cost = hamiltonian.HamiltonianMIS(G, energies=[1, penalty])
+    # Set the default variational operators
+    hb_qubit = hamiltonian.HamiltonianDriver()
+    # Create Hamiltonian list
+    sim = qaoa.SimulateQAOA(G, cost_hamiltonian=cost, hamiltonian=[], noise_model=None)
+    sim.hamiltonian = []
+    for p in depths:
+        sim.hamiltonian.append(hc_qubit)
+        sim.hamiltonian.append(hb_qubit)
+        sim.depth = p
+        # You should get the same thing
         print(p)
-        # For MaxCut
-        if p == 3:
-            # hc_qubit = hamiltonian.HamiltonianC(G, mis=False)"
-            hc_qubit = hamiltonian.HamiltonianRydberg(G, energy=-1, detuning=1/2)
-            sim = qaoa.SimulateQAOA(G, p, 2, is_ket=True, C=hc_qubit)
-            # Set the default variational operators
-            sim.hamiltonian = [hc_qubit, hamiltonian.HamiltonianB()]
+        if method == 'minimize':
+            results = sim.find_parameters_minimize(verbose=True, initial_state=psi0,
+                                                   analytic_gradient=analytic_gradient)
 
-            sim.noise = [None] * len(sim.hamiltonian)
-
-            # You should get the same thing
-            if method == 'minimize':
-                results = sim.find_parameters_minimize(verbose=False)
-                approximation_ratio = -1 * np.real(results.fun) / opt
+            approximation_ratio = np.real(results['approximation_ratio'])
+            mis.append(approximation_ratio)
+        if method == 'brute':
+            results = sim.find_parameters_brute(n=15, verbose=True, initial_state=psi0)
+            approximation_ratio = np.real(results['approximation_ratio'])
+            mis.append(approximation_ratio)
+        if method == 'basinhopping':
+            if p >= 8:
+                results = sim.find_parameters_basinhopping(verbose=True, initial_state=psi0, n=200,
+                                                           analytic_gradient=analytic_gradient)
+                print(results)
+                approximation_ratio = np.real(results['approximation_ratio'])
                 mis.append(approximation_ratio)
-                print(approximation_ratio)
-        else:
-            mis.append(0)
 
-    plt.plot(list(range(1, int(np.floor(n/2)))), maxcut, c='y', label='maxcut')
-    plt.scatter(list(range(1, int(np.floor(n/2)))), mis, c='teal', label='mis')
+    # plt.plot(list(range(n)), maxcut, c='y', label='maxcut')
+    print(mis)
+    plt.plot(depths, [(i + 1) / (i + 2) for i in depths])
+    plt.scatter(depths, [i / (i + 1) for i in depths], label='maxcut')
+    plt.scatter(depths, mis, label='mis with $n=$' + str(n))
+    plt.plot(depths, mis)
+
     plt.legend()
     if show:
         plt.show()
 
-mis_vs_maxcut(16, show=True)
+
+mis_qaoa(8, show=True, method='basinhopping', analytic_gradient=False)
+mis_qaoa(12, show=False, method='basinhopping', analytic_gradient=False)
+
+mis_qaoa(16, show=False, method='basinhopping', analytic_gradient=False)

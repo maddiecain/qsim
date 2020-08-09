@@ -1,7 +1,7 @@
 # QSim
 
 QSim is an optimized Python package for simulating noisy quantum computers, with a focus on quantum graph algorithms
-and error correcting codes. 
+and error correcting codes. It's still in development, but the hope is that future versions will be stable.
 The following simulation methods are supported:
 - Lindblad master equation solver,
 - Schrodinger equation integrator, which supports time-dependent and time-independent Hamiltonians,
