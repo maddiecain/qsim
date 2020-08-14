@@ -515,10 +515,8 @@ class HamiltonianMIS(object):
                 self._diagonal_hamiltonian_node_terms = self._hamiltonian_node_terms.copy()
                 self._hamiltonian_edge_terms = sparse.csr_matrix(self._hamiltonian_edge_terms)
                 self._hamiltonian_node_terms = sparse.csr_matrix(self._hamiltonian_node_terms)
-            self._left_acting_hamiltonian_edge_terms = sparse.kron(sparse.identity(
-                self._hamiltonian_node_terms.shape[0]), self._hamiltonian_edge_terms)
-            self._right_acting_hamiltonian_edge_terms = sparse.kron(
-                self._hamiltonian_edge_terms.T, sparse.identity(self._hamiltonian_edge_terms.shape[0]))
+            self._left_acting_hamiltonian_edge_terms = None
+            self._right_acting_hamiltonian_edge_terms = None
 
         else:
             self._is_diagonal = True
@@ -547,10 +545,8 @@ class HamiltonianMIS(object):
             self._hamiltonian_node_terms = sparse.csr_matrix((
                 C, (np.arange(len(C)), np.arange(len(C)))), shape=(len(C), len(C)))
 
-        self._left_acting_hamiltonian_node_terms = sparse.kron(sparse.identity(
-            self._hamiltonian_node_terms.shape[0]), self._hamiltonian_node_terms)
-        self._right_acting_hamiltonian_node_terms = sparse.kron(
-            self._hamiltonian_node_terms.T, sparse.identity(self._hamiltonian_node_terms.shape[0]))
+        self._left_acting_hamiltonian_node_terms = None
+        self._right_acting_hamiltonian_node_terms = None
 
     @property
     def hamiltonian(self):
