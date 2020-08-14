@@ -98,9 +98,9 @@ class HamiltonianDriver(object):
                     entries[num_terms:2 * num_terms] = -1 * entries[:num_terms]
                 # Now, construct the Hamiltonian
                 self._hamiltonian = sparse.csr_matrix((entries, (rows, columns)), shape=(num_IS, num_IS))
-            self._left_acting_hamiltonian = sparse.kron(sparse.identity(num_IS), self._hamiltonian)
-            self._right_acting_hamiltonian = sparse.kron(self._hamiltonian.T, sparse.identity(num_IS))
             # TODO: define self.hamiltonian for non-IS_subspace
+            self._left_acting_hamiltonian = None
+            self._right_acting_hamiltonian = None
 
     @property
     def hamiltonian(self):
@@ -111,6 +111,12 @@ class HamiltonianDriver(object):
         if vector_space != 'hilbert' and vector_space != 'liouville':
             raise Exception('Attribute vector_space must be hilbert or liouville')
         if vector_space == 'liouville':
+            if self._left_acting_hamiltonian is None:
+                self._left_acting_hamiltonian = sparse.kron(sparse.identity(self._hamiltonian.shape[0]),
+                                                            self._hamiltonian)
+                self._right_acting_hamiltonian = sparse.kron(self._hamiltonian.T,
+                                                             sparse.identity(self._hamiltonian.shape[0]))
+
             return -1j * self.energies[0] * self._left_acting_hamiltonian + 1j * self.energies[0] * \
                    self._right_acting_hamiltonian
         else:
@@ -319,8 +325,8 @@ class HamiltonianMaxCut(object):
             # c is already the right shape, just convert it to a csr matrix
             c = sparse.csr_matrix(c)
         self._hamiltonian = c
-        self._left_acting_hamiltonian = sparse.kron(sparse.identity(self._hamiltonian.shape[0]), self._hamiltonian)
-        self._right_acting_hamiltonian = sparse.kron(self._hamiltonian.T, sparse.identity(self._hamiltonian.shape[0]))
+        self._left_acting_hamiltonian = None
+        self._right_acting_hamiltonian = None
 
     @property
     def hamiltonian(self):
@@ -331,6 +337,12 @@ class HamiltonianMaxCut(object):
         if vector_space != 'hilbert' and vector_space != 'liouville':
             raise Exception('Attribute vector_space must be hilbert or liouville')
         if vector_space == 'liouville':
+            if self._left_acting_hamiltonian is None:
+                self._left_acting_hamiltonian = sparse.kron(sparse.identity(self._hamiltonian.shape[0]),
+                                                            self._hamiltonian)
+                self._right_acting_hamiltonian = sparse.kron(self._hamiltonian.T,
+                                                             sparse.identity(self._hamiltonian.shape[0]))
+
             return -1j * self.energies[0] * self._left_acting_hamiltonian + 1j * self.energies[0] * \
                    self._right_acting_hamiltonian
         else:
@@ -552,27 +564,30 @@ class HamiltonianMIS(object):
         if vector_space != 'hilbert' and vector_space != 'liouville':
             raise Exception('Attribute vector_space must be hilbert or liouville')
         if vector_space == 'liouville':
-            return -1j * (self.energies[0] * self._left_acting_hamiltonian_node_terms - self.energies[1] *
-                          self._left_acting_hamiltonian_edge_terms) + 1j * \
-                   (self.energies[0] * self._right_acting_hamiltonian_node_terms - self.energies[1] *
-                    self._right_acting_hamiltonian_edge_terms)
+            if self._left_acting_hamiltonian_node_terms is None and not self.IS_subspace:
+                self._left_acting_hamiltonian_edge_terms = sparse.kron(sparse.identity(
+                    self._hamiltonian_node_terms.shape[0]), self._hamiltonian_edge_terms)
+                self._right_acting_hamiltonian_edge_terms = sparse.kron(
+                    self._hamiltonian_edge_terms.T, sparse.identity(self._hamiltonian_edge_terms.shape[0]))
+                self._left_acting_hamiltonian_node_terms = sparse.kron(sparse.identity(
+                    self._hamiltonian_node_terms.shape[0]), self._hamiltonian_node_terms)
+                self._right_acting_hamiltonian_node_terms = sparse.kron(
+                    self._hamiltonian_node_terms.T, sparse.identity(self._hamiltonian_node_terms.shape[0]))
+            elif self._left_acting_hamiltonian_node_terms is None and self.IS_subspace:
+                self._left_acting_hamiltonian_node_terms = sparse.kron(sparse.identity(
+                    self._hamiltonian_node_terms.shape[0]), self._hamiltonian_node_terms)
+                self._right_acting_hamiltonian_node_terms = sparse.kron(
+                    self._hamiltonian_node_terms.T, sparse.identity(self._hamiltonian_node_terms.shape[0]))
+            if not self.IS_subspace:
+                return -1j * (self.energies[0] * self._left_acting_hamiltonian_node_terms - self.energies[1] *
+                              self._left_acting_hamiltonian_edge_terms) + 1j * \
+                       (self.energies[0] * self._right_acting_hamiltonian_node_terms - self.energies[1] *
+                        self._right_acting_hamiltonian_edge_terms)
+            elif self.IS_subspace:
+                return -1j * (self.energies[0] * self._left_acting_hamiltonian_node_terms) + 1j * \
+                       (self.energies[0] * self._right_acting_hamiltonian_node_terms)
         else:
             return -1j * self.hamiltonian
-
-    def left_acting_hamiltonian(self):
-        if not self.IS_subspace:
-            return self.energies[0] * self._left_acting_hamiltonian_node_terms - self.energies[1] * \
-                   self._left_acting_hamiltonian_edge_terms
-        else:
-            return self.energies[0] * self._left_acting_hamiltonian_node_terms
-
-    @property
-    def right_acting_hamiltonian(self):
-        if not self.IS_subspace:
-            return self.energies[0] * self._right_acting_hamiltonian_node_terms - self.energies[1] * \
-                   self._right_acting_hamiltonian_edge_terms
-        else:
-            return self.energies[0] * self._right_acting_hamiltonian_node_terms
 
     @property
     def _diagonal_hamiltonian(self):

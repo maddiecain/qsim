@@ -86,7 +86,7 @@ def run(n, t, gamma, omega):
     res = simulation_eit.ratio_vs_total_time([t], schedule=lambda t, tf: rydberg_EIT_schedule(t, tf,
                                                                                               coefficients=[omega,
                                                                                                             omega]),
-                                             plot=False, verbose=True, method='odeint', iter=1)
+                                             plot=False, verbose=False, method='odeint', iter=1)
     return res
 
 
