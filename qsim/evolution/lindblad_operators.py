@@ -2,7 +2,7 @@ from qsim.tools import tools
 import numpy as np
 from qsim.codes import qubit
 from qsim.codes.quantum_state import State
-from scipy.sparse import csr_matrix
+import scipy.sparse as sparse
 from qsim.graph_algorithms.graph import Graph
 
 
@@ -75,13 +75,13 @@ class LindbladJumpOperator(object):
             for j in range(len(self.jump_operators)):
                 for i in apply_to:
                     out = out - 1j * self.code.left_multiply(state, i,
-                                                                                 self.jump_operators[
-                                                                                     j].conj().T @
-                                                                                 self.jump_operators[j])
+                                                             self.jump_operators[
+                                                                 j].conj().T @
+                                                             self.jump_operators[j])
         else:
             for j in range(len(self.jump_operators)):
                 out = out - 1j * self.jump_operators[j].conj().T @ \
-                                self.jump_operators[j] @ state
+                      self.jump_operators[j] @ state
         return State(out / 2, is_ket=state.is_ket, code=state.code, IS_subspace=state.IS_subspace)
 
     def global_liouvillian(self, state: State):
@@ -114,6 +114,7 @@ class SpontaneousEmission(LindbladJumpOperator):
                 # We have already solved for this information
                 IS, nary_to_index, num_IS = graph.independent_sets, graph.binary_to_index, graph.num_independent_sets
             self._jump_operators = []
+            self._evolution_operator = sparse.csr_matrix((num_IS ** 2, num_IS ** 2))
             # For each atom, consider the states spontaneous emission can generate transitions between
             # Over-allocate space
             for j in range(graph.n):
@@ -139,15 +140,27 @@ class SpontaneousEmission(LindbladJumpOperator):
                 rows = rows[:num_terms]
                 entries = entries[:num_terms]
                 # Now, append the jump operator
-                self._jump_operators.append(csr_matrix((entries, (rows, columns)), shape=(num_IS, num_IS)))
+                jump_operator = sparse.csr_matrix((entries, (rows, columns)), shape=(num_IS, num_IS))
+                self._jump_operators.append(jump_operator)
+                # Jump operator is real, so we don't need to conjugate
+                self._evolution_operator = self._evolution_operator + sparse.kron(jump_operator,
+                                                                                  jump_operator) - 1 / 2 * \
+                                           sparse.kron(jump_operator.T @ jump_operator, sparse.identity(num_IS)) - \
+                                           1 / 2 * sparse.kron(sparse.identity(num_IS), jump_operator.T @ jump_operator)
+
         super().__init__(np.asarray(self._jump_operators), rates, code=code, graph=graph, IS_subspace=IS_subspace)
 
     @property
     def jump_operators(self):
         return np.sqrt(self.rates[0]) * self._jump_operators
 
+    def evolution_operator(self):
+        return self.rates[0] * self._evolution_operator
+
     def liouvillian(self, state, apply_to):
         out = np.zeros(state.shape)
+        if isinstance(apply_to, int):
+            apply_to = [apply_to]
         if self.IS_subspace:
             for i in range(self.graph.n):
                 out = out + self.jump_operators[i] @ state @ self.jump_operators[i].T - 1 / 2 * self.jump_operators[
@@ -202,8 +215,8 @@ class SpontaneousEmission(LindbladJumpOperator):
             for j in range(len(self.jump_operators)):
                 for i in apply_to:
                     out = out - 1j * self.code.left_multiply(state, i,
-                                                                                 self.jump_operators[j].conj().T @
-                                                                                 self.jump_operators[j])
+                                                             self.jump_operators[j].conj().T @
+                                                             self.jump_operators[j])
         else:
             for j in range(len(self.jump_operators)):
                 out = out - 1j * self.jump_operators[j].conj().T @ (self.jump_operators[j] @ state)

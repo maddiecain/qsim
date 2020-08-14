@@ -5,7 +5,7 @@ from qsim.codes.quantum_state import State
 from qsim import tools
 # TODO: never use expm!
 from scipy.linalg import expm
-from scipy.sparse import csr_matrix
+import scipy.sparse as sparse
 from scipy.sparse.linalg import expm_multiply
 from qsim.graph_algorithms.graph import Graph, IS_projector
 
@@ -55,7 +55,7 @@ class HamiltonianDriver(object):
                     self._diagonal_hamiltonian[k, 0] = np.sum(IS[k][2] == self.transition[0]) - np.sum(
                         IS[k][2] == self.transition[1])
                 self._diagonal_hamiltonian = self._diagonal_hamiltonian
-                self._hamiltonian = csr_matrix(
+                self._hamiltonian = sparse.csr_matrix(
                     (self._diagonal_hamiltonian.T[0], (np.arange(len(self._diagonal_hamiltonian)),
                                                        np.arange(len(self._diagonal_hamiltonian)))))
 
@@ -97,12 +97,24 @@ class HamiltonianDriver(object):
                     rows[num_terms:2 * num_terms] = columns[:num_terms]
                     entries[num_terms:2 * num_terms] = -1 * entries[:num_terms]
                 # Now, construct the Hamiltonian
-                self._hamiltonian = csr_matrix((entries, (rows, columns)), shape=(num_IS, num_IS))
-        # TODO: define self.hamiltonian for non-IS_subspace
+                self._hamiltonian = sparse.csr_matrix((entries, (rows, columns)), shape=(num_IS, num_IS))
+            self._left_acting_hamiltonian = sparse.kron(sparse.identity(num_IS), self._hamiltonian)
+            self._right_acting_hamiltonian = sparse.kron(self._hamiltonian.T, sparse.identity(num_IS))
+            # TODO: define self.hamiltonian for non-IS_subspace
 
     @property
     def hamiltonian(self):
         return self.energies[0] * self._hamiltonian
+
+    @property
+    def evolution_operator(self, vector_space='hilbert'):
+        if vector_space != 'hilbert' and vector_space != 'liouville':
+            raise Exception('Attribute vector_space must be hilbert or liouville')
+        if vector_space == 'liouville':
+            return -1j * self.energies[0] * self._left_acting_hamiltonian + 1j * self.energies[0] * \
+                   self._right_acting_hamiltonian
+        else:
+            return -1j * self.hamiltonian
 
     def left_multiply(self, state: State):
         if not self.IS_subspace:
@@ -216,7 +228,8 @@ class HamiltonianDriver(object):
                     temp = temp + out
             return State(self.energies[0] * temp, is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code)
         else:
-            return State(state * self.hamiltonian.T, is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code)
+            return State(state * self.hamiltonian.T, is_ket=state.is_ket, IS_subspace=state.IS_subspace,
+                         code=state.code)
 
     def evolve(self, state: State, time):
         r"""
@@ -296,24 +309,32 @@ class HamiltonianMaxCut(object):
             c = c - 1 / 2 * G.graph[a][b]['weight'] * (tools.tensor_product(
                 [my_eye(a), z, my_eye(b - a - 1), z, my_eye(self.N - b - 1)]) - my_eye(self.N))
         if self._is_diagonal:
-            self._diagonal_hamiltonian_terms = c
+            self._diagonal_hamiltonian = c
             self._optimum = np.max(c).real
-            c = csr_matrix((c.flatten(), (np.arange(self.code.d ** (self.code.n * self.N)),
-                                          np.arange(self.code.d ** (self.code.n * self.N)))),
-                           shape=(self.code.d ** (self.code.n * self.N),
-                                  self.code.d ** (self.code.n * self.N)))
+            c = sparse.csr_matrix((c.flatten(), (np.arange(self.code.d ** (self.code.n * self.N)),
+                                                 np.arange(self.code.d ** (self.code.n * self.N)))),
+                                  shape=(self.code.d ** (self.code.n * self.N),
+                                         self.code.d ** (self.code.n * self.N)))
         else:
             # c is already the right shape, just convert it to a csr matrix
-            c = csr_matrix(c)
+            c = sparse.csr_matrix(c)
         self._hamiltonian = c
+        self._left_acting_hamiltonian = sparse.kron(sparse.identity(self._hamiltonian.shape[0]), self._hamiltonian)
+        self._right_acting_hamiltonian = sparse.kron(self._hamiltonian.T, sparse.identity(self._hamiltonian.shape[0]))
 
     @property
     def hamiltonian(self):
         return self.energies[0] * self._hamiltonian
 
     @property
-    def _diagonal_hamiltonian(self):
-        return self.energies[0] * self._diagonal_hamiltonian_terms
+    def evolution_operator(self, vector_space='hilbert'):
+        if vector_space != 'hilbert' and vector_space != 'liouville':
+            raise Exception('Attribute vector_space must be hilbert or liouville')
+        if vector_space == 'liouville':
+            return -1j * self.energies[0] * self._left_acting_hamiltonian + 1j * self.energies[0] * \
+                   self._right_acting_hamiltonian
+        else:
+            return -1j * self.hamiltonian
 
     @property
     def optimum(self):
@@ -466,12 +487,12 @@ class HamiltonianMIS(object):
                 self._optimum_node_terms = self._hamiltonian_node_terms
                 self._diagonal_hamiltonian_edge_terms = self._hamiltonian_edge_terms.copy()
                 self._diagonal_hamiltonian_node_terms = self._hamiltonian_node_terms.copy()
-                self._hamiltonian_node_terms = csr_matrix(
+                self._hamiltonian_node_terms = sparse.csr_matrix(
                     (self._hamiltonian_node_terms.flatten(), (np.arange(self.code.d ** (self.code.n * self.N)),
                                                               np.arange(self.code.d ** (self.code.n * self.N)))),
                     shape=(self.code.d ** (self.code.n * self.N),
                            self.code.d ** (self.code.n * self.N)))
-                self._hamiltonian_edge_terms = csr_matrix(
+                self._hamiltonian_edge_terms = sparse.csr_matrix(
                     (self._hamiltonian_edge_terms.flatten(), (np.arange(self.code.d ** (self.code.n * self.N)),
                                                               np.arange(self.code.d ** (self.code.n * self.N)))),
                     shape=(self.code.d ** (self.code.n * self.N),
@@ -480,11 +501,14 @@ class HamiltonianMIS(object):
             else:
                 self._diagonal_hamiltonian_edge_terms = self._hamiltonian_edge_terms.copy()
                 self._diagonal_hamiltonian_node_terms = self._hamiltonian_node_terms.copy()
-                self._hamiltonian_edge_terms = csr_matrix(self._hamiltonian_edge_terms)
-                self._hamiltonian_node_terms = csr_matrix(self._hamiltonian_node_terms)
+                self._hamiltonian_edge_terms = sparse.csr_matrix(self._hamiltonian_edge_terms)
+                self._hamiltonian_node_terms = sparse.csr_matrix(self._hamiltonian_node_terms)
+            self._left_acting_hamiltonian_edge_terms = sparse.kron(sparse.identity(
+                self._hamiltonian_node_terms.shape[0]), self._hamiltonian_edge_terms)
+            self._right_acting_hamiltonian_edge_terms = sparse.kron(
+                self._hamiltonian_edge_terms.T, sparse.identity(self._hamiltonian_edge_terms.shape[0]))
 
         else:
-
             self._is_diagonal = True
             if not (self.code == qubit or self.code == rydberg):
                 raise NotImplementedError("IS subspace only implemented for qubit and Rydberg codes.")
@@ -508,8 +532,13 @@ class HamiltonianMIS(object):
             self._diagonal_hamiltonian_node_terms = C
             C = C.flatten()
 
-            self._hamiltonian_node_terms = csr_matrix((
+            self._hamiltonian_node_terms = sparse.csr_matrix((
                 C, (np.arange(len(C)), np.arange(len(C)))), shape=(len(C), len(C)))
+
+        self._left_acting_hamiltonian_node_terms = sparse.kron(sparse.identity(
+            self._hamiltonian_node_terms.shape[0]), self._hamiltonian_node_terms)
+        self._right_acting_hamiltonian_node_terms = sparse.kron(
+            self._hamiltonian_node_terms.T, sparse.identity(self._hamiltonian_node_terms.shape[0]))
 
     @property
     def hamiltonian(self):
@@ -517,6 +546,33 @@ class HamiltonianMIS(object):
             return self.energies[0] * self._hamiltonian_node_terms - self.energies[1] * self._hamiltonian_edge_terms
         else:
             return self.energies[0] * self._hamiltonian_node_terms
+
+    @property
+    def evolution_operator(self, vector_space='hilbert'):
+        if vector_space != 'hilbert' and vector_space != 'liouville':
+            raise Exception('Attribute vector_space must be hilbert or liouville')
+        if vector_space == 'liouville':
+            return -1j * (self.energies[0] * self._left_acting_hamiltonian_node_terms - self.energies[1] *
+                          self._left_acting_hamiltonian_edge_terms) + 1j * \
+                   (self.energies[0] * self._right_acting_hamiltonian_node_terms - self.energies[1] *
+                    self._right_acting_hamiltonian_edge_terms)
+        else:
+            return -1j * self.hamiltonian
+
+    def left_acting_hamiltonian(self):
+        if not self.IS_subspace:
+            return self.energies[0] * self._left_acting_hamiltonian_node_terms - self.energies[1] * \
+                   self._left_acting_hamiltonian_edge_terms
+        else:
+            return self.energies[0] * self._left_acting_hamiltonian_node_terms
+
+    @property
+    def right_acting_hamiltonian(self):
+        if not self.IS_subspace:
+            return self.energies[0] * self._right_acting_hamiltonian_node_terms - self.energies[1] * \
+                   self._right_acting_hamiltonian_edge_terms
+        else:
+            return self.energies[0] * self._right_acting_hamiltonian_node_terms
 
     @property
     def _diagonal_hamiltonian(self):
@@ -766,7 +822,7 @@ class HamiltonianHeisenberg(object):
                                                     tools.identity(self.code.n * (j - i - 1), d=self.code.d),
                                                     self.code.U,
                                                     tools.identity(self.code.n * (self.N - j - 1), d=self.code.d)])
-            hamiltonian = csr_matrix(hamiltonian)
+            hamiltonian = sparse.csr_matrix(hamiltonian)
             self.hamiltonian = hamiltonian
 
         if not state.is_ket:
@@ -819,7 +875,7 @@ class HamiltonianEnergyShift(object):
             self._diagonal_hamiltonian = np.zeros((num_IS, 1), dtype=np.complex128)
             for k in IS:
                 self._diagonal_hamiltonian[k, 0] = np.sum(IS[k][2] == self.index)
-            self._hamiltonian = csr_matrix(
+            self._hamiltonian = sparse.csr_matrix(
                 (self._diagonal_hamiltonian.T[0], (np.arange(len(self._diagonal_hamiltonian)),
                                                    np.arange(len(self._diagonal_hamiltonian)))))
 

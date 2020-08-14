@@ -21,6 +21,8 @@ def lattice(n=2):
                 graph.add_edge((j + 1) * i, (j + 2) * (i % n), weight=1)
 
 
+
+
 def defect_ring(n=2, uniform=True):
     # Assert n is even and greater than 2
     assert n % 4 == 0 and n > 2
@@ -210,7 +212,7 @@ def mis_qaoa(n, method='minimize', show=True, analytic_gradient=True):
         plt.show()
 
 
-mis_qaoa(8, show=True, method='basinhopping', analytic_gradient=False)
+#mis_qaoa(8, show=True, method='basinhopping', analytic_gradient=False)
 mis_qaoa(12, show=False, method='basinhopping', analytic_gradient=False)
 
-mis_qaoa(16, show=False, method='basinhopping', analytic_gradient=False)
+#mis_qaoa(16, show=False, method='basinhopping', analytic_gradient=False)

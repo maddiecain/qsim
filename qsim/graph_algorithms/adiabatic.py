@@ -186,7 +186,7 @@ class SimulateAdiabatic(object):
             return cost_function, info
 
     def ratio_vs_total_time(self, time, schedule, num=None, initial_state=None, plot=False, verbose=False,
-                            method='RK45', iter=None, errorbar=True):
+                            method='RK45', iter=None, errorbar=False):
         performance = []
         stdev = []
         time = np.asarray(time)

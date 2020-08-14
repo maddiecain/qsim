@@ -9,7 +9,7 @@ class State(np.ndarray):
         # TODO: add code manipulation tools as class attributes
         # Input array is an already formed ndarray instance
         # We first cast to be our class type
-        arr = np.asarray(state, dtype=np.complex128).view(cls)
+        arr = state.view(cls).astype(np.complex128, copy=False)
         # add the new attribute to the created instance
         # Assume is_ket is a static attribute
         if is_ket is None:

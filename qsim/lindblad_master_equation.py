@@ -118,7 +118,6 @@ class LindbladMasterEquation(object):
             state = State(state, is_ket=is_ket, code=code, IS_subspace=IS_subspace)
             return np.asarray(schrodinger_equation.evolution_generator(state)).flatten()
 
-        k = 0
         if times is not None:
             assert len(times) > 1
             if full_output:
@@ -134,9 +133,6 @@ class LindbladMasterEquation(object):
                 for (j, time) in zip(range(times.shape[0]), times):
                     # Update energies
                     schedule(time)
-                    k += 1
-                    if k % 100 == 0:
-                        print(time)
                     for i in range(len(self.jump_operators)):
                         if i == 0:
                             jumped_states, jump_probabilities = self.jump_operators[i].jump_rate(out, list(
@@ -232,6 +228,7 @@ class LindbladMasterEquation(object):
                     outputs = np.concatenate([outputs, out])
                 j += 1
         return outputs, {'t': times}
+
 
     def eig(self, state: State, k=6, which='SM', use_initial_guess=False, plot=False):
         """Returns a list of the eigenvalues and the corresponding valid density matrix.
