@@ -88,7 +88,7 @@ if __name__ == "__main__":
     i, j = 2, 2
     graph = node_defect_torus(i, j)
     simulation = adiabatic_simulation(graph)
-    res = simulation.performance_vs_total_time(np.arange(17, 30, 1), metric='optimum_overlap',
+    res = simulation.performance_vs_total_time(np.arange(5, 10, 1), metric='optimum_overlap',
                                                schedule=lambda t, tf: experiment_rydberg_MIS_schedule(t, tf, simulation,
                                                                                                       coefficients=[10,
                                                                                                                     10]),

@@ -72,6 +72,7 @@ class LindbladMasterEquation(object):
             norms = np.trace(z, axis1=-2, axis2=-1)
             if verbose:
                 print('Fraction of integrator results normalized:', len(np.argwhere(np.isclose(norms, np.ones(norms.shape)) == 1))/len(norms))
+                print('Final state norm - 1:', norms[-1]-1)
             for i in range(z.shape[0]):
                 z[i, ...] = tools.make_valid_state(z[i, ...], is_ket=False)
             return z, infodict
@@ -88,6 +89,8 @@ class LindbladMasterEquation(object):
             norms = np.trace(res.y, axis1=-2, axis2=-1)
             if verbose:
                 print('Fraction of integrator results normalized:', len(np.argwhere(np.isclose(norms, np.ones(norms.shape)) == 1))/len(norms))
+                print('Final state norm - 1:', norms[-1] - 1)
+
             for i in range(res.y.shape[0]):
                 res.y[i, ...] = tools.make_valid_state(res.y[i, ...], is_ket=False)
             return res.y, res
