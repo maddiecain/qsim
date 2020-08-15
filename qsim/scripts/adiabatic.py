@@ -374,10 +374,10 @@ graph = nx.from_numpy_array(np.array([[0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0,
 # graph, mis = line_graph(2, return_mis=True)
 
 
-# simulation.ratio_vs_time(25, schedule=lambda t, tf: simulation.rydberg_MIS_schedule(t, tf, coefficients=[np.sqrt(15)]*2), method='odeint', plot=True)
+# simulation.performance_vs_time(25, schedule=lambda t, tf: simulation.rydberg_MIS_schedule(t, tf, coefficients=[np.sqrt(15)]*2), method='odeint', plot=True)
 # t1 = time.time()
 # print(t1-t)
-# simulation.ratio_vs_total_time([10, 20, 50, 75, 100, 200, 300, 400], schedule=simulation.rydberg_MIS_schedule, plot=True)#simulation = adiabatic_simulation(graph, noise_model='monte_carlo')
+# simulation.performance_vs_total_time([10, 20, 50, 75, 100, 200, 300, 400], schedule=simulation.rydberg_MIS_schedule, plot=True)#simulation = adiabatic_simulation(graph, noise_model='monte_carlo')
 # [laser1, laser2, laser_detuning1, laser_detuning2, detuning]
 def rydberg_linear_MIS_schedule(t, tf):
     if simulation.noise_model is not None:
@@ -492,11 +492,11 @@ def eit_steady_state(graph, show_graph=False, gamma=1):
 
 #
 def time_performance():
-    #graph, mis = line_graph(5, return_mis=True)
-    graph, mis = degree_fails_graph(return_mis=True)
+    graph, mis = line_graph(3, return_mis=True)
+    #graph, mis = degree_fails_graph(return_mis=True)
     graph = Graph(graph)
-    ratios_d = [100]
-    ratios_r = [100]
+    ratios_d = [1]
+    ratios_r = [1]
     for d in ratios_d:
         for r in ratios_r:
             print(d, r)
@@ -514,18 +514,14 @@ def time_performance():
                 return True
 
             simulation_eit = eit_simulation(graph, noise_model='continuous', gamma=1, delta=d, Omega_g=r, Omega_r=r)
-            simulation_eit.ratio_vs_total_time([50],
+            simulation_eit.performance_vs_total_time([5, 10, 15, 20], metric='cost_function',
                                          schedule=lambda t, tf: rydberg_EIT_schedule(t, tf,
                                                                                      coefficients=[
                                                                                          r, r]),
                                          plot=True, verbose=True, method='RK23')
 
 
-time_performance()
-
-graph, mis = line_graph(1, return_mis=True)
-graph = Graph(graph)
-graph.mis_size = mis
+#time_performance()
 # eit_steady_state(graph)
 # delta_vs_T()
 # graph = nx.random_regular_graph(3, 8)
@@ -535,30 +531,27 @@ graph.mis_size = mis
 # graph.mis_size = mis
 
 # coefficients=[Omega_g, Omega_r, Delta] [Omega, Delta]
-simulation = adiabatic_simulation(graph, noise_model='continuous', delta=delta, approximate=False)
 # res, info = simulation.run(20, schedule=lambda t, tf: True, verbose=True, method='odeint', iter=10)
 # print(res)
-# res, info = simulation.ratio_vs_time(100, schedule=lambda t, tf:
+# res, info = simulation.performance_vs_time(100, schedule=lambda t, tf:
 # experiment_rydberg_MIS_schedule(t, tf, coefficients=[Omega_g, Omega_r, Delta]), verbose=True, method='RK45', plot=True)
 # experiment_rydberg_MIS_schedule(t, tf, coefficients=[1, 1, 1])
 # simulation.noise_model = None
-# simulation.ratio_vs_time(10, schedule=lambda t, tf: experiment_rydberg_MIS_schedule(t, tf, coefficients=[15 * np.pi, 5.5 * np.pi, 2 * np.pi * 1.5]),
+# simulation.performance_vs_time(10, schedule=lambda t, tf: experiment_rydberg_MIS_schedule(t, tf, coefficients=[15 * np.pi, 5.5 * np.pi, 2 * np.pi * 1.5]),
 #                         plot=True, method='odeint', verbose=True)
-# simulation.ratio_vs_total_time(np.arange(5, 90, 5), schedule=lambda t, tf: simulation.rydberg_MIS_schedule(t, tf,
+# simulation.performance_vs_total_time(np.arange(5, 90, 5), schedule=lambda t, tf: simulation.rydberg_MIS_schedule(t, tf,
 #                                                                                                           coefficients=[
 #                                                                                                               Omega,
 #                                                                                                               Delta]),
 #                               plot=True, method='odeint', verbose=True)
-graph, mis = line_graph(1, return_mis=True)
-graph = Graph(graph)
-simulation_eit = eit_simulation(graph, noise_model='continuous', gamma=1, delta=100, Omega_g=1, Omega_r=1)
+graph = line_graph(2)
+simulation_eit = eit_simulation(graph, noise_model='continuous', gamma=1, delta=0, Omega_g=1, Omega_r=1)
 
-print('here')
-performance, info = simulation_eit.ratio_vs_time(50,
+performance, info = simulation_eit.performance_vs_time(20, metric='optimum_overlap',
                                                  schedule=lambda t, tf: rydberg_EIT_schedule(t, tf,
                                                                                              coefficients=[
-                                                                                                 10, 10]),
-                                                 plot=True, verbose=True, method='RK45')
+                                                                                                 1, 1]),
+                                                 plot=True, verbose=True, method='RK23')
 
 
 def normalized_time_plot():
@@ -574,7 +567,7 @@ def normalized_time_plot():
             # simulation_eit.hamiltonian[1].energies = [omega]
             # dark = 1 / 2 * np.array([[1, 0, -1], [0, 0, 0], [-1, 0, 1]])
             print(g, o)
-            performance, info = simulation_eit.ratio_vs_time(100 / time_scale,
+            performance, info = simulation_eit.performance_vs_time(100 / time_scale,
                                                              schedule=lambda t, tf: rydberg_EIT_schedule(t, tf,
                                                                                                          coefficients=[
                                                                                                              o, o]),
@@ -607,7 +600,7 @@ def time_scales_plot():
                                                                                           coefficients=[omega, omega]))
             performance[j] = simulation_eit.cost_hamiltonian.cost_function(res[-1])  # tools.fidelity(dark, res[-1])
             j += 1
-        # performance = simulation_eit.ratio_vs_total_time(times,
+        # performance = simulation_eit.performance_vs_total_time(times,
         #                               schedule=lambda t, tf: rydberg_EIT_schedule(t, tf, coefficients=[om, om]),
         #                               plot=False, verbose=True, method='RK45')
         print(performance)
@@ -622,7 +615,7 @@ def time_scales_plot():
 
 
 # time_scales_plot()
-# simulation_eit.ratio_vs_total_time(list(np.arange(10, 150, 5)),
+# simulation_eit.performance_vs_total_time(list(np.arange(10, 150, 5)),
 #                                   schedule=lambda t, tf: rydberg_EIT_schedule(t, tf, coefficients=[3.8, 3.8]),
 #                                   plot=False, verbose=True, method='RK45')
 
@@ -632,7 +625,7 @@ def time_scales_plot():
     graph = Graph(graph)
     graph.mis_size = mis
     simulation = adiabatic_simulation(graph, noise_model='monte_carlo', delta=2 * np.pi * 100, approximate=True)
-    simulation.ratio_vs_time(10, schedule=lambda t, tf:
+    simulation.performance_vs_time(10, schedule=lambda t, tf:
     experiment_rydberg_MIS_schedule(t, tf, coefficients=[Omega, Delta]),
                                           plot=True, verbose=True, method='odeint', iter=10)
 """
@@ -659,7 +652,7 @@ simulation_eit = eit_simulation(graph, noise_model='continuous')
 
 
 # simulation_eit = eit_simulation(graph, noise_model='continuous')
-# simulation_eit.ratio_vs_total_time(list(np.arange(10, 500, 5)),
+# simulation_eit.performance_vs_total_time(list(np.arange(10, 500, 5)),
 #                                   schedule=lambda t, tf: rydberg_EIT_schedule(t, tf, coefficients=[.129, .129]),
 #                                   plot=True, verbose=True, method='odeint')
 # ARvstime_adiabatic_noise_IS_subspace(n=2, tf=10)

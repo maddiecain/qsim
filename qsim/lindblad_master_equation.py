@@ -71,7 +71,7 @@ class LindbladMasterEquation(object):
             infodict['t'] = times
             norms = np.trace(z, axis1=-2, axis2=-1)
             if verbose:
-                print('Integrator results normalized?', np.isclose(norms, np.ones(norms.shape)))
+                print('Fraction of integrator results normalized:', len(np.argwhere(np.isclose(norms, np.ones(norms.shape)) == 1))/len(norms))
             for i in range(z.shape[0]):
                 z[i, ...] = tools.make_valid_state(z[i, ...], is_ket=False)
             return z, infodict
@@ -87,15 +87,15 @@ class LindbladMasterEquation(object):
             res.y = np.reshape(res.y, (-1, state_shape[0], state_shape[1]))
             norms = np.trace(res.y, axis1=-2, axis2=-1)
             if verbose:
-                print('Integrator results normalized?', np.isclose(norms, np.ones(norms.shape)))
+                print('Fraction of integrator results normalized:', len(np.argwhere(np.isclose(norms, np.ones(norms.shape)) == 1))/len(norms))
             for i in range(res.y.shape[0]):
                 res.y[i, ...] = tools.make_valid_state(res.y[i, ...], is_ket=False)
             return res.y, res
 
     def run_stochastic_wavefunction_solver(self, s, t0, tf, num=50, schedule=lambda t: None, times=None,
-                                           full_output=True, method='RK45', verbose=False, iter=None):
-        if iter is None:
-            iter = 1
+                                           full_output=True, method='RK45', verbose=False, iterations=None):
+        if iterations is None:
+            iterations = 1
         # Compute probability that we have a jump
         # For the stochastic solver, we have to return a times dictionary
         assert s.is_ket
@@ -121,11 +121,11 @@ class LindbladMasterEquation(object):
         if times is not None:
             assert len(times) > 1
             if full_output:
-                outputs = np.zeros((iter, len(times), s.shape[0], s.shape[1]), dtype=np.complex128)
+                outputs = np.zeros((iterations, len(times), s.shape[0], s.shape[1]), dtype=np.complex128)
             else:
-                outputs = np.zeros((iter, s.shape[0], s.shape[1]), dtype=np.complex128)
+                outputs = np.zeros((iterations, s.shape[0], s.shape[1]), dtype=np.complex128)
             dt = times[1] - times[0]
-            for k in range(iter):
+            for k in range(iterations):
 
                 out = s.copy()
                 if verbose:

@@ -20,8 +20,8 @@ def int_to_nary(n, size=None, base=2, pad_with=0):
                 # Pad with padwith
                 nary_repr = np.concatenate([np.ones(size - len(nary_repr), dtype=int) * pad_with, nary_repr])
     else:
-            nary_repr = np.array(list(np.base_repr(n, base=base)), dtype=int)
-            nary_repr = np.concatenate([np.ones(size - len(nary_repr), dtype=int) * pad_with, nary_repr])
+        nary_repr = np.array(list(np.base_repr(n, base=base)), dtype=int)
+        nary_repr = np.concatenate([np.ones(size - len(nary_repr), dtype=int) * pad_with, nary_repr])
     return nary_repr
 
 
@@ -35,6 +35,7 @@ def nary_to_int(b, base=2):
     """
     b = np.asarray(b)
     return int(b.dot(base ** np.arange(b.size)[::-1]))
+
 
 def tensor_product(A):
     """

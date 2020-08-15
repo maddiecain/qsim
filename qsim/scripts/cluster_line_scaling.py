@@ -68,7 +68,6 @@ def eit_simulation(graph, noise_model=None, show_graph=False, gamma=1, delta: fl
 
 def run(n, t, gamma, omega):
     graph, mis = line_graph(n, return_mis=True)
-    graph = Graph(graph)
 
     def rydberg_EIT_schedule(t, tf, coefficients=None):
         if coefficients is None:
@@ -83,12 +82,20 @@ def run(n, t, gamma, omega):
         return True
 
     simulation_eit = eit_simulation(graph, noise_model='monte_carlo', gamma=gamma, delta=0)
-    res = simulation_eit.ratio_vs_total_time([t], schedule=lambda t, tf: rydberg_EIT_schedule(t, tf,
+    res = simulation_eit.performance_vs_total_time([t], schedule=lambda t, tf: rydberg_EIT_schedule(t, tf,
                                                                                               coefficients=[omega,
                                                                                                             omega]),
-                                             plot=False, verbose=False, method='odeint', iter=1)
+                                             plot=False, verbose=True, method='odeint', iterations=1)
     return res
 
+
+for i in range(20):
+    g = 10
+    o = 10
+    t = 25
+    number_of_nodes = 5
+    res = run(number_of_nodes, t, g, o)
+    print(t, g, o, res, flush=True)
 
 
 if __name__ == "__main__":

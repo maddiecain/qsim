@@ -297,8 +297,8 @@ def line_graph(n, return_mis=False):
         for i in range(n - 1):
             g.add_edge(i, i + 1, weight=-1)
     if return_mis:
-        return g, np.ceil(n/2)
-    return g
+        return Graph(g), np.ceil(n / 2)
+    return Graph(g)
 
 
 def ring_graph(n, node_weight=1, edge_weight=1, return_mis=False):
@@ -311,17 +311,17 @@ def ring_graph(n, node_weight=1, edge_weight=1, return_mis=False):
             g.add_edge(i, i + 1, weight=edge_weight)
         g.add_edge(0, n - 1, weight=edge_weight)
     if return_mis:
-        return g, np.floor(n/2)
-    return g
+        return Graph(g), np.floor(n / 2)
+    return Graph(g)
 
 
-def degree_fails_graph(return_mis = False):
-    graph = nx.Graph()
-    graph.add_weighted_edges_from(
+def degree_fails_graph(return_mis=False):
+    g = nx.Graph()
+    g.add_weighted_edges_from(
         [(0, 1, 1), (0, 4, 1), (0, 5, 1), (4, 5, 1), (1, 4, 1), (1, 3, 1), (2, 4, 1)])
     if return_mis:
-        return graph, 3
-    return graph
+        return Graph(g), 3
+    return Graph(g)
 
 
 def IS_projector(graph, code):

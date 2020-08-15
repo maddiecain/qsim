@@ -3,6 +3,7 @@ from qsim.tools.tools import X, Y, Z, tensor_product, outer_product, is_sorted
 from scipy.linalg import expm
 from qsim.codes.quantum_state import State
 from typing import Union
+from qsim.tools.tools import int_to_nary
 
 __all__ = ['multiply', 'right_multiply', 'left_multiply', 'rotation']
 logical_code = False
@@ -18,7 +19,7 @@ Q = outer_product(logical_basis[0], logical_basis[0])
 P = outer_product(logical_basis[1], logical_basis[1])
 
 code_space_projector = outer_product(logical_basis[0], logical_basis[0]) + outer_product(logical_basis[1],
-                                                                                                     logical_basis[1])
+                                                                                         logical_basis[1])
 
 
 def rotation(state: State, apply_to: Union[int, list], angle: float, op, is_involutary=False, is_idempotent=False):
@@ -318,3 +319,8 @@ def multiply(state: State, apply_to: Union[int, list], op):
             return right_multiply(left_multiply(state, apply_to, op), apply_to, op)
     else:
         return left_multiply(state, apply_to, op)
+
+
+def index_to_state(i, size=None):
+    """Given an index i, return the ket associated with that index"""
+    return int_to_nary(i, base=d, size=size, pad_with=0)

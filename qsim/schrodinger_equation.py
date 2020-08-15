@@ -22,13 +22,11 @@ class SchrodingerEquation(object):
         return res
 
     def evolve(self, state: State, time):
+        assert state.is_ket
         sparse_hamiltonian = csr_matrix((state.dimension, state.dimension))
         for i in range(len(self.hamiltonians)):
             sparse_hamiltonian = sparse_hamiltonian + self.hamiltonians[i].hamiltonian
-        if state.is_ket:
-            return expm_multiply(-1j * time * sparse_hamiltonian, state)
-        else:
-            return
+        return expm_multiply(-1j * time * sparse_hamiltonian, state)
 
     def run_ode_solver(self, state: State, t0, tf, num=50, schedule=lambda t: None, times=None, method='RK45',
                        full_output=True, verbose=False):
@@ -58,7 +56,7 @@ class SchrodingerEquation(object):
             infodict['t'] = times
             norms = np.linalg.norm(z, axis=(-2, -1))
             if verbose:
-                print('Integrator results normalized?', np.isclose(norms, 1))
+                print('Fraction of integrator results normalized:', len(np.argwhere(np.isclose(norms, np.ones(norms.shape)) == 1))/len(norms))
             norms = norms[:, np.newaxis, np.newaxis]
             z = z / norms
             return z, infodict
@@ -74,7 +72,7 @@ class SchrodingerEquation(object):
             res.y = np.reshape(res.y, (-1, state_shape[0], state_shape[1]))
             norms = np.linalg.norm(res.y, axis=(-2, -1))
             if verbose:
-                print('Integrator results normalized?', np.isclose(norms, 1))
+                print('Fraction of integrator results normalized:', len(np.argwhere(np.isclose(norms, np.ones(norms.shape)) == 1))/len(norms))
             norms = norms[:,np.newaxis, np.newaxis]
             res.y = res.y/norms
             return res.y, res

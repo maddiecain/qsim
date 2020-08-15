@@ -525,20 +525,22 @@ class HamiltonianMIS(object):
             # Don't generate anything that depends on the entire Hilbert space as to save space
 
             # These are your independent sets of the original graphs, ordered by node and size
-            C = np.asarray([[self.graph.independent_sets[i][1] for i in self.graph.independent_sets]],
-                           dtype=np.complex128).T
-
             if self.code == qubit:
+                node_weights = np.asarray([self.graph.graph.nodes[i]['weight'] for i in range(self.graph.n)])
+                C = np.asarray([[np.sum((1-self.graph.independent_sets[i][2])*node_weights) for i in self.graph.independent_sets]],
+                               dtype=np.complex128).T
                 self._hamiltonian_node_terms = C
+
             # Otherwise, we need to include the possibility that we are in one of many ground space states
             elif self.code == rydberg:
                 # Count the number of elements in the ground space and map to their representation in ternary
                 # Determine how large to make the array
                 independent_sets, nary_to_index, num_IS = self.graph.independent_sets_code(self.code)
                 # Generate Hamiltonian from independent sets
+                node_weights = np.asarray([self.graph.graph.nodes[i]['weight'] for i in range(self.graph.n)])
                 C = np.zeros((num_IS, 1), dtype=np.complex128)
                 for k in independent_sets:
-                    C[k, 0] = independent_sets[k][1]
+                    C[k, 0] = np.sum((independent_sets[k][2] == 0)*node_weights)
             self._diagonal_hamiltonian_node_terms = C
             C = C.flatten()
 
@@ -596,10 +598,9 @@ class HamiltonianMIS(object):
     @property
     def optimum(self):
         # This needs to be recomputed because the optimum depends on the energies
-        # TODO: figure out how to compute if not _is_diagonal
+        # TODO: figure out what to compute if not _is_diagonal
         if self._is_diagonal:
-            return np.max(
-                self.energies[0] * self._optimum_node_terms - self.energies[1] * self._optimum_edge_terms).real
+            return np.max(self._diagonal_hamiltonian).real
         else:
             raise NotImplementedError('Optimum unknown for non-diagonal Hamiltonians')
 
@@ -647,25 +648,54 @@ class HamiltonianMIS(object):
                 return State(state @ self.hamiltonian.T, is_ket=state.is_ket,
                              IS_subspace=state.IS_subspace, code=state.code)
 
-    def cost_function(self, state: State, hamiltonian=None):
-        # Need to project into the IS subspace
+    def cost_function(self, state: State):
         # Returns <s|C|s>
-        if hamiltonian is None:
-            if self._is_diagonal:
-                hamiltonian = self._diagonal_hamiltonian
-            else:
-                hamiltonian = self.hamiltonian
         if state.is_ket:
             if self._is_diagonal:
-                return np.real(np.vdot(state, hamiltonian * state))
+                return np.real(np.vdot(state, self._diagonal_hamiltonian * state))
             else:
-                return np.real(np.vdot(state, hamiltonian @ state))
+                return np.real(np.vdot(state, self.hamiltonian @ state))
         else:
             # Density matrix
             if self._is_diagonal:
-                return np.real(np.squeeze(tools.trace(hamiltonian * state)))
+                return np.real(np.squeeze(tools.trace(self._diagonal_hamiltonian * state)))
             else:
-                return np.real(np.squeeze(tools.trace(hamiltonian @ state)))
+                return np.real(np.squeeze(tools.trace(self.hamiltonian @ state)))
+
+    def optimum_overlap(self, state: State):
+        # Returns \sum_i <s|opt_i><opt_i|s>
+        if self._is_diagonal:
+            optimum_indices = np.argwhere(self._diagonal_hamiltonian == self.optimum).T[0]
+            # Construct an operator that is zero everywhere except at the optimum
+            optimum = np.zeros(self._diagonal_hamiltonian.shape)
+            optimum[optimum_indices] = 1
+        else:
+            raise NotImplementedError('Optimum overlap not implemented for non-diagonal Hamiltonians')
+        if state.is_ket:
+            if self._is_diagonal:
+                return np.real(np.vdot(state, optimum * state))
+            else:
+                return np.real(np.vdot(state, self.hamiltonian @ state))
+        else:
+            # Density matrix
+            if self._is_diagonal:
+                return np.real(np.squeeze(tools.trace(optimum * state)))
+            else:
+                return np.real(np.squeeze(tools.trace(self.hamiltonian @ state)))
+
+    def approximation_ratio(self, state: State):
+        # Returns <s|C|s>
+        if state.is_ket:
+            if self._is_diagonal:
+                return np.real(np.vdot(state, self._diagonal_hamiltonian * state)) / self.optimum
+            else:
+                return np.real(np.vdot(state, self.hamiltonian @ state)) / self.optimum
+        else:
+            # Density matrix
+            if self._is_diagonal:
+                return np.real(np.squeeze(tools.trace(self._diagonal_hamiltonian * state))) / self.optimum
+            else:
+                return np.real(np.squeeze(tools.trace(self.hamiltonian @ state))) / self.optimum
 
 
 class HamiltonianGlobalPauli(object):

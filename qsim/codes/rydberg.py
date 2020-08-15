@@ -3,6 +3,7 @@ from qsim import tools
 from scipy.linalg import expm
 from typing import Union
 from qsim.codes.quantum_state import State
+from qsim.tools.tools import int_to_nary
 
 __all__ = ['multiply', 'right_multiply', 'left_multiply', 'rotation']
 
@@ -320,3 +321,8 @@ def multiply(state: State, apply_to: Union[int, list], op):
             return right_multiply(left_multiply(state, apply_to, op), apply_to, op)
     else:
         return left_multiply(state, apply_to, op)
+
+
+def index_to_state(i, size=None):
+    """Given an index i, return the ket associated with that index"""
+    return int_to_nary(i, base=d, size=size, pad_with=0)

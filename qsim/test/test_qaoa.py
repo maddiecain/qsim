@@ -14,8 +14,8 @@ from qsim.codes import two_qubit_code, jordan_farhi_shor
 # Generate sample graph
 N = 6
 
-g = Graph(sample_graph())
-ring = Graph(ring_graph(N))
+g = sample_graph()
+ring = ring_graph(N)
 
 hc = hamiltonian.HamiltonianMaxCut(g)
 hc_ring = hamiltonian.HamiltonianMaxCut(ring)
