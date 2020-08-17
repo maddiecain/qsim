@@ -22,7 +22,25 @@ class LindbladJumpOperator(object):
         # Add new axes so that shapes are broadcastable
         return np.sqrt(self.rates[:, np.newaxis, np.newaxis]) * self._jump_operators
 
-    def liouvillian(self, state: State, apply_to):
+    def evolution_operator(self):
+        if self._evolution_operator is None and self.IS_subspace:
+            num_IS = self._jump_operators.shape[1]
+            self._evolution_operator = sparse.csr_matrix((num_IS ** 2, num_IS ** 2))
+            for jump_operator in self._jump_operators:
+                # Jump operator is real, so we don't need to conjugate
+                self._evolution_operator = self._evolution_operator + sparse.kron(jump_operator,
+                                                                                  jump_operator) - 1 / 2 * \
+                                           sparse.kron(jump_operator.T @ jump_operator, sparse.identity(num_IS)) - \
+                                           1 / 2 * sparse.kron(sparse.identity(num_IS), jump_operator.T @ jump_operator)
+
+        elif self._evolution_operator is None:
+            # TODO: generate the evolution operator for non-IS subspace states
+            raise NotImplementedError
+        return self.rates[0] * self._evolution_operator
+
+    def liouvillian(self, state: State, apply_to=None):
+        if apply_to is None:
+            apply_to = list(range(state.number_physical_qudits))
         out = np.zeros(state.shape)
         if self.IS_subspace:
             for i in range(len(self.jump_operators)):
@@ -42,8 +60,10 @@ class LindbladJumpOperator(object):
                         self.jump_operators[j])
         return State(out, is_ket=state.is_ket, code=state.code, IS_subspace=state.IS_subspace)
 
-    def jump_rate(self, state: State, apply_to):
+    def jump_rate(self, state: State, apply_to=None):
         assert state.is_ket
+        if apply_to is None:
+            apply_to = list(range(state.number_physical_qudits))
         if isinstance(apply_to, int):
             apply_to = [apply_to]
         jump_rates = []
@@ -68,6 +88,8 @@ class LindbladJumpOperator(object):
     def left_multiply(self, state: State, apply_to=None):
         # Evolve under the non-Hermitian Hamiltonian
         assert state.is_ket
+        if apply_to is None:
+            apply_to = list(range(state.number_physical_qudits))
         if isinstance(apply_to, int):
             apply_to = [apply_to]
         out = np.zeros(state.shape)
@@ -84,8 +106,8 @@ class LindbladJumpOperator(object):
                       self.jump_operators[j] @ state
         return State(out / 2, is_ket=state.is_ket, code=state.code, IS_subspace=state.IS_subspace)
 
-    def global_liouvillian(self, state: State):
-        return self.liouvillian(state, list(range(state.number_physical_qudits)))
+    def evolve(self, state: State):
+        pass
 
 
 class SpontaneousEmission(LindbladJumpOperator):
@@ -162,7 +184,9 @@ class SpontaneousEmission(LindbladJumpOperator):
 
         return self.rates[0] * self._evolution_operator
 
-    def liouvillian(self, state, apply_to):
+    def liouvillian(self, state: State, apply_to=None):
+        if apply_to is None:
+            apply_to = list(range(state.number_physical_qudits))
         out = np.zeros(state.shape)
         if isinstance(apply_to, int):
             apply_to = [apply_to]
@@ -185,11 +209,10 @@ class SpontaneousEmission(LindbladJumpOperator):
                                                  self.jump_operators[0].T @ self.jump_operators[0])
         return State(out, is_ket=state.is_ket, code=state.code, IS_subspace=state.IS_subspace)
 
-    def global_liouvillian(self, state: State):
-        return self.liouvillian(state, list(range(state.number_physical_qudits)))
-
-    def jump_rate(self, state: State, apply_to):
+    def jump_rate(self, state: State, apply_to=None):
         assert state.is_ket
+        if apply_to is None:
+            apply_to = list(range(state.number_physical_qudits))
         if isinstance(apply_to, int):
             apply_to = [apply_to]
         jump_rates = []
@@ -213,6 +236,8 @@ class SpontaneousEmission(LindbladJumpOperator):
     def left_multiply(self, state: State, apply_to=None):
         # Left multiply by the non-Hermitian Hamiltonian
         assert state.is_ket
+        if apply_to is None:
+            apply_to = list(range(state.number_physical_qudits))
         if isinstance(apply_to, int):
             apply_to = [apply_to]
         out = np.zeros(state.shape)

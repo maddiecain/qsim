@@ -30,12 +30,18 @@ class SimulateAdiabatic(object):
             cost_hamiltonian = HamiltonianMIS(graph, code=self.code)
         self.cost_hamiltonian = cost_hamiltonian
 
-    def _num_from_time(self, time: float):
+    def _num_from_time(self, time: float, method='RK45'):
         # Scale factor be 10 when time is one, should be one when time >= 10
-        if self.noise_model == 'continuous' or self.noise_model is None:
-            return time * int(max(30 / time, 100))
-        elif self.noise_model == 'monte_carlo':
-            return time * int(max(30 / time, 50))
+        if method == 'trotterize':
+            if self.noise_model == 'continuous' or self.noise_model is None:
+                return time * 100
+            elif self.noise_model == 'monte_carlo':
+                return time * int(max(30 / time, 50))
+        else:
+            if self.noise_model == 'continuous' or self.noise_model is None:
+                return time * 10
+            elif self.noise_model == 'monte_carlo':
+                return time * 50
 
     def rydberg_MIS_schedule(self, t, tf, coefficients=None, verbose=False):
         if coefficients is None:
@@ -69,8 +75,11 @@ class SimulateAdiabatic(object):
             elif self.IS_subspace and isinstance(ham, HamiltonianMIS):
                 ham.energies = [coefficients[1] * t / tf]
                 num_updates += 1
-            elif isinstance(ham, HamiltonianMIS) or isinstance(ham, HamiltonianMaxCut):
-                ham.energies[0] = coefficients[1] * t / tf
+            elif isinstance(ham, HamiltonianMIS):
+                ham.energies = [coefficients[1] * t / tf, coefficients[1] * t / tf]
+                num_updates += 1
+            elif isinstance(ham, HamiltonianMaxCut):
+                ham.energies = [coefficients[1] * t / tf]
                 num_updates += 1
         if num_updates < len(self.hamiltonian) and verbose:
             print('Warning: not all Hamiltonian energies have been updated')
@@ -78,8 +87,8 @@ class SimulateAdiabatic(object):
 
     def run(self, time, schedule, num=None, initial_state=None, full_output=True, method='RK45', verbose=False,
             iterations=None):
-        if method == 'odeint' and num is None:
-            num = self._num_from_time(time)
+        if method == 'odeint' or method == 'trotterize' and num is None:
+            num = self._num_from_time(time, method=method)
 
         if initial_state is None:
             # Begin with all qudits in the ground s
@@ -93,6 +102,8 @@ class SimulateAdiabatic(object):
 
         if self.noise_model == 'continuous':
             # Initialize master equation
+            if method == 'trotterize':
+                raise NotImplementedError
             master_equation = LindbladMasterEquation(hamiltonians=self.hamiltonian, jump_operators=self.noise)
             results, info = master_equation.run_ode_solver(initial_state, 0, time, num=num,
                                                            schedule=lambda t: schedule(t, time), method=method,
@@ -101,10 +112,18 @@ class SimulateAdiabatic(object):
             # Noise model is None
             # Initialize Schrodinger equation
             schrodinger_equation = SchrodingerEquation(hamiltonians=self.hamiltonian)
-            results, info = schrodinger_equation.run_ode_solver(initial_state, 0, time, num=num, verbose=verbose,
-                                                                schedule=lambda t: schedule(t, time), method=method)
+            if method == 'trotterize':
+                results, info = schrodinger_equation.run_trotterized_solver(initial_state, 0, time, num=num,
+                                                                            verbose=verbose, full_output=full_output,
+                                                                            schedule=lambda t: schedule(t, time))
+            else:
+                results, info = schrodinger_equation.run_ode_solver(initial_state, 0, time, num=num, verbose=verbose,
+                                                                    schedule=lambda t: schedule(t, time), method=method,
+                                                                    full_output=full_output)
 
         elif self.noise_model == 'monte_carlo':
+            if method == 'trotterize':
+                raise NotImplementedError
             # Initialize master equation
             master_equation = LindbladMasterEquation(hamiltonians=self.hamiltonian, jump_operators=self.noise)
             results, info = master_equation.run_stochastic_wavefunction_solver(initial_state, 0, time, num=num,

@@ -554,6 +554,7 @@ performance, info = simulation_eit.performance_vs_time(20, metric='optimum_overl
                                                  plot=True, verbose=True, method='RK23')
 
 
+
 def normalized_time_plot():
     gamma = 1
     gammas = np.arange(.01, .3, .01)

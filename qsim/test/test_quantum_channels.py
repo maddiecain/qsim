@@ -28,7 +28,7 @@ class TestDissipation(unittest.TestCase):
         psi2 = op0.channel(psi2, [0, 1])
         psi3 = op0.channel(psi3, 0)
         psi3 = op0.channel(psi3, 1)
-        psi4 = op0.global_channel(psi4)
+        psi4 = op0.channel(psi4)
         self.assertTrue(np.allclose(psi2, psi3))
         self.assertTrue(np.allclose(psi2, psi4))
 

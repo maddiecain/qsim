@@ -26,7 +26,7 @@ class QuantumChannel(object):
             np.sum(np.transpose(np.array(self.povm).conj(), [0, 2, 1]) @ np.array(self.povm),
                    axis=0), np.identity(self.povm[0].shape[0]))
 
-    def channel(self, state: State, apply_to: Union[int, list]):
+    def channel(self, state: State, apply_to: Union[int, list] = None):
         """
         Applies ``povm`` homogeneously to the qudits identified in apply_to.
 
@@ -38,6 +38,8 @@ class QuantumChannel(object):
         # If the input s is a ket, convert it to a density matrix
         if state.is_ket:
             state = State(tools.outer_product(state, state))
+        if apply_to is None:
+            apply_to = list(range(state.number_physical_qudits))
         # Empty s to store the output
         out = State(np.zeros_like(state), is_ket=state.is_ket, code=state.code, IS_subspace=state.IS_subspace)
 
@@ -64,18 +66,6 @@ class QuantumChannel(object):
                 out = out + code.multiply(recursive_solution, [last_element], self.povm[j])
             return out
 
-    def global_channel(self, state: State):
-        """
-        Applies ``povm`` homogeneously to each qubit.
-
-        :param apply_to:
-        :param state: State to operate on.
-        :type state: np.ndarray
-        :return:
-        """
-        # Apply to each physical qudit
-        return self.channel(state, list(range(state.number_physical_qudits)))
-
 
 class DepolarizingChannel(QuantumChannel):
     def __init__(self, p: float = 1 / 3, code=qubit):
@@ -85,7 +75,7 @@ class DepolarizingChannel(QuantumChannel):
         self.code = code
         self.p = p
 
-    def channel(self, state: State, apply_to: Union[int, list]):
+    def channel(self, state: State, apply_to: Union[int, list] = None):
         """ Perform depolarizing channel on the i-th qubit of an input density matrix
 
                     Input:
@@ -96,7 +86,8 @@ class DepolarizingChannel(QuantumChannel):
         # If the input s is a ket, convert it to a density matrix
         if state.is_ket:
             state = State(tools.outer_product(state, state))
-
+        if apply_to is None:
+            apply_to = list(range(state.number_physical_qudits))
         # Assume that apply_to is a list of integers
         if isinstance(apply_to, int):
             apply_to = [apply_to]
@@ -143,7 +134,7 @@ class PauliChannel(QuantumChannel):
         super().__init__(povm=povm)
         self.p = p
 
-    def channel(self, state: State, apply_to: Union[int, list]):
+    def channel(self, state: State, apply_to: Union[int, list] = None):
         """ Perform general Pauli channel on the i-th qubit of an input density matrix
 
         Input:
@@ -160,6 +151,8 @@ class PauliChannel(QuantumChannel):
         # If the input s is a ket, convert it to a density matrix
         if state.is_ket:
             state = State(tools.outer_product(state, state))
+        if apply_to is None:
+            apply_to = list(range(state.number_physical_qudits))
 
         # Assume that apply_to is a list of integers
         if isinstance(apply_to, int):

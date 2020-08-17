@@ -36,6 +36,7 @@ class SchrodingerEquation(object):
         is_ket = state.is_ket
         code = state.code
         IS_subspace = state.IS_subspace
+
         def f(t, s):
             global state
             if method == 'odeint':
@@ -50,17 +51,38 @@ class SchrodingerEquation(object):
         # tf is the total simulation time
         state_asarray = np.asarray(state)
         if method == 'odeint':
-            if times is None:
-                times = np.linspace(t0, tf, num=num)
-            z, infodict = odeintw(f, state_asarray, times, full_output=True)
-            infodict['t'] = times
-            norms = np.linalg.norm(z, axis=(-2, -1))
-            if verbose:
-                print('Fraction of integrator results normalized:', len(np.argwhere(np.isclose(norms, np.ones(norms.shape)) == 1))/len(norms))
-                print('Final state norm - 1:', norms[-1] - 1)
-            norms = norms[:, np.newaxis, np.newaxis]
-            z = z / norms
-            return z, infodict
+            if full_output:
+                if times is None:
+                    times = np.linspace(t0, tf, num=num)
+                z, infodict = odeintw(f, state_asarray, times, full_output=True)
+                infodict['t'] = times
+                norms = np.linalg.norm(z, axis=(-2, -1))
+                if verbose:
+                    print('Fraction of integrator results normalized:',
+                          len(np.argwhere(np.isclose(norms, np.ones(norms.shape)) == 1)) / len(norms))
+                    print('Final state norm - 1:', norms[-1] - 1)
+                norms = norms[:, np.newaxis, np.newaxis]
+                z = z / norms
+                return z, infodict
+            else:
+                if times is None:
+                    times = np.linspace(t0, tf, num=num)
+                norms = np.zeros(len(times))
+                s = state_asarray.copy()
+                for (i, t) in zip(range(len(times)), times):
+                    if i == 0:
+                        norms[i] = 1
+                    else:
+                        s = odeintw(f, s, [times[i - 1], times[i]], full_output=False)[-1]
+                        # Normalize output?
+                        norms[i] = np.linalg.norm(s)
+                infodict = {'t': times}
+                if verbose:
+                    print('Fraction of integrator results normalized:',
+                          len(np.argwhere(np.isclose(norms, np.ones(norms.shape)) == 1)) / len(norms))
+                    print('Final state norm - 1:', norms[-1] - 1)
+                s = np.array([s/norms[-1]])
+                return s, infodict
         else:
             # You need to flatten the array
             state_shape = state.shape
@@ -73,12 +95,50 @@ class SchrodingerEquation(object):
             res.y = np.reshape(res.y, (-1, state_shape[0], state_shape[1]))
             norms = np.linalg.norm(res.y, axis=(-2, -1))
             if verbose:
-                print('Fraction of integrator results normalized:', len(np.argwhere(np.isclose(norms, np.ones(norms.shape)) == 1))/len(norms))
+                print('Fraction of integrator results normalized:',
+                      len(np.argwhere(np.isclose(norms, np.ones(norms.shape)) == 1)) / len(norms))
                 print('Final state norm - 1:', norms[-1] - 1)
 
-            norms = norms[:,np.newaxis, np.newaxis]
-            res.y = res.y/norms
+            norms = norms[:, np.newaxis, np.newaxis]
+            res.y = res.y / norms
             return res.y, res
+
+    def run_trotterized_solver(self, state: State, t0, tf, num=50, schedule=lambda t: None, times=None,
+                               full_output=True, verbose=False):
+        """Trotterized approximation of the Schrodinger equation"""
+        assert state.is_ket
+
+        # s is a ket specifying the initial codes
+        # tf is the total simulation time
+        if times is None:
+            times = np.linspace(t0, tf, num=num)
+        n = len(times)
+        if full_output:
+            z = np.zeros((n, state.shape[0], state.shape[1]), dtype=np.complex128)
+        infodict = {'t': times}
+        s = state.copy()
+        for (i, t) in zip(range(n), times):
+            schedule(t)
+            if t == times[0] and full_output:
+                z[i, ...] = state
+            else:
+                dt = times[i]-times[i-1]
+                for hamiltonian in self.hamiltonians:
+                    s = hamiltonian.evolve(s, dt)
+            if full_output:
+                z[i, ...] = s
+        else:
+            z = np.array([s])
+        norms = np.linalg.norm(z, axis=(-2, -1))
+        print(norms)
+        if verbose:
+            print('Fraction of integrator results normalized:',
+                  len(np.argwhere(np.isclose(norms, np.ones(norms.shape)) == 1)) / len(norms))
+            print('Final state norm - 1:', norms[-1] - 1)
+        norms = norms[:, np.newaxis, np.newaxis]
+        z = z / norms
+        return z, infodict
+
 
     def eig(self):
         # Construct a LinearOperator for the Hamiltonians
