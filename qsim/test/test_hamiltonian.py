@@ -64,10 +64,10 @@ class TestHamiltonian(unittest.TestCase):
         self.assertTrue(hr.cost_function(psi1) == 0)
         self.assertTrue(hr.cost_function(psi0) == 0)
 
-    def test_hamiltonian_laser(self):
+    def test_hamiltonian_driver(self):
         N = 6
 
-        hl_qubit = hamiltonian.HamiltonianDriver()
+        hl_qubit = hamiltonian.HamiltonianDriver(graph=tools_test.sample_graph())
 
         psi0 = State(np.zeros((2 ** N, 1)))
         psi0[0, 0] = 1
@@ -94,6 +94,10 @@ class TestHamiltonian(unittest.TestCase):
         for i in range(N):
             psi1[2 ** i, 0] = 1
         self.assertTrue(np.allclose(psi0, psi1))
+        psi2 = State(np.zeros((2 ** N, 1)))
+        psi2[0, 0] = 1
+        psi2 = hl_qubit.hamiltonian @ psi2
+        print(psi2 == psi0)
 
         N = 3
         hl = hamiltonian.HamiltonianDriver(transition=(0, 1), code=rydberg)

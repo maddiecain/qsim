@@ -3,7 +3,6 @@ import networkx as nx
 from qsim.codes import qubit, rydberg
 from qsim.codes.quantum_state import State
 from qsim import tools
-# TODO: never use expm!
 from scipy.linalg import expm
 import scipy.sparse as sparse
 from scipy.sparse.linalg import expm_multiply
@@ -21,6 +20,7 @@ class HamiltonianDriver(object):
         if code is None:
             code = qubit
         self.code = code
+        self.graph = graph
         if self.pauli == 'X' and not self.code.logical_code:
             self._operator = np.zeros((self.code.d, self.code.d))
             self._operator[self.transition[1], self.transition[0]] = 1
@@ -33,6 +33,7 @@ class HamiltonianDriver(object):
             self._operator = np.zeros((self.code.d, self.code.d))
             self._operator[self.transition[0], self.transition[0]] = 1
             self._operator[self.transition[1], self.transition[1]] = -1
+        # If a logical code, we should use the normal qubit operators because we assume the code is a qubit
         elif self.pauli == 'X' and self.code.logical_code:
             self._operator = self.code.X
         elif self.pauli == 'Y' and self.code.logical_code:
@@ -98,12 +99,24 @@ class HamiltonianDriver(object):
                     entries[num_terms:2 * num_terms] = -1 * entries[:num_terms]
                 # Now, construct the Hamiltonian
                 self._hamiltonian = sparse.csr_matrix((entries, (rows, columns)), shape=(num_IS, num_IS))
-            # TODO: define self.hamiltonian for non-IS_subspace
-            self._left_acting_hamiltonian = None
-            self._right_acting_hamiltonian = None
+        else:
+            self._hamiltonian = None
+        self._left_acting_hamiltonian = None
+        self._right_acting_hamiltonian = None
 
     @property
     def hamiltonian(self):
+        if self._hamiltonian is None:
+            assert not self.IS_subspace
+            assert self.graph is not None
+            self._hamiltonian = sparse.csr_matrix(((self.code.d * self.code.n) ** self.graph.n,
+                                                   (self.code.d * self.code.n) ** self.graph.n))
+            for i in range(self.graph.n):
+                self._hamiltonian = self._hamiltonian + tools.tensor_product(
+                    [sparse.identity((self.code.d * self.code.n) ** i),
+                     self._operator,
+                     sparse.identity((self.code.d * self.code.n) ** (self.graph.n - i - 1))],
+                    sparse=True)
         return self.energies[0] * self._hamiltonian
 
     @property
@@ -527,7 +540,8 @@ class HamiltonianMIS(object):
             # These are your independent sets of the original graphs, ordered by node and size
             if self.code == qubit:
                 node_weights = np.asarray([self.graph.graph.nodes[i]['weight'] for i in range(self.graph.n)])
-                C = np.asarray([[np.sum((1-self.graph.independent_sets[i][2])*node_weights) for i in self.graph.independent_sets]],
+                C = np.asarray([[np.sum((1 - self.graph.independent_sets[i][2]) * node_weights) for i in
+                                 self.graph.independent_sets]],
                                dtype=np.complex128).T
                 self._hamiltonian_node_terms = C
 
@@ -540,7 +554,7 @@ class HamiltonianMIS(object):
                 node_weights = np.asarray([self.graph.graph.nodes[i]['weight'] for i in range(self.graph.n)])
                 C = np.zeros((num_IS, 1), dtype=np.complex128)
                 for k in independent_sets:
-                    C[k, 0] = np.sum((independent_sets[k][2] == 0)*node_weights)
+                    C[k, 0] = np.sum((independent_sets[k][2] == 0) * node_weights)
             self._diagonal_hamiltonian_node_terms = C
             C = C.flatten()
 

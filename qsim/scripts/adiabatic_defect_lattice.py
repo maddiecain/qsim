@@ -1,13 +1,14 @@
-import sys
+from qsim.graph_algorithms.adiabatic import SimulateAdiabatic
+import time
 import networkx as nx
 from qsim.evolution import hamiltonian
-from qsim.graph_algorithms.adiabatic import SimulateAdiabatic
+from qsim.graph_algorithms import qaoa
 import numpy as np
 import matplotlib.pyplot as plt
-from qsim.tools.tools import equal_superposition
 from qsim.graph_algorithms.graph import Graph
+from qsim import tools
 from qsim.codes.quantum_state import State
-import time
+from qsim.tools.tools import equal_superposition
 
 
 def node_removed_torus(y, x, return_mis=False):
@@ -35,7 +36,7 @@ def node_defect_torus(y, x, return_mis=False):
         graph.nodes[node]['weight'] = 1
     graph.nodes[(0, 0)]['weight'] = 2
     print(graph.nodes)
-    #graph.remove_node((0, 0))
+    # graph.remove_node((0, 0))
     nodes = graph.nodes
     new_nodes = list(range(len(nodes)))
     mapping = dict(zip(nodes, new_nodes))
@@ -91,47 +92,72 @@ def experiment_rydberg_MIS_schedule(t, tf, simulation, coefficients=None):
     return True
 
 
-if __name__ == "__main__":
-    i, j = 4, 6
-    graph = node_defect_torus(i, j)
-    simulation = adiabatic_simulation(graph, IS_subspace=True)
-    t0 = time.time()
-    """res = simulation.performance_vs_total_time(np.arange(15, 16, 1), metric='optimum_overlap',
-                                               schedule=lambda t, tf: experiment_rydberg_MIS_schedule(t, tf, simulation,
-                                                                                                      coefficients=[10,
-                                                                                                                    10]),
-                                               plot=False, verbose=True, method='RK45')"""
-    t1 = time.time()
-    """print(t1-t0)
-    res = simulation.performance_vs_total_time(np.arange(15, 16, 1), metric='optimum_overlap',
-                                               schedule=lambda t, tf: experiment_rydberg_MIS_schedule(t, tf, simulation,
-                                                                                                      coefficients=[10,
-                                                                                                                    10]),
-                                               plot=False, verbose=True, method='trotterize')"""
-    t2 = time.time()
-    print(t2-t1)
-    res = simulation.performance_vs_total_time(np.arange(15, 16, 1), metric='optimum_overlap',
-                                               schedule=lambda t, tf: experiment_rydberg_MIS_schedule(t, tf, simulation,
-                                                                                                      coefficients=[10,
-                                                                                                                    10]),
-                                               plot=False, verbose=True, method='odeint')
-    print(time.time()-t2)
+def mis_qaoa(n, method='basinhopping', show=False, analytic_gradient=True, IS_subspace=True):
+    penalty = 1
+    if not IS_subspace:
+        psi0 = tools.equal_superposition(n * n)
+        psi0 = State(psi0)
+    else:
+        psi0 = None
+    G = node_defect_torus(n, n)
+    if show:
+        nx.draw_networkx(G)
+        plt.show()
 
-    print('results: ', res, flush=True)
-    """simulation = adiabatic_simulation(graph, IS_subspace=False)
-    res = simulation.performance_vs_total_time(np.arange(15, 16, 1), metric='optimum_overlap', initial_state=State(equal_superposition(i * j)),
-                                         schedule=lambda t, tf: simulation.linear_schedule(t, tf,
-                                                                                           coefficients=[10, 10]),
-                                         plot=True, verbose=True, method='RK45')
+    depths = [2 * i for i in range(1, n * n + 1)]
+    mis = []
+    # Find MIS optimum
+    # Uncomment to visualize graph
+    hc_qubit = hamiltonian.HamiltonianMIS(G, energies=[1, penalty], IS_subspace=IS_subspace)
+    cost = hamiltonian.HamiltonianMIS(G, energies=[1, penalty], IS_subspace=IS_subspace)
+    # Set the default variational operators
+    hb_qubit = hamiltonian.HamiltonianDriver(graph=G, IS_subspace=IS_subspace)
+    # Create Hamiltonian list
+    sim = qaoa.SimulateQAOA(G, cost_hamiltonian=cost, hamiltonian=[], noise_model=None)
+    sim.hamiltonian = []
+    for p in depths:
+        sim.hamiltonian.append(hc_qubit)
+        sim.hamiltonian.append(hb_qubit)
+        sim.depth = p
+        # You should get the same thing
+        print(p)
+        if method == 'basinhopping':
+            results = sim.find_parameters_basinhopping(verbose=True, initial_state=psi0, n=50,
+                                                       analytic_gradient=analytic_gradient)
+            print(results)
+            approximation_ratio = np.real(results['approximation_ratio'])
+            mis.append(approximation_ratio)
+
+    # plt.plot(list(range(n)), maxcut, c='y', label='maxcut')
+    print(mis)
+    plt.plot(depths, [(i + 1) / (i + 2) for i in depths])
+    plt.scatter(depths, [i / (i + 1) for i in depths], label='maxcut')
+    plt.scatter(depths, mis, label='mis with $n=$' + str(n))
+    plt.plot(depths, mis)
+
+    plt.legend()
+    if show:
+        plt.show()
+
+
+if __name__ == "__main__":
+    i, j = 4, 4
+    graph = node_defect_torus(i, j)
+    #simulation = adiabatic_simulation(graph, IS_subspace=True)
+    #t0 = time.time()
+
+    #res = simulation.performance_vs_total_time(np.arange(0, 0), metric='optimum_overlap',
+    #                                           schedule=lambda t, tf: experiment_rydberg_MIS_schedule(t, tf, simulation,
+    #                                                                                                  coefficients=[10,
+    #                                                                                                                10]),
+    #                                           plot=True, verbose=True, method='trotterize')
+
+    #print('results: ', res, flush=True)
+    #simulation = mis_qaoa(4, IS_subspace=True, method='basinhopping')
     simulation = adiabatic_simulation(graph, IS_subspace=False)
-    res = simulation.performance_vs_total_time(np.arange(15, 16, 1), metric='optimum_overlap',
+    res = simulation.performance_vs_total_time(np.arange(40, 95, 5), metric='optimum_overlap',
                                                initial_state=State(equal_superposition(i * j)),
                                                schedule=lambda t, tf: simulation.linear_schedule(t, tf,
-                                                                                                 coefficients=[10, 10]),
+                                                                                                 coefficients=[1, 1]),
                                                plot=True, verbose=True, method='trotterize')
-    res = simulation.performance_vs_total_time(np.arange(15, 16, 1), metric='optimum_overlap',
-                                               initial_state=State(equal_superposition(i * j)),
-                                               schedule=lambda t, tf: simulation.linear_schedule(t, tf,
-                                                                                                 coefficients=[10, 10]),
-                                               plot=True, verbose=True, method='odeint')"""
     print('results: ', res, flush=True)

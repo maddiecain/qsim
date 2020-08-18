@@ -29,7 +29,7 @@ class LindbladMasterEquation(object):
         for i in range(len(self.hamiltonians)):
             res = res - 1j * (self.hamiltonians[i].left_multiply(s) - self.hamiltonians[i].right_multiply(s))
         for i in range(len(self.jump_operators)):
-            res = res + self.jump_operators[i].global_liouvillian(s)
+            res = res + self.jump_operators[i].liouvillian(s)
         return res
 
     def run_ode_solver(self, state: State, t0, tf, num=50, schedule=lambda t: None, times=None, method='RK45',
@@ -145,7 +145,7 @@ class LindbladMasterEquation(object):
                     if isinstance(jump_operator, LindbladJumpOperator):
                         s = jump_operator.evolve(s, dt)
                     elif isinstance(jump_operator, QuantumChannel):
-                        pass
+                        s = jump_operator.channel(s)
             if full_output:
                 z[i, ...] = s
         else:

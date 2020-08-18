@@ -21,8 +21,6 @@ def lattice(n=2):
                 graph.add_edge((j + 1) * i, (j + 2) * (i % n), weight=1)
 
 
-
-
 def defect_ring(n=2, uniform=True):
     # Assert n is even and greater than 2
     assert n % 4 == 0 and n > 2
@@ -32,6 +30,24 @@ def defect_ring(n=2, uniform=True):
     graph.add_weighted_edges_from(
         [(2 * i, (2 * i + int(n / 2)) % (n), 2) for i in range(1, int(n / 4))])
     return [graph, np.floor(n / 2)]
+
+
+def node_defect_torus(y, x, return_mis=False):
+    graph = nx.grid_2d_graph(x, y, periodic=True)
+    # Remove 3 of four corners
+    for node in graph.nodes:
+        graph.nodes[node]['weight'] = 1
+    graph.nodes[(0, 0)]['weight'] = 2
+    #print(graph.nodes)
+    # graph.remove_node((0, 0))
+    nodes = graph.nodes
+    new_nodes = list(range(len(nodes)))
+    mapping = dict(zip(nodes, new_nodes))
+    nx.relabel_nodes(graph, mapping, copy=False)
+    if return_mis:
+        return Graph(graph), x * y / 2 - 1
+    else:
+        return Graph(graph)
 
 
 def special_defect_ring(n=2, uniform=True):
@@ -125,6 +141,7 @@ def counterintuitive_graph(n=6):
     graph.add_weighted_edges_from([(n + 1, i, 2) for i in range(n)])
     return [graph, 2]
 
+
 def crossy_double_ring(n=2):
     graph = nx.Graph()
     # First, make a ring
@@ -157,13 +174,12 @@ def crossy_double_ring(n=2):
 
 def mis_qaoa(n, method='minimize', show=True, analytic_gradient=True):
     penalty = 1
-    psi0 = tools.equal_superposition(n)
+    psi0 = tools.equal_superposition(n * n)
     psi0 = State(psi0)
-    G, opt = defect_ring(n)
+    G = node_defect_torus(n, n)
     if show:
         nx.draw_networkx(G)
         plt.show()
-    G = Graph(G)
 
     depths = [2 * i for i in range(1, 2 * n + 1)]
     mis = []
@@ -193,12 +209,11 @@ def mis_qaoa(n, method='minimize', show=True, analytic_gradient=True):
             approximation_ratio = np.real(results['approximation_ratio'])
             mis.append(approximation_ratio)
         if method == 'basinhopping':
-            if p >= 8:
-                results = sim.find_parameters_basinhopping(verbose=True, initial_state=psi0, n=200,
-                                                           analytic_gradient=analytic_gradient)
-                print(results)
-                approximation_ratio = np.real(results['approximation_ratio'])
-                mis.append(approximation_ratio)
+            results = sim.find_parameters_basinhopping(verbose=True, initial_state=psi0, n=50,
+                                                       analytic_gradient=analytic_gradient)
+            print(results)
+            approximation_ratio = np.real(results['approximation_ratio'])
+            mis.append(approximation_ratio)
 
     # plt.plot(list(range(n)), maxcut, c='y', label='maxcut')
     print(mis)
@@ -212,7 +227,7 @@ def mis_qaoa(n, method='minimize', show=True, analytic_gradient=True):
         plt.show()
 
 
-#mis_qaoa(8, show=True, method='basinhopping', analytic_gradient=False)
-mis_qaoa(12, show=False, method='basinhopping', analytic_gradient=False)
+# mis_qaoa(8, show=True, method='basinhopping', analytic_gradient=False)
+mis_qaoa(4, show=False, method='basinhopping', analytic_gradient=False)
 
-#mis_qaoa(16, show=False, method='basinhopping', analytic_gradient=False)
+# mis_qaoa(16, show=False, method='basinhopping', analytic_gradient=False)

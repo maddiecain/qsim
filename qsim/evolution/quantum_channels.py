@@ -6,22 +6,25 @@ from typing import Union, List
 
 
 class QuantumChannel(object):
-    def __init__(self, povm=None, code=qubit):
+    def __init__(self, povm: np.ndarray, rates, code=qubit):
         """
         Basic operations for operating with a quantum channels on a codes.
         :param povm: A list containing elements of a positive operator-valued measure :math:`M_{\\mu}`, such that :math:`\\sum_{\\mu}M_{\\mu}^{\\dagger}M_{\\mu}`.
         """
-        if povm is None:
-            self.povm = []
-        else:
-            self.povm = povm
+        self._povm = povm
         self.code = code
+        self.rates = rates
+
+    @property
+    def povm(self):
+        # Add new axes so that shapes are broadcastable
+        return np.sqrt(self.rates[:, np.newaxis, np.newaxis]) * self._povm
 
     def is_valid_povm(self):
         """
         :return: ``True`` if and only if ``povm`` is valid.
         """
-        assert not (self.povm is None)
+        # This is technically checking that the povm is valid for time t=1
         return np.allclose(
             np.sum(np.transpose(np.array(self.povm).conj(), [0, 2, 1]) @ np.array(self.povm),
                    axis=0), np.identity(self.povm[0].shape[0]))
@@ -179,15 +182,16 @@ class PauliChannel(QuantumChannel):
 
 
 class AmplitudeDampingChannel(QuantumChannel):
-    def __init__(self, p: float, code=qubit, transition=(0, 1)):
-        assert 0 < p <= 1
+    def __init__(self, rates=None, code=qubit, transition=(0, 1)):
+        if rates is None:
+            rates = [1]
         self.code = code
         self.transition = transition
-        self.p = p
+        self.rates = rates
         povm = []
         op1 = np.identity(code.d, dtype=np.complex128)
         op1[transition[0], transition[0]] = 1
-        op1[transition[1], transition[1]] = np.sqrt(1 - p)
+        op1[transition[1], transition[1]] = np.sqrt(1 - self.rates[0])
         povm.append(op1)
         op2 = np.zeros((code.d, code.d), dtype=np.complex128)
         op2[transition[0], transition[1]] = np.sqrt(p)

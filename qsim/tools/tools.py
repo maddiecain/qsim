@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.linalg
+from scipy.sparse import kron
 
 
 def int_to_nary(n, size=None, base=2, pad_with=0):
@@ -37,15 +38,19 @@ def nary_to_int(b, base=2):
     return int(b.dot(base ** np.arange(b.size)[::-1]))
 
 
-def tensor_product(A):
+def tensor_product(A, sparse=False):
     """
+    :param sparse:
     :param A: List of numpy arrays to tensor product together
     :type A: list
     :return: Full tensor product of tensors all numpy arrays listed in :math:`A`.
     """
     a = 1
     for i in A:
-        a = np.kron(a, i)
+        if sparse:
+            a = kron(a, i, format='csr')
+        else:
+            a = np.kron(a, i)
     return a
 
 
