@@ -9,6 +9,21 @@ from qsim.codes.quantum_state import State
 
 
 # Construct a known graph
+def make_ring_graph_multiring(n):
+    assert n % 2 == 0 and n % 3 == 0
+    graph_dict = {x: {(x + i) % n: {'weight': 1} for i in [-1, 1]} for x in range(n)}
+
+    for i in range(int(n)):
+        if i % 3 == 0:
+            graph_dict[i][(i + int(n / 2) + 1) % n] = {'weight': 1}
+            graph_dict[(i + int(n / 2) + 1) % n][i] = {'weight': 1}
+            graph_dict[i][(i + int(n / 2) - 1) % n] = {'weight': 1}
+            graph_dict[(i + int(n / 2) - 1) % n][i] = {'weight': 1}
+        else:
+            graph_dict[i][(i + int(n / 2)) % n] = {'weight': 1}
+            graph_dict[(i + int(n / 2)) % n][i] = {'weight': 1}
+    graph = nx.to_networkx_graph(graph_dict)
+    return Graph(graph)
 
 def lattice(n=2):
     graph = nx.Graph()
@@ -174,9 +189,9 @@ def crossy_double_ring(n=2):
 
 def mis_qaoa(n, method='minimize', show=True, analytic_gradient=True):
     penalty = 1
-    psi0 = tools.equal_superposition(n * n)
+    psi0 = tools.equal_superposition(n)
     psi0 = State(psi0)
-    G = node_defect_torus(n, n)
+    G = make_ring_graph_multiring(n)
     if show:
         nx.draw_networkx(G)
         plt.show()
@@ -209,11 +224,12 @@ def mis_qaoa(n, method='minimize', show=True, analytic_gradient=True):
             approximation_ratio = np.real(results['approximation_ratio'])
             mis.append(approximation_ratio)
         if method == 'basinhopping':
-            results = sim.find_parameters_basinhopping(verbose=True, initial_state=psi0, n=50,
-                                                       analytic_gradient=analytic_gradient)
-            print(results)
-            approximation_ratio = np.real(results['approximation_ratio'])
-            mis.append(approximation_ratio)
+            if p >= 10:
+                results = sim.find_parameters_basinhopping(verbose=True, initial_state=psi0, n=250,
+                                                           analytic_gradient=analytic_gradient)
+                print(results)
+                approximation_ratio = np.real(results['approximation_ratio'])
+                mis.append(approximation_ratio)
 
     # plt.plot(list(range(n)), maxcut, c='y', label='maxcut')
     print(mis)
@@ -228,6 +244,6 @@ def mis_qaoa(n, method='minimize', show=True, analytic_gradient=True):
 
 
 # mis_qaoa(8, show=True, method='basinhopping', analytic_gradient=False)
-mis_qaoa(4, show=False, method='basinhopping', analytic_gradient=False)
+mis_qaoa(12, show=False, method='basinhopping', analytic_gradient=False)
 
 # mis_qaoa(16, show=False, method='basinhopping', analytic_gradient=False)

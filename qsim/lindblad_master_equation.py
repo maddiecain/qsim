@@ -69,7 +69,7 @@ class LindbladMasterEquation(object):
             # Use the odeint wrapper
             if full_output:
                 if times is None:
-                    times = np.linspace(t0, tf, num=num)
+                    times = np.linspace(0, 1, num=int(num)) * (tf-t0) + t0
                 z, infodict = odeintw(f, state_asarray, times, full_output=True)
                 infodict['t'] = times
                 norms = np.trace(z, axis1=-2, axis2=-1)
@@ -82,7 +82,7 @@ class LindbladMasterEquation(object):
                 return z, infodict
             else:
                 if times is None:
-                    times = np.linspace(t0, tf, num=num)
+                    times = np.linspace(0, 1, num=int(num)) * (tf-t0) + t0
                 norms = np.zeros(len(times))
                 s = state_asarray.copy()
                 for (i, t) in zip(range(len(times)), times):
@@ -127,7 +127,7 @@ class LindbladMasterEquation(object):
         # s is a ket specifying the initial codes
         # tf is the total simulation time
         if times is None:
-            times = np.linspace(t0, tf, num=num)
+            times = np.linspace(0, 1, num=int(num)) * (tf - t0) + t0
         n = len(times)
         if full_output:
             z = np.zeros((n, state.shape[0], state.shape[1]), dtype=np.complex128)
@@ -175,7 +175,7 @@ class LindbladMasterEquation(object):
         state_shape = s.shape
 
         if times is None and method == 'odeint':
-            times = np.linspace(t0, tf, num=num)
+            times = np.linspace(0, 1, num=int(num)) * (tf - t0) + t0
 
         schrodinger_equation = SchrodingerEquation(hamiltonians=self.hamiltonians + self.jump_operators)
 

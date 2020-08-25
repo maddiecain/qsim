@@ -121,7 +121,8 @@ class SimulateAdiabatic(object):
                                                                     schedule=lambda t: schedule(t, time), method=method,
                                                                     full_output=full_output)
 
-        elif self.noise_model == 'monte_carlo':
+        else:
+            assert self.noise_model == 'monte_carlo'
             if method == 'trotterize':
                 raise NotImplementedError
             # Initialize master equation
@@ -133,12 +134,13 @@ class SimulateAdiabatic(object):
                                                                                iterations=iterations)
 
         if len(results.shape) == 2:
-            # The algorithm has outputted a single state
+            # The algorithm has output a single state
             out = [State(results, IS_subspace=self.IS_subspace, code=self.code)]
         elif len(results.shape) == 3:
-            # The algorithm has outputted an array of states
+            # The algorithm has output an array of states
             out = [State(res, IS_subspace=self.IS_subspace, code=self.code) for res in results]
-        elif len(results.shape) == 4:
+        else:
+            assert len(results.shape) == 4
             if self.noise_model != 'monte_carlo':
                 raise Exception('Run output has more dimensions than expected')
             out = []
@@ -153,131 +155,204 @@ class SimulateAdiabatic(object):
 
     def performance_vs_time(self, time, schedule, num=None, metric='approximation_ratio', initial_state=None,
                             plot=False, verbose=False, method='RK45', iterations=None):
-        if metric != 'approximation_ratio' and metric != 'optimum_overlap' and metric != 'cost_function':
-            raise NotImplementedError('Metric must be approximation_ratio, cost_function or optimum_overlap.')
-        else:
-            if metric == 'cost_function':
-                metric_function = self.cost_hamiltonian.cost_function
-                label = 'cost function'
-            if metric == 'approximation_ratio':
-                metric_function = self.cost_hamiltonian.approximation_ratio
-                label = 'approximation ratio'
-            if metric == 'optimum_overlap':
-                metric_function = self.cost_hamiltonian.optimum_overlap
-                label = 'optimum overlap'
-        results, info = self.run(time, schedule, num=num, initial_state=initial_state, full_output=True,
-                                 method=method, verbose=verbose, iterations=iterations)
-        if isinstance(info, OdeResult):
-            times = info.t
-        elif isinstance(info, dict):
-            times = info['t']
-        else:
-            raise Exception('Times are not defined')
-        # Input should have three dimensions if the noise model is not monte carlo
-        # Otherwise, we should have four dimensions due to multiple iterations
-        if self.noise_model == 'monte_carlo':
-            if iterations is None:
-                iterations = 1
-            performance = np.zeros((iterations, len(results[0])))
-            for (i, trial) in zip(range(iterations), results):
-                performance[i, ...] = np.array([metric_function(trial[j]) for j in range(len(trial))])
-            performance = np.mean(performance, axis=0)
+        # Convert metric and method to lists
+        if isinstance(metric, str):
+            metric = [metric]
+        if isinstance(method, str):
+            method = [method]
+        metric_label = None
+        min_performance = np.inf
+        all_performance = []
+        all_info = []
+        colors = ['teal', 'purple', 'm', 'deepskyblue', 'deeppink', 'salmon', 'orange', 'r']
+        scatter_label = None
+        n = 0
+        for l in range(len(method)):
+            results, info = self.run(time, schedule, num=num, initial_state=initial_state, full_output=True,
+                                     method=method[l], verbose=verbose, iterations=iterations)
+            for m in range(len(metric)):
+                if metric[m] != 'approximation_ratio' and metric[m] != 'optimum_overlap' and metric[m] != 'cost_function':
+                    raise NotImplementedError('Metric must be approximation_ratio, cost_function or optimum_overlap.')
+                else:
+                    if metric[m] == 'cost_function':
+                        metric_function = self.cost_hamiltonian.cost_function
+                        metric_label = 'cost function'
+                    elif metric[m] == 'approximation_ratio':
+                        metric_function = self.cost_hamiltonian.approximation_ratio
+                        metric_label = 'approximation ratio'
+                    else:
+                        # Metric function must be optimum overlap
+                        metric_function = self.cost_hamiltonian.optimum_overlap
+                        metric_label = 'optimum overlap'
+                if isinstance(info, OdeResult):
+                    times = info.t
+                elif isinstance(info, dict):
+                    times = info['t']
+                else:
+                    raise Exception('Times are not defined')
+                # Input should have three dimensions if the noise model is not monte carlo
+                # Otherwise, we should have four dimensions due to multiple iterations
+                if self.noise_model == 'monte_carlo':
+                    if iterations is None:
+                        iterations = 1
+                    performance = np.zeros((iterations, len(results[0])))
+                    for (i, trial) in zip(range(iterations), results):
+                        performance[i, ...] = np.array([metric_function(trial[j]) for j in range(len(trial))])
+                    performance = np.mean(performance, axis=0)
 
-        else:
-            performance = [metric_function(results[i]) for i in range(len(results))]
-        if verbose:
-            print('Final performance: ', str(performance[-1]))
+                else:
+                    performance = [metric_function(results[i]) for i in range(len(results))]
+                all_performance.append(performance)
+                all_info.append(info)
+                if min(performance) < min_performance:
+                    min_performance = min(performance)
+                if verbose:
+                    print('Final performance: ', str(performance[-1]))
+                if plot:
+                    if 'cost_function' not in metric:
+                        plt.hlines(1, min(times) - 1, max(times) + 1, linestyles=':', colors='k')
+                        plt.ylim(min_performance - .03, 1.03)
+                    else:
+                        plt.hlines(self.cost_hamiltonian.optimum, min(times) - 1, max(times) + 1, linestyles=':',
+                                   colors='k')
+                        plt.ylim(min_performance - .05 * self.cost_hamiltonian.optimum,
+                                 self.cost_hamiltonian.optimum + .05 *
+                                 self.cost_hamiltonian.optimum)
+                    if len(method) > 1:
+                        if len(metric) > 1:
+                            scatter_label = metric_label + ', ' + method[l]
+                        else:
+                            scatter_label = method[l]
+                    else:
+                        if len(metric) > 1:
+                            scatter_label = metric_label
+
+                    plt.scatter(times, performance, color=colors[n], label=scatter_label)
+                    plt.plot(times, performance, color=colors[n])
+                    n += 1
         if plot:
-            if metric == 'approximation_ratio' or metric == 'optimum_overlap':
-                plt.hlines(1, min(times) - 1, max(times) + 1, linestyles=':', colors='k')
-                plt.ylim(min(performance) - .03, 1.03)
-            else:
-                plt.hlines(self.cost_hamiltonian.optimum, min(times) - 1, max(times) + 1, linestyles=':', colors='k')
-                plt.ylim(min(performance) - .05 * self.cost_hamiltonian.optimum, self.cost_hamiltonian.optimum + .05 *
-                         self.cost_hamiltonian.optimum)
-            plt.xlim(min(times) - 1, max(times) + 1)
-            plt.scatter(times, performance, color='teal')
-            plt.plot(times, performance, color='teal')
-            plt.hlines(1, 0, max(times), linestyles=':', colors='k')
+            plt.xlim(-1, time + 1)
             plt.xlabel(r'annealing time $t$')
-            plt.ylabel(label)
+            if len(metric) == 1:
+                plt.ylabel(metric_label)
+            else:
+                plt.ylabel('performance')
+            if scatter_label is not None:
+                plt.legend(loc='lower right')
             plt.show()
-        return performance, info
+        return all_performance
 
     def performance_vs_total_time(self, time, schedule, num=None, metric='approximation_ratio', initial_state=None,
                                   plot=False, verbose=False, method='RK45', iterations=None, errorbar=False):
-        if metric != 'approximation_ratio' and metric != 'optimum_overlap' and metric != 'cost_function':
-            raise NotImplementedError('Metric must be approximation_ratio, cost_function or optimum_overlap.')
-        else:
-            if metric == 'cost_function':
-                metric_function = self.cost_hamiltonian.cost_function
-                label = 'cost function'
-            if metric == 'approximation_ratio':
-                metric_function = self.cost_hamiltonian.approximation_ratio
-                label = 'approximation ratio'
-            if metric == 'optimum_overlap':
-                metric_function = self.cost_hamiltonian.optimum_overlap
-                label = 'optimum overlap'
-        performance = []
-        stdev = []
-        times = np.asarray(time)
-        for t in times:
-            if verbose:
-                print('Solving time: ' + str(t))
-            results, info = self.run(t, schedule, num=num, initial_state=initial_state, full_output=False,
-                                     method=method, iterations=iterations, verbose=verbose)
-            if self.noise_model == 'monte_carlo':
-                if errorbar:
-                    raise NotImplementedError
-                if iterations is None:
-                    iterations = 1
-                performance_time = np.zeros(iterations)
-                for (i, trial) in zip(range(iterations), results):
-                    performance_time[i, ...] = metric_function(trial)
-                performance.append(np.mean(performance_time, axis=0))
-
-            else:
-                if errorbar:
-                    if results[-1].is_ket:
-                        probabilities = (np.abs(results[-1]) ** 2).flatten().real
+        # Convert metric and method to lists
+        if isinstance(metric, str):
+            metric = [metric]
+        if isinstance(method, str):
+            method = [method]
+        metric_label = None
+        min_performance = np.inf
+        all_performance = np.zeros((len(method), len(metric), len(time)))
+        if errorbar:
+            stdev = np.zeros((len(method), len(metric), len(time)))
+        colors = ['teal', 'purple', 'm', 'deepskyblue', 'deeppink', 'salmon', 'orange', 'r']
+        scatter_label = None
+        for l in range(len(method)):
+            for t in range(len(time)):
+                if verbose:
+                    print('Solving time: ' + str(time[t]))
+                results, info = self.run(time[t], schedule, num=num, initial_state=initial_state, full_output=False,
+                                         method=method[l], iterations=iterations, verbose=verbose)
+                for m in range(len(metric)):
+                    if metric[m] != 'approximation_ratio' and metric[m] != 'optimum_overlap' and metric[m] != \
+                            'cost_function':
+                        print('Metric must be approximation_ratio, cost_function or optimum_overlap. Metric ' +
+                              metric[m] + ' will not be computed')
                     else:
-                        probabilities = np.diag(results[-1]).real
-                    res = np.zeros(int(np.max(self.cost_hamiltonian.hamiltonian.real)) -
-                                   int(np.min(self.cost_hamiltonian.hamiltonian.real)) + 1)
-                    for i in range(results[-1].shape[0]):
-                        # For now, assume that the cost hamiltonian is diagonal
-                        # NOTE: non-integer valued hamiltonians will be binned as the integer floor of the float value
-                        if metric == 'cost_function':
-                            res[int(self.cost_hamiltonian.hamiltonian[i, i])] = res[int(
-                                self.cost_hamiltonian.hamiltonian[i, i])] + probabilities[i] * int(
-                                self.cost_hamiltonian.hamiltonian[i, i])
+                        if metric[m] == 'cost_function':
+                            metric_function = self.cost_hamiltonian.cost_function
+                        elif metric[m] == 'approximation_ratio':
+                            metric_function = self.cost_hamiltonian.approximation_ratio
                         else:
-                            res[int(self.cost_hamiltonian.hamiltonian[i, i])] = res[int(
-                                self.cost_hamiltonian.hamiltonian[i, i])] + probabilities[i]
-                    vals = np.arange(len(res)) / (len(res) - 1)
-                    x0 = np.sum(res * vals)
-                    stdev.append(np.sum(res * (vals - x0) ** 2) ** .5)
-                performance.append(metric_function(results[-1]))
-            if verbose:
-                np.set_printoptions(threshold=np.inf)
-                print('Performance: ', performance[-1])
+                            metric_function = self.cost_hamiltonian.optimum_overlap
+
+                        if self.noise_model == 'monte_carlo':
+                            if errorbar:
+                                print('Error bar not yet implemented for Monte Carlo trials. Error bar will default to '
+                                      'zero.')
+                            if iterations is None:
+                                iterations = 1
+                            performance_time = np.zeros(iterations)
+                            for (p, trial) in zip(range(iterations), results):
+                                performance_time[p, ...] = metric_function(trial)
+                            all_performance[l, m, t] = np.mean(performance_time, axis=0)
+
+                        else:
+                            if errorbar:
+                                if results[-1].is_ket:
+                                    probabilities = (np.abs(results[-1]) ** 2).flatten().real
+                                else:
+                                    probabilities = np.diag(results[-1]).real
+                                res = np.zeros(int(np.max(self.cost_hamiltonian.hamiltonian.real)) -
+                                               int(np.min(self.cost_hamiltonian.hamiltonian.real)) + 1)
+                                for i in range(results[-1].shape[0]):
+                                    # For now, assume that the cost hamiltonian is diagonal
+                                    # NOTE: non-integer valued hamiltonians will be binned as the integer floor of the float value
+                                    if metric == 'cost_function':
+                                        res[int(self.cost_hamiltonian.hamiltonian[i, i])] = res[int(
+                                            self.cost_hamiltonian.hamiltonian[i, i])] + probabilities[i] * int(
+                                            self.cost_hamiltonian.hamiltonian[i, i])
+                                    else:
+                                        res[int(self.cost_hamiltonian.hamiltonian[i, i])] = res[int(
+                                            self.cost_hamiltonian.hamiltonian[i, i])] + probabilities[i]
+                                vals = np.arange(len(res)) / (len(res) - 1)
+                                x0 = np.sum(res * vals)
+                                stdev[l, m, t] = np.sum(res * (vals - x0) ** 2) ** .5
+                            all_performance[l, m, t] = metric_function(results[-1])
+                            if all_performance[l, m, t] < min_performance:
+                                min_performance = all_performance[l, m, t]
+                    if verbose:
+                        np.set_printoptions(threshold=np.inf)
+                        print('Performance: ', all_performance[l, m, t])
+        if 'cost_function' not in metric:
+            plt.hlines(1, min(time) - 1, max(time) + 1, linestyles=':', colors='k')
+            plt.ylim(min_performance - .03, 1.03)
+        else:
+            plt.hlines(self.cost_hamiltonian.optimum, min(time) - 1, max(time) + 1, linestyles=':', colors='k')
+            plt.ylim(min_performance - .05 * self.cost_hamiltonian.optimum, self.cost_hamiltonian.optimum + .05 *
+                     self.cost_hamiltonian.optimum)
         if plot:
-            if errorbar:
-                plt.errorbar(time, performance, yerr=stdev, color='teal')
-            plt.scatter(times, performance, color='teal')
-            plt.plot(times, performance, color='teal')
-            if metric == 'approximation_ratio' or metric == 'optimum_overlap':
-                plt.hlines(1, min(times) - 1, max(times) + 1, linestyles=':', colors='k')
-                plt.ylim(min(performance) - .03, 1.03)
-            else:
-                plt.hlines(self.cost_hamiltonian.optimum, min(times) - 1, max(times) + 1, linestyles=':', colors='k')
-                plt.ylim(min(performance) - .05 * self.cost_hamiltonian.optimum, self.cost_hamiltonian.optimum + .05 *
-                         self.cost_hamiltonian.optimum)
-            plt.xlim(min(times) - 1, max(times) + 1)
+            n = 0
+            for l in range(len(method)):
+                for m in range(len(metric)):
+                    if metric[m] != 'approximation_ratio' and metric[m] != 'optimum_overlap' and metric[m] != 'cost_function':
+                        raise NotImplementedError(
+                            'Metric must be approximation_ratio, cost_function or optimum_overlap.')
+                    else:
+                        metric_label = metric[m].replace('_', ' ')
+                        if len(method) > 1:
+                            if len(metric) > 1:
+                                scatter_label = metric_label + ', ' + method[l]
+                            else:
+                                scatter_label = method[l]
+                        else:
+                            if len(metric) > 1:
+                                scatter_label = metric_label
+                        if errorbar:
+                            plt.errorbar(time, all_performance[l, m, :], yerr=stdev, color=colors[n])
+                        plt.scatter(time, all_performance[l, m, :], color=colors[n], label=scatter_label)
+                        plt.plot(time, all_performance[l, m, :], color=colors[n])
+                        n += 1
+
+            plt.xlim(min(time) - 1, max(time) + 1)
             plt.xlabel(r'total annealing time $T$')
-            plt.ylabel(label)
+            if len(metric) == 1:
+                plt.ylabel(metric_label)
+            else:
+                plt.ylabel('performance')
+            if scatter_label is not None:
+                plt.legend(loc='lower right')
             plt.show()
-        return performance
+        return all_performance
 
     def spectrum_vs_time(self, time, schedule, k=2, num=None, plot=False, which='S'):
         """Solves for the low (S) or high (L) energy sector."""

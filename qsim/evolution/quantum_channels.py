@@ -6,25 +6,22 @@ from typing import Union, List
 
 
 class QuantumChannel(object):
-    def __init__(self, povm: np.ndarray, rates, code=qubit):
+    def __init__(self, povm: np.ndarray = None, code=qubit):
         """
         Basic operations for operating with a quantum channels on a codes.
         :param povm: A list containing elements of a positive operator-valued measure :math:`M_{\\mu}`, such that :math:`\\sum_{\\mu}M_{\\mu}^{\\dagger}M_{\\mu}`.
         """
-        self._povm = povm
+        if povm is None:
+            self.povm = []
+        else:
+            self.povm = povm
         self.code = code
-        self.rates = rates
-
-    @property
-    def povm(self):
-        # Add new axes so that shapes are broadcastable
-        return np.sqrt(self.rates[:, np.newaxis, np.newaxis]) * self._povm
 
     def is_valid_povm(self):
         """
         :return: ``True`` if and only if ``povm`` is valid.
         """
-        # This is technically checking that the povm is valid for time t=1
+        assert not (self.povm is None)
         return np.allclose(
             np.sum(np.transpose(np.array(self.povm).conj(), [0, 2, 1]) @ np.array(self.povm),
                    axis=0), np.identity(self.povm[0].shape[0]))
@@ -72,9 +69,9 @@ class QuantumChannel(object):
 
 class DepolarizingChannel(QuantumChannel):
     def __init__(self, p: float = 1 / 3, code=qubit):
-        super().__init__(povm=[
+        super().__init__(povm=np.asarray([
             np.sqrt(1 - p) * np.identity(code.d), np.sqrt(p / 3) * code.X, np.sqrt(p / 3) * code.Y,
-            np.sqrt(p / 3) * code.Z])
+            np.sqrt(p / 3) * code.Z]))
         self.code = code
         self.p = p
 
@@ -134,7 +131,7 @@ class PauliChannel(QuantumChannel):
         if sum(p) < 1:
             povm.append(np.sqrt(1 - sum(p)) * np.identity(code.d))
             p.append(1 - sum(p))
-        super().__init__(povm=povm)
+        super().__init__(povm=np.asarray(povm))
         self.p = p
 
     def channel(self, state: State, apply_to: Union[int, list] = None):
@@ -182,21 +179,20 @@ class PauliChannel(QuantumChannel):
 
 
 class AmplitudeDampingChannel(QuantumChannel):
-    def __init__(self, rates=None, code=qubit, transition=(0, 1)):
-        if rates is None:
-            rates = [1]
+    def __init__(self, p: float, code=qubit, transition=(0, 1)):
+        assert 0 < p <= 1
         self.code = code
         self.transition = transition
-        self.rates = rates
+        self.p = p
         povm = []
         op1 = np.identity(code.d, dtype=np.complex128)
         op1[transition[0], transition[0]] = 1
-        op1[transition[1], transition[1]] = np.sqrt(1 - self.rates[0])
+        op1[transition[1], transition[1]] = np.sqrt(1 - p)
         povm.append(op1)
         op2 = np.zeros((code.d, code.d), dtype=np.complex128)
         op2[transition[0], transition[1]] = np.sqrt(p)
         povm.append(op2)
-        super().__init__(povm=povm)
+        super().__init__(povm=np.asarray(povm))
         # We can't really speed up the default operations from the super class, so use those
 
 
@@ -223,5 +219,5 @@ class ZenoChannel(QuantumChannel):
                     povm.append(np.sqrt(p[i] / 2) * np.array([[0, 0], [1j, 0]]))
         if sum(p) < 1:
             povm.append(np.sqrt(1 - sum(p)) * np.identity(2))
-        super().__init__(povm=povm)
+        super().__init__(povm=np.asarray(povm))
         self.p = p
