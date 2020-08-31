@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate._ivp.ivp import OdeResult
 
-from qsim.tools.tools import outer_product, is_valid_state
+from qsim.tools.tools import outer_product
 from qsim.codes import qubit
 from qsim.evolution.hamiltonian import HamiltonianMIS, HamiltonianDriver, HamiltonianMaxCut
 from qsim.graph_algorithms.graph import Graph
@@ -103,11 +103,15 @@ class SimulateAdiabatic(object):
         if self.noise_model == 'continuous':
             # Initialize master equation
             if method == 'trotterize':
-                raise NotImplementedError
-            master_equation = LindbladMasterEquation(hamiltonians=self.hamiltonian, jump_operators=self.noise)
-            results, info = master_equation.run_ode_solver(initial_state, 0, time, num=num,
-                                                           schedule=lambda t: schedule(t, time), method=method,
-                                                           full_output=full_output, verbose=verbose)
+                master_equation = LindbladMasterEquation(hamiltonians=self.hamiltonian, jump_operators=self.noise)
+                results, info = master_equation.run_trotterized_solver(initial_state, 0, time, num=num,
+                                                               schedule=lambda t: schedule(t, time),
+                                                               full_output=full_output, verbose=verbose)
+            else:
+                master_equation = LindbladMasterEquation(hamiltonians=self.hamiltonian, jump_operators=self.noise)
+                results, info = master_equation.run_ode_solver(initial_state, 0, time, num=num,
+                                                               schedule=lambda t: schedule(t, time), method=method,
+                                                               full_output=full_output, verbose=verbose)
         elif self.noise_model is None:
             # Noise model is None
             # Initialize Schrodinger equation
@@ -171,7 +175,8 @@ class SimulateAdiabatic(object):
             results, info = self.run(time, schedule, num=num, initial_state=initial_state, full_output=True,
                                      method=method[l], verbose=verbose, iterations=iterations)
             for m in range(len(metric)):
-                if metric[m] != 'approximation_ratio' and metric[m] != 'optimum_overlap' and metric[m] != 'cost_function':
+                if metric[m] != 'approximation_ratio' and metric[m] != 'optimum_overlap' and metric[
+                    m] != 'cost_function':
                     raise NotImplementedError('Metric must be approximation_ratio, cost_function or optimum_overlap.')
                 else:
                     if metric[m] == 'cost_function':
@@ -324,7 +329,8 @@ class SimulateAdiabatic(object):
             n = 0
             for l in range(len(method)):
                 for m in range(len(metric)):
-                    if metric[m] != 'approximation_ratio' and metric[m] != 'optimum_overlap' and metric[m] != 'cost_function':
+                    if metric[m] != 'approximation_ratio' and metric[m] != 'optimum_overlap' and metric[
+                        m] != 'cost_function':
                         raise NotImplementedError(
                             'Metric must be approximation_ratio, cost_function or optimum_overlap.')
                     else:
@@ -354,18 +360,35 @@ class SimulateAdiabatic(object):
             plt.show()
         return all_performance
 
-    def spectrum_vs_time(self, time, schedule, k=2, num=None, plot=False, which='S'):
-        """Solves for the low (S) or high (L) energy sector."""
+    def spectrum_vs_time(self, time, schedule, k=2, num=None, plot=False, which='S', hamiltonian=True):
+        """Solves for the small (S) or large (L) energy sector."""
         if num is None:
             num = self._num_from_time(time)
         times = np.linspace(0, time, num=num)
-        if self.noise_model is None or self.noise_model is 'monte_carlo':
-            eigvals = np.zeros((len(times), self.cost_hamiltonian.shape[0]), dtype=np.complex128)
+        if not hamiltonian and (self.noise_model is None or self.noise_model is 'monte_carlo'):
+            print('No noise models found. Finding Hamiltonian spectrum')
+            hamiltonian = True
+        if self.noise_model is None or self.noise_model is 'monte_carlo' or hamiltonian:
+            # Initialize Schrodinger equation
+            schrodinger_equation = SchrodingerEquation(hamiltonians=self.hamiltonian)
+            eigvals = np.zeros((len(times), k), dtype=np.float64)
+            for i in range(len(times)):
+                schedule(times[i], time)
+                eigval, eigvec = schrodinger_equation.eig(which=which, k=k)
+                eigvals[i] = eigval
+            if plot:
+                plotted_eigvals = np.swapaxes(eigvals, 0, 1)
+                for i in range(k):
+                    plt.scatter(times, plotted_eigvals[i], color='teal')
+                plt.ylabel('Energy')
+                plt.xlabel('Time')
+                plt.show()
         else:
             eigvals = np.zeros((len(times), self.cost_hamiltonian.shape[0], self.cost_hamiltonian.shape[0]),
                                dtype=np.complex128)
+            raise NotImplementedError
 
-        # Generate a LinearOperator from the Hamiltonian
+        return eigvals
 
     def distribution_vs_total_time(self, time, schedule, num=None, metric='approximation_ratio', initial_state=None,
                                    plot=False, verbose=False, method='RK45', iterations=None):

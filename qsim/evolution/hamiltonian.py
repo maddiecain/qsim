@@ -10,15 +10,12 @@ from qsim.graph_algorithms.graph import Graph, IS_projector
 
 
 class HamiltonianDriver(object):
-    def __init__(self, transition: tuple = (0, 1), energies=None, pauli='X', code=None, IS_subspace=False, graph=None):
+    def __init__(self, transition: tuple = (0, 1), energies: tuple = (1,), pauli='X', code=qubit, IS_subspace=False,
+                 graph=None):
         """Default is that the first element in transition is the higher energy s."""
-        if energies is None:
-            energies = [1]
         self.transition = transition
         self.energies = energies
         self.pauli = pauli
-        if code is None:
-            code = qubit
         self.code = code
         self.graph = graph
         if self.pauli == 'X' and not self.code.logical_code:
@@ -99,6 +96,8 @@ class HamiltonianDriver(object):
                     entries[num_terms:2 * num_terms] = -1 * entries[:num_terms]
                 # Now, construct the Hamiltonian
                 self._hamiltonian = sparse.csr_matrix((entries, (rows, columns)), shape=(num_IS, num_IS))
+            else:
+                raise Exception('self.pauli must be X, Y, or Z')
         else:
             self._hamiltonian = None
         self._left_acting_hamiltonian = None
@@ -108,7 +107,10 @@ class HamiltonianDriver(object):
     def hamiltonian(self):
         if self._hamiltonian is None:
             assert not self.IS_subspace
-            assert self.graph is not None
+            try:
+                assert self.graph is not None
+            except AssertionError:
+                print('self.graph must be not None to generate the Hamiltonian property.')
             self._hamiltonian = sparse.csr_matrix(((self.code.d * self.code.n) ** self.graph.n,
                                                    (self.code.d * self.code.n) ** self.graph.n))
             for i in range(self.graph.n):
@@ -204,7 +206,9 @@ class HamiltonianDriver(object):
                              code=state.code)
 
     def right_multiply(self, state: State):
-        assert not state.is_ket, 'Right multiply functionality currently only exists for density matrices.'
+        if state.is_ket:
+            print('Warning: right multiply functionality currently applies the operator and daggers the state.')
+            return self.left_multiply(state).conj().T
         if not self.IS_subspace:
             temp = np.zeros_like(state)
             # For each physical qubit
@@ -277,17 +281,12 @@ class HamiltonianDriver(object):
 
 
 class HamiltonianMaxCut(object):
-    def __init__(self, G: Graph, code=None, energies=None):
+    def __init__(self, G: Graph, code=qubit, energies=(1,)):
         # If MIS is true, create an MIS Hamiltonian. Otherwise, make a MaxCut Hamiltonian
         r"""
         Generate a vector corresponding to the diagonal of the MaxCut Hamiltonian.
         """
-        if energies is None:
-            energies = [1]
-        if code is None:
-            self.code = qubit
-        else:
-            self.code = code
+        self.code = code
         self.energies = energies
         # Make sure all edges have weight attribute; default to 1
 
@@ -307,7 +306,7 @@ class HamiltonianMaxCut(object):
             z = np.expand_dims(np.diagonal(qubit.Z), axis=0).T
 
             def my_eye(n):
-                return np.ones((np.asarray(qubit.d ** qubit.n) ** n, 1))
+                return np.ones((np.asarray(qubit.d) ** n, 1))
 
             for a, b in self.graph.edges:
                 if b < a:
@@ -315,18 +314,20 @@ class HamiltonianMaxCut(object):
                 c = c - 1 / 2 * G.graph[a][b]['weight'] * (tools.tensor_product(
                     [my_eye(a), z, my_eye(b - a - 1), z, my_eye(self.N - b - 1)]) - my_eye(self.N))
             self._optimum = np.max(c).real
-            c = np.zeros([self.code.d ** (self.code.n * self.N), 1])
+            c = sparse.csr_matrix((self.code.d ** (self.code.n * self.N), self.code.d ** (self.code.n * self.N)))
 
-            z = self.code.Z
+            z = sparse.csr_matrix(self.code.Z)
 
             def my_eye(n):
-                return np.identity(np.asarray(z.shape[0]) ** n)
+                return sparse.csr_matrix(np.ones(np.asarray(z.shape[0]) ** n),
+                                         (np.asarray(z.shape[0]) ** n, np.asarray(z.shape[0]) ** n))
 
         for a, b in self.graph.edges:
             if b < a:
                 a, b = b, a
             c = c - 1 / 2 * G.graph[a][b]['weight'] * (tools.tensor_product(
-                [my_eye(a), z, my_eye(b - a - 1), z, my_eye(self.N - b - 1)]) - my_eye(self.N))
+                [my_eye(a), z, my_eye(b - a - 1), z, my_eye(self.N - b - 1)], sparse=(not self._is_diagonal)) - my_eye(
+                self.N))
         if self._is_diagonal:
             self._diagonal_hamiltonian = c
             self._optimum = np.max(c).real
@@ -363,14 +364,14 @@ class HamiltonianMaxCut(object):
 
     @property
     def optimum(self):
-        if self._is_diagonal:
-            return self.energies[0] * self._optimum
-        else:
-            raise NotImplementedError('Optimum unknown for non-diagonal Hamiltonians')
+        # Optimum for non-diagonal Hamiltonians can be found by computing the optimum in the standard basis,
+        # which is done in self.__init__()
+        return self.energies[0] * self._optimum
 
     def evolve(self, state: State, time):
         if state.is_ket:
             if self._is_diagonal:
+                # It's quicker to exponentiate a diagonal array than use expm_multiply
                 return State(np.exp(-1j * time * self._diagonal_hamiltonian) * state, is_ket=state.is_ket,
                              IS_subspace=state.IS_subspace, code=state.code)
             else:
@@ -412,38 +413,50 @@ class HamiltonianMaxCut(object):
                 return State(state @ self.hamiltonian.T, is_ket=state.is_ket,
                              IS_subspace=state.IS_subspace, code=state.code)
 
-    def cost_function(self, state: State, hamiltonian=None):
+    def cost_function(self, state: State):
         # Need to project into the IS subspace
         # Returns <s|C|s>
-        if hamiltonian is None:
-            if self._is_diagonal:
-                hamiltonian = self._diagonal_hamiltonian
-            else:
-                hamiltonian = self.hamiltonian
         if state.is_ket:
             if self._is_diagonal:
-                return np.real(np.vdot(state, hamiltonian * state))
+                return np.real(np.vdot(state, self._diagonal_hamiltonian * state))
             else:
-                return np.real(np.vdot(state, hamiltonian @ state))
+                return np.real(np.vdot(state, self.hamiltonian @ state))
         else:
             # Density matrix
             if self._is_diagonal:
-                return np.real(np.squeeze(tools.trace(hamiltonian * state)))
+                return np.real(np.squeeze(tools.trace(self._diagonal_hamiltonian * state)))
             else:
-                return np.real(np.squeeze(tools.trace(hamiltonian @ state)))
+                return np.real(np.squeeze(tools.trace(self.hamiltonian @ state)))
+
+    def optimum_overlap(self, state: State):
+        # Returns \sum_i <s|opt_i><opt_i|s>
+        if self._is_diagonal:
+            optimum_indices = np.argwhere(self._diagonal_hamiltonian == self.optimum).T[0]
+            # Construct an operator that is zero everywhere except at the optimum
+            optimum = np.zeros(self._diagonal_hamiltonian.shape)
+            optimum[optimum_indices] = 1
+        else:
+            # The plan for this is to basically use the code for _is_diagonal to identify the logical qubit subspaces
+            # which encode the optimum. Then, make an operator that's the identity in those subspaces
+            raise NotImplementedError('Optimum overlap not implemented for non-diagonal Hamiltonians')
+        if state.is_ket:
+            return np.real(np.vdot(state, optimum * state))
+        else:
+            # Density matrix
+            return np.real(np.squeeze(tools.trace(optimum * state)))
+
+    def approximation_ratio(self, state: State):
+        # Returns <s|C|s>/optimum
+        return self.cost_function(state) / self.optimum
 
 
 class HamiltonianMIS(object):
-    def __init__(self, G: Graph, energies=None, code=None, IS_subspace=False):
+    def __init__(self, G: Graph, energies=(1, 1), code=qubit, IS_subspace=False):
         r"""
         Generate a vector corresponding to the diagonal of the MIS Hamiltonian.
         """
-        if energies is None and not IS_subspace:
-            energies = [1, 1]
-        elif energies is None and IS_subspace:
-            energies = [1]
-        if code is None:
-            code = qubit
+        if energies == (1, 1) and IS_subspace:
+            energies = (1,)
         self.code = code
         self.graph = G
         self.N = self.graph.n
@@ -698,27 +711,13 @@ class HamiltonianMIS(object):
                 return np.real(np.squeeze(tools.trace(self.hamiltonian @ state)))
 
     def approximation_ratio(self, state: State):
-        # Returns <s|C|s>
-        if state.is_ket:
-            if self._is_diagonal:
-                return np.real(np.vdot(state, self._diagonal_hamiltonian * state)) / self.optimum
-            else:
-                return np.real(np.vdot(state, self.hamiltonian @ state)) / self.optimum
-        else:
-            # Density matrix
-            if self._is_diagonal:
-                return np.real(np.squeeze(tools.trace(self._diagonal_hamiltonian * state))) / self.optimum
-            else:
-                return np.real(np.squeeze(tools.trace(self.hamiltonian @ state))) / self.optimum
+        # Returns <s|C|s>/optimum
+        return self.cost_function(state) / self.optimum
 
 
 class HamiltonianGlobalPauli(object):
-    def __init__(self, pauli: str, code=None):
-        super().__init__()
-        if code is None:
-            self.code = qubit
-        else:
-            self.code = code
+    def __init__(self, pauli: str = 'X', code=qubit):
+        self.code = code
         self.pauli = pauli
         if self.pauli == 'X':
             self._operator = self.code.X
@@ -745,31 +744,28 @@ class HamiltonianGlobalPauli(object):
 
 
 class HamiltonianBookatzPenalty(object):
-    def __init__(self, code=None, energy=1):
-        if code is None:
-            self.code = qubit
-        else:
-            self.code = code
+    def __init__(self, code=qubit, energies=(1,)):
+        self.code = code
         self.projector = np.identity(self.code.d ** self.code.n) - self.code.code_space_projector
-        self.energy = energy
+        self.energies = energies
 
     def evolve(self, state: State, time):
         # Term for a single qubit
         for i in range(state.number_logical_qudits):
-            state = self.code.rotation(state, [i], self.energy * time, self.projector, is_idempotent=True)
+            state = self.code.rotation(state, [i], self.energies[0] * time, self.projector, is_idempotent=True)
         return state
 
     def left_multiply(self, state: State):
         out = np.zeros_like(state, dtype=np.complex128)
         for i in range(state.number_logical_qudits):
             out = out + self.code.left_multiply(state, [i], self.projector)
-        return State(self.energy * out, is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code)
+        return State(self.energies[0] * out, is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code)
 
     def right_multiply(self, state: State):
         out = np.zeros_like(state, dtype=np.complex128)
         for i in range(state.number_logical_qudits):
             out = out + self.code.right_multiply(state, [i], self.projector)
-        return State(self.energy * out, is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code)
+        return State(self.energies[0] * out, is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code)
 
 
 class HamiltonianMarvianPenalty(object):
@@ -816,44 +812,42 @@ class HamiltonianMarvianPenalty(object):
 
 
 class HamiltonianHeisenberg(object):
-    def __init__(self, G: nx.Graph, energy=(1, 1, 0), code=None):
-        if code is None:
-            code = qubit
+    def __init__(self, G: nx.Graph, energies=(1, 1, 0), code=qubit):
         self.code = code
         self.graph = G
         self.N = self.graph.number_of_nodes()
-        self.energy = energy
+        self.energies = energies
         self.hamiltonian = None
         self.IS_projector = IS_projector(self.graph, self.code)
 
     def left_multiply(self, state: State):
         temp = np.zeros(state.shape, dtype=np.complex128)
         for edge in self.graph.edges:
-            if self.energy[0] != 0:
+            if self.energies[0] != 0:
                 term = self.code.left_multiply(state, [edge[0], edge[1]], ['X', 'X'])
-                temp = temp + self.energy[0] * term
-            if self.energy[1] != 0:
+                temp = temp + self.energies[0] * term
+            if self.energies[1] != 0:
                 term = self.code.left_multiply(state, [edge[0], edge[1]], ['Y', 'Y'])
-                temp = temp + self.energy[1] * term
-            if self.energy[2] != 0:
+                temp = temp + self.energies[1] * term
+            if self.energies[2] != 0:
                 term = self.code.left_multiply(state, [edge[0], edge[1]],
                                                tools.tensor_product([self.code.U, self.code.U]))
-                temp = temp + self.energy[2] * term
+                temp = temp + self.energies[2] * term
         return State(temp, is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code)
 
     def right_multiply(self, state: State):
         temp = np.zeros(state.shape, dtype=np.complex128)
         for edge in self.graph.edges:
-            if self.energy[0] != 0:
+            if self.energies[0] != 0:
                 term = self.code.right_multiply(state, [edge[0], edge[1]], ['X', 'X'])
-                temp = temp + self.energy[0] * term
-            if self.energy[1] != 0:
+                temp = temp + self.energies[0] * term
+            if self.energies[1] != 0:
                 term = self.code.right_multiply(state, [edge[0], edge[1]], ['Y', 'Y'])
-                temp = temp + self.energy[2] * term
-            if self.energy[2] != 0:
+                temp = temp + self.energies[2] * term
+            if self.energies[2] != 0:
                 term = self.code.right_multiply(state, [edge[0], edge[1]],
                                                 tools.tensor_product([self.code.U, self.code.U]))
-                temp = temp + self.energy[2] * term
+                temp = temp + self.energies[2] * term
         return State(temp, is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code)
 
     def evolve(self, state: State, time):
@@ -862,17 +856,17 @@ class HamiltonianHeisenberg(object):
             # TODO: Don't generate the whole matrix then convert to a sparse matrix!
             hamiltonian = np.zeros((state.shape[0], state.shape[0]))
             for (i, j) in self.graph.edges:
-                hamiltonian = hamiltonian + self.energy[0] * \
+                hamiltonian = hamiltonian + self.energies[0] * \
                               tools.tensor_product([tools.identity(self.code.n * i, d=self.code.d), self.code.X,
                                                     tools.identity(self.code.n * (j - i - 1), d=self.code.d),
                                                     self.code.X,
                                                     tools.identity(self.code.n * (self.N - j - 1), d=self.code.d)])
-                hamiltonian = hamiltonian + self.energy[1] * \
+                hamiltonian = hamiltonian + self.energies[1] * \
                               tools.tensor_product([tools.identity(self.code.n * i, d=self.code.d), self.code.Y,
                                                     tools.identity(self.code.n * (j - i - 1), d=self.code.d),
                                                     self.code.Y,
                                                     tools.identity(self.code.n * (self.N - j - 1), d=self.code.d)])
-                hamiltonian = hamiltonian + self.energy[2] * \
+                hamiltonian = hamiltonian + self.energies[2] * \
                               tools.tensor_product([tools.identity(self.code.n * i, d=self.code.d), self.code.U,
                                                     tools.identity(self.code.n * (j - i - 1), d=self.code.d),
                                                     self.code.U,
@@ -898,16 +892,15 @@ class HamiltonianHeisenberg(object):
 
 
 class HamiltonianEnergyShift(object):
-    def __init__(self, index: int = 1, energies=None, code=None, IS_subspace=False, graph=None):
+    def __init__(self, index: int = 1, energies=(1,), code=qubit, IS_subspace=False, graph=None):
         """Default is that the first element in transition is the higher energy s."""
-        if energies is None:
-            energies = [1]
         self.index = index
+        self.graph = graph
         self.energies = energies
-        if code is None:
-            code = qubit
         self.code = code
         if not self.code.logical_code:
+            if not 0 <= self.index < self.code.d:
+                raise Exception('Index exceeds qudit dimension.')
             self._operator = np.zeros((self.code.d, self.code.d))
             self._operator[self.index, self.index] = 1
         else:
@@ -933,11 +926,26 @@ class HamiltonianEnergyShift(object):
             self._hamiltonian = sparse.csr_matrix(
                 (self._diagonal_hamiltonian.T[0], (np.arange(len(self._diagonal_hamiltonian)),
                                                    np.arange(len(self._diagonal_hamiltonian)))))
-
-        # TODO: define self.hamiltonian for non-IS_subspace
+        else:
+            # Use full Hilbert space
+            self._hamiltonian = None
 
     @property
     def hamiltonian(self):
+        if self._hamiltonian is None:
+            assert not self.IS_subspace
+            try:
+                assert self.graph is not None
+            except AssertionError:
+                print('self.graph must be not None to generate the Hamiltonian property.')
+            self._hamiltonian = sparse.csr_matrix(((self.code.d * self.code.n) ** self.graph.n,
+                                                   (self.code.d * self.code.n) ** self.graph.n))
+            for i in range(self.graph.n):
+                self._hamiltonian = self._hamiltonian + tools.tensor_product(
+                    [sparse.identity((self.code.d * self.code.n) ** i),
+                     self._operator,
+                     sparse.identity((self.code.d * self.code.n) ** (self.graph.n - i - 1))],
+                    sparse=True)
         return self.energies[0] * self._hamiltonian
 
     def left_multiply(self, state: State):
@@ -975,8 +983,10 @@ class HamiltonianEnergyShift(object):
                          code=state.code)
 
     def right_multiply(self, state: State):
-        assert not state.is_ket, 'Right multiply functionality currently only exists for density matrices.'
-        if not self.IS_subspace:
+        if state.is_ket:
+            print('Warning: right multiply functionality currently applies the operator and daggers the state.')
+            return self.left_multiply(state).conj().T
+        elif not self.IS_subspace:
             temp = np.zeros_like(state)
             # For each physical qubit
             state_shape = state.shape

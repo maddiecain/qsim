@@ -493,7 +493,7 @@ def eit_steady_state(graph, show_graph=False, gamma=1):
 #
 def time_performance():
     graph, mis = line_graph(3, return_mis=True)
-    #graph, mis = degree_fails_graph(return_mis=True)
+    # graph, mis = degree_fails_graph(return_mis=True)
     graph = Graph(graph)
     ratios_d = [1]
     ratios_r = [1]
@@ -515,13 +515,13 @@ def time_performance():
 
             simulation_eit = eit_simulation(graph, noise_model='continuous', gamma=1, delta=d, Omega_g=r, Omega_r=r)
             simulation_eit.performance_vs_total_time([5, 10, 15, 20], metric='cost_function',
-                                         schedule=lambda t, tf: rydberg_EIT_schedule(t, tf,
-                                                                                     coefficients=[
-                                                                                         r, r]),
-                                         plot=True, verbose=True, method='RK23')
+                                                     schedule=lambda t, tf: rydberg_EIT_schedule(t, tf,
+                                                                                                 coefficients=[
+                                                                                                     r, r]),
+                                                     plot=True, verbose=True, method='RK23')
 
 
-#time_performance()
+# time_performance()
 # eit_steady_state(graph)
 # delta_vs_T()
 # graph = nx.random_regular_graph(3, 8)
@@ -545,14 +545,13 @@ def time_performance():
 #                                                                                                               Delta]),
 #                               plot=True, method='odeint', verbose=True)
 graph = line_graph(2)
-simulation_eit = eit_simulation(graph, noise_model='continuous', gamma=1, delta=0, Omega_g=1, Omega_r=1)
+simulation_eit = eit_simulation(graph, noise_model='continuous', gamma=0, delta=1, Omega_g=1, Omega_r=1)
 
-performance, info = simulation_eit.performance_vs_time(20, metric='optimum_overlap',
-                                                 schedule=lambda t, tf: rydberg_EIT_schedule(t, tf,
-                                                                                             coefficients=[
-                                                                                                 1, 1]),
-                                                 plot=True, verbose=True, method='RK23')
+performance = simulation_eit.run(2000, schedule=lambda t, tf: rydberg_EIT_schedule(t, tf, coefficients=[1, 1]),
+                                 verbose=True, method='odeint')
+print(np.round(performance[0][-1], 2))
 
+eigvals = simulation_eit.spectrum_vs_time(1, num=30, k=6, schedule=lambda t, tf: rydberg_EIT_schedule(t, tf, coefficients=[1, 1]), plot=True)
 
 
 def normalized_time_plot():
@@ -569,10 +568,11 @@ def normalized_time_plot():
             # dark = 1 / 2 * np.array([[1, 0, -1], [0, 0, 0], [-1, 0, 1]])
             print(g, o)
             performance, info = simulation_eit.performance_vs_time(100 / time_scale,
-                                                             schedule=lambda t, tf: rydberg_EIT_schedule(t, tf,
-                                                                                                         coefficients=[
-                                                                                                             o, o]),
-                                                             plot=False, verbose=True, method='RK45')
+                                                                   schedule=lambda t, tf: rydberg_EIT_schedule(t, tf,
+                                                                                                               coefficients=[
+                                                                                                                   o,
+                                                                                                                   o]),
+                                                                   plot=False, verbose=True, method='RK45')
             plt.plot(info.t * time_scale, performance, c=cm.viridis(o / 10))
     plt.get_cmap('viridis')
     plt.ylabel(r'approximation ratio $\alpha$')

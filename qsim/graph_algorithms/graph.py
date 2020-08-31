@@ -290,9 +290,9 @@ def line_graph(n, return_mis=False):
     g.add_nodes_from(np.arange(0, n), weight=1)
     if n == 1:
         if return_mis:
-            return nx.trivial_graph(), 1
+            return Graph(g), 1
         else:
-            return nx.trivial_graph()
+            return Graph(g)
     else:
         for i in range(n - 1):
             g.add_edge(i, i + 1, weight=-1)

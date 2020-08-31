@@ -69,7 +69,7 @@ class LindbladMasterEquation(object):
             # Use the odeint wrapper
             if full_output:
                 if times is None:
-                    times = np.linspace(0, 1, num=int(num)) * (tf-t0) + t0
+                    times = np.linspace(0, 1, num=int(num)) * (tf - t0) + t0
                 z, infodict = odeintw(f, state_asarray, times, full_output=True)
                 infodict['t'] = times
                 norms = np.trace(z, axis1=-2, axis2=-1)
@@ -82,7 +82,7 @@ class LindbladMasterEquation(object):
                 return z, infodict
             else:
                 if times is None:
-                    times = np.linspace(0, 1, num=int(num)) * (tf-t0) + t0
+                    times = np.linspace(0, 1, num=int(num)) * (tf - t0) + t0
                 norms = np.zeros(len(times))
                 s = state_asarray.copy()
                 for (i, t) in zip(range(len(times)), times):
@@ -138,20 +138,25 @@ class LindbladMasterEquation(object):
             if t == times[0] and full_output:
                 z[i, ...] = state
             else:
-                dt = times[i]-times[i-1]
+                if i != 0:
+                    dt = times[i] - times[i - 1]
+                else:
+                    dt = times[i+1] - times[i]
                 for hamiltonian in self.hamiltonians:
                     s = hamiltonian.evolve(s, dt)
                 for jump_operator in self.jump_operators:
                     if isinstance(jump_operator, LindbladJumpOperator):
+                        # TODO: figure out what the behavior should be here
+                        print('Warning: Evolving by a LindbladJumpOperator involves exponentiating a large matrix.',
+                              'Consider a QuantumChannel.')
                         s = jump_operator.evolve(s, dt)
                     elif isinstance(jump_operator, QuantumChannel):
-                        s = jump_operator.channel(s)
+                        s = jump_operator.evolve(s, dt)
             if full_output:
                 z[i, ...] = s
         else:
             z = np.array([s])
-        norms = np.linalg.norm(z, axis=(-2, -1))
-        print(norms)
+        norms = np.trace(z, axis1=-2, axis2=-1)
         if verbose:
             print('Fraction of integrator results normalized:',
                   len(np.argwhere(np.isclose(norms, np.ones(norms.shape)) == 1)) / len(norms))
@@ -159,7 +164,6 @@ class LindbladMasterEquation(object):
         norms = norms[:, np.newaxis, np.newaxis]
         z = z / norms
         return z, infodict
-
 
     def run_stochastic_wavefunction_solver(self, s, t0, tf, num=50, schedule=lambda t: None, times=None,
                                            full_output=True, method='RK45', verbose=False, iterations=None):

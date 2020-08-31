@@ -3,7 +3,6 @@ import unittest
 
 from qsim.test.tools_test import sample_graph
 from qsim.tools.tools import equal_superposition, outer_product
-from qsim.graph_algorithms import qaoa
 from qsim.graph_algorithms.graph import Graph, ring_graph
 from qsim.codes.quantum_state import State
 import networkx as nx
@@ -32,7 +31,7 @@ sim_noisy = qaoa.SimulateQAOA(g, cost_hamiltonian=hc, hamiltonian=hamiltonians, 
 psi0 = State(equal_superposition(N))
 rho0 = State(outer_product(psi0, psi0))
 
-noises = [quantum_channels.DepolarizingChannel(.001)]
+noises = [quantum_channels.DepolarizingChannel(rates=(.001,))]
 sim_noisy.noise = noises * 2
 
 
@@ -56,8 +55,8 @@ class TestSimulateQAOA(unittest.TestCase):
         sim_noisy.noise = noises * 2
         F, Fgrad = sim_noisy.variational_grad(np.array([1, 0.5]), initial_state=rho0)
         # Appears to be not applying the noise
-        self.assertTrue(np.abs(F - 5.063050014958339) <= 1e-5)
-        self.assertTrue(np.all(np.abs(Fgrad - np.array([-1.67270108, -2.95200338])) <= 1e-5))
+        self.assertTrue(np.abs(F - 5.063802001538955) <= 1e-5)
+        self.assertTrue(np.all(np.abs(Fgrad - np.array([-1.67493507, -2.95594595])) <= 1e-5))
 
         # p = 2
         sim_ket.hamiltonian = hamiltonians * 2
@@ -94,7 +93,7 @@ class TestSimulateQAOA(unittest.TestCase):
         # See how things look with evolution
         sim_noisy.hamiltonian = hamiltonians
         sim_noisy.noise = noises * 2
-        self.assertAlmostEqual(sim_noisy.run(np.array([1, .5]), initial_state=rho0), 5.063050014958339)
+        self.assertAlmostEqual(sim_noisy.run(np.array([1, .5]), initial_state=rho0), 5.063802001538955)
 
         F, Fgrad = sim.variational_grad([1, .5], initial_state=psi0)
         self.assertAlmostEqual(F, 5.066062984904651)
@@ -104,9 +103,9 @@ class TestSimulateQAOA(unittest.TestCase):
         sim_noisy.noise = noises * 6
         params = np.array([-1, 4, 15, 5, -6, 7])
         F, Fgrad = sim_noisy.variational_grad(params, initial_state=rho0)
-        self.assertTrue(np.abs(F - 3.474432565774367) <= 1e-5)
-        self.assertTrue(np.all(np.abs(
-            Fgrad - np.array([-1.86039494, 5.15858468, 4.49666081, -0.82924304, 2.7650584, 0.98504574]) < 1e-5)))
+        self.assertTrue(np.allclose(F, 3.512259243937393))
+        self.assertTrue(np.allclose(
+            Fgrad, np.array([-1.80872061, 4.86011747, 4.19677292, -0.79050022, 2.55669856, 0.94697709])))
 
     def test_find_optimal_params(self):
         # Test on a known graph
@@ -140,10 +139,10 @@ class TestSimulateQAOA(unittest.TestCase):
 
         print('Noisy:')
         results = sim_noisy.find_parameters_minimize(verbose=False, analytic_gradient=True, initial_state=rho0)
-        self.assertTrue(np.isclose(results['approximation_ratio'], 0.9775935942298778))
+        self.assertTrue(np.isclose(results['approximation_ratio'], 0.9786598500584663))
         self.assertTrue(
-            np.allclose(results['params'], np.array([0.40681189, 2.07749373, 0.85463347, 0.34377621, 1.04039812,
-                                                     0.17029583])))
+            np.allclose(results['params'], np.array([0.40657247, 2.07746402, 0.85469787, 0.34366995, 1.04087398,
+                                                     0.17029388])))
 
     def test_fix_param_gauge(self):
         """
@@ -199,7 +198,7 @@ class TestSimulateQAOA(unittest.TestCase):
             G[e[0]][e[1]]['weight'] = 1
         nx.draw_networkx(G)
         # Uncomment to visualize graph
-        #plt.draw_graph(G)
+        # plt.draw_graph(G)
         G = Graph(G)
         print('No logical encoding:')
         hc_qubit = hamiltonian.HamiltonianMIS(G)

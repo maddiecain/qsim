@@ -95,12 +95,12 @@ class SimulateQAOA(object):
                         s0_prenoise = s.copy()
                     if self.noise_model is not None:
                         if not (self.noise[j] is None):
-                            s = self.noise[j].global_channel(s)
+                            s = self.noise[j].evolve(s, param[j])
                     memo[..., k] = s.copy()
                 s0_prenoise = self.hamiltonian[j].left_multiply(s0_prenoise)
                 if self.noise_model is not None:
                     if not (self.noise[j] is None):
-                        s0_prenoise = self.noise[j].global_channel(s0_prenoise)
+                        s0_prenoise = self.noise[j].evolve(s0_prenoise, param[j])
                 memo[..., j + 1] = s0_prenoise.copy()
 
         # Multiply by cost_hamiltonian
@@ -151,7 +151,7 @@ class SimulateQAOA(object):
             s = self.hamiltonian[j].evolve(s, param[j])
             if self.noise_model is not None:
                 if self.noise[j] is not None:
-                    s = self.noise[j].global_channel(s)
+                    s = self.noise[j].evolve(s, param[j])
         # Return the expected value of the cost function
         # Note that the codes's defined expectation function won't work here due to the shape of C
         return self.cost_hamiltonian.cost_function(s)

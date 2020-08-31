@@ -3,7 +3,7 @@ from odeintw import odeintw
 import numpy as np
 import scipy.integrate
 from scipy.sparse import csr_matrix
-from scipy.sparse.linalg import expm_multiply
+from scipy.sparse.linalg import expm_multiply, eigsh
 
 __all__ = ['SchrodingerEquation']
 
@@ -130,7 +130,6 @@ class SchrodingerEquation(object):
         else:
             z = np.array([s])
         norms = np.linalg.norm(z, axis=(-2, -1))
-        print(norms)
         if verbose:
             print('Fraction of integrator results normalized:',
                   len(np.argwhere(np.isclose(norms, np.ones(norms.shape)) == 1)) / len(norms))
@@ -140,9 +139,58 @@ class SchrodingerEquation(object):
         return z, infodict
 
 
-    def eig(self):
+    def eig(self, k=2, which='S'):
         # Construct a LinearOperator for the Hamiltonians
-        pass
+        linear_operator = False
+        ham = None
+        for h in self.hamiltonians:
+            if not hasattr(h, 'hamiltonian'):
+                linear_operator = True
+            else:
+                if ham is None:
+                    ham = h.hamiltonian
+                else:
+                    ham = ham + h.hamiltonian
+
+        if not linear_operator:
+            if isinstance(ham, np.ndarray):
+                eigvals, eigvecs = np.linalg.eigh(ham)
+            else:
+                # Hamiltonian is a sparse matrix
+                if which == 'S':
+                    eigvals, eigvecs = eigsh(ham, k=k, which='SM')
+                else:
+                    eigvals, eigvecs = eigsh(ham, k=k, which='LM')
+
+            eigvecs = np.moveaxis(eigvecs, -1, 0)
+        else:
+            # Construct a LinearOperator from the Hamiltonians
+            raise NotImplementedError
+        return eigvals, eigvecs
 
     def ground_state(self):
-        pass
+        """Returns the ground state and ground state energy"""
+        # Construct a LinearOperator for the Hamiltonians
+        linear_operator = False
+        ham = None
+        for h in self.hamiltonians:
+            if not hasattr(h, 'hamiltonian'):
+                linear_operator = True
+            else:
+                if ham is None:
+                    ham = h.hamiltonian
+                else:
+                    ham = ham + h.hamiltonian
+
+        if not linear_operator:
+            eigvals, eigvecs = np.linalg.eigh(ham)
+            eigvecs = np.reshape(eigvecs, [ham.shape[0], ham.shape[1], eigvecs.shape[-1]])
+            eigvecs = np.moveaxis(eigvecs, -1, 0)
+            # Reorder eigenvalues and eigenvectors
+            #order = np.argsort(eigvals)
+            #eigvals = np.take_along_axis(eigvals, order, axis=0)
+            #eigvecs = np.take_along_axis(eigvecs, order, axis=0)
+        else:
+            # Construct a LinearOperator from the Hamiltonians
+            raise NotImplementedError
+        return eigvecs[0], eigvals[0]
