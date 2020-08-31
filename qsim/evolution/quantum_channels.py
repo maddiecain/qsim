@@ -35,9 +35,9 @@ class QuantumChannel(object):
                 assert np.allclose(np.sum(np.transpose(np.array(povm_p).conj(), [0, 2, 1]) @ np.array(povm_p), axis=0),
                                    np.identity(povm_p[0].shape[0]))
             except AssertionError:
-                print('Is valid POVM?', False)
+                print('Is valid povm?', False)
                 return False
-        print('Is valid POVM?', True)
+        print('Is valid povm?', True)
         return True
 
     def channel(self, state: State, p: float, apply_to: Union[int, list] = None):

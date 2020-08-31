@@ -96,7 +96,7 @@ def adiabatic_simulation(graph, show_graph=False, approximate=False):
         plt.show()
     if approximate:
         laser = hamiltonian.HamiltonianDriver(transition=(0, 1), IS_subspace=True, graph=graph,
-                                              energies=[Omega_g * Omega_r / delta])
+                                              energies=(Omega_g * Omega_r / delta,))
         detuning = hamiltonian.HamiltonianMIS(graph, IS_subspace=True)
         spontaneous_emission1 = lindblad_operators.SpontaneousEmission(graph=graph, transition=(1, 1),
                                                                        rates=[(Omega_g / delta) ** 2 * Gamma],
@@ -157,13 +157,10 @@ def run(times, n=2, approximate=False):
         return True
 
     # Omega_g * Omega_r / delta
-    res = simulation.performance_vs_time(2, schedule=lambda t, tf: experiment_rydberg_MIS_schedule(t, tf,
-                                                                                                             coefficients=[
-                                                                                                                 Omega_g,
-                                                                                                                 Omega_r,
-                                                                                                                 Delta]),
-                                               plot=True, verbose=False, method=['RK23', 'odeint'], metric=['approximation_ratio',
-                                                                                                'optimum_overlap'])
+    res = simulation.performance_vs_time(2, schedule=lambda t, tf:
+    experiment_rydberg_MIS_schedule(t, tf, coefficients=[Omega_g, Omega_r, Delta]),
+                                               plot=True, verbose=False, method=['trotterize', 'odeint'],
+                                         metric=['approximation_ratio', 'optimum_overlap'])
 
     return res
 

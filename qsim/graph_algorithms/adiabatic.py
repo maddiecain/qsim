@@ -175,8 +175,8 @@ class SimulateAdiabatic(object):
             results, info = self.run(time, schedule, num=num, initial_state=initial_state, full_output=True,
                                      method=method[l], verbose=verbose, iterations=iterations)
             for m in range(len(metric)):
-                if metric[m] != 'approximation_ratio' and metric[m] != 'optimum_overlap' and metric[
-                    m] != 'cost_function':
+                if metric[m] != 'approximation_ratio' and metric[m] != 'optimum_overlap' and \
+                        metric[m] != 'cost_function':
                     raise NotImplementedError('Metric must be approximation_ratio, cost_function or optimum_overlap.')
                 else:
                     if metric[m] == 'cost_function':
@@ -231,7 +231,6 @@ class SimulateAdiabatic(object):
                     else:
                         if len(metric) > 1:
                             scatter_label = metric_label
-
                     plt.scatter(times, performance, color=colors[n], label=scatter_label)
                     plt.plot(times, performance, color=colors[n])
                     n += 1

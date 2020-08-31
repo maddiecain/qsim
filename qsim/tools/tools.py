@@ -255,13 +255,14 @@ def is_valid_state(state, is_ket=False, verbose=True):
     else:
         print('Eigenvalues real?', (np.allclose(np.imag(np.linalg.eigvals(state)), np.zeros(state.shape[0]))))
         print('Eigenvalues positive?', np.all(np.real(np.linalg.eigvals(state)) >= -1e-10))
+        print('Hermitian?', is_hermitian(state))
         print('Trace 1?', np.isclose(np.absolute(np.trace(state)), 1))
         if verbose:
             print('Eigenvalues:', np.linalg.eigvals(state))
             print('Trace:', np.trace(state))
         return (np.allclose(np.imag(np.linalg.eigvals(state)), np.zeros(state.shape[0]), atol=1e-06) and
                 np.all(np.real(np.linalg.eigvals(state)) >= -1 * 1e-7) and
-                np.isclose(np.absolute(np.trace(state)), 1))
+                np.isclose(np.absolute(np.trace(state)), 1) and is_hermitian(state))
 
 
 def is_diagonal(A):

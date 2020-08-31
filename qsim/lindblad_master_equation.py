@@ -133,6 +133,7 @@ class LindbladMasterEquation(object):
             z = np.zeros((n, state.shape[0], state.shape[1]), dtype=np.complex128)
         infodict = {'t': times}
         s = state.copy()
+
         for (i, t) in zip(range(n), times):
             schedule(t)
             if t == times[0] and full_output:
@@ -147,14 +148,15 @@ class LindbladMasterEquation(object):
                 for jump_operator in self.jump_operators:
                     if isinstance(jump_operator, LindbladJumpOperator):
                         # TODO: figure out what the behavior should be here
-                        print('Warning: Evolving by a LindbladJumpOperator involves exponentiating a large matrix.',
-                              'Consider a QuantumChannel.')
+                        if i == 1:
+                            print('Warning: Evolving by a LindbladJumpOperator involves exponentiating a large matrix.',
+                                  'Consider a QuantumChannel.')
                         s = jump_operator.evolve(s, dt)
                     elif isinstance(jump_operator, QuantumChannel):
                         s = jump_operator.evolve(s, dt)
             if full_output:
                 z[i, ...] = s
-        else:
+        if not full_output:
             z = np.array([s])
         norms = np.trace(z, axis1=-2, axis2=-1)
         if verbose:

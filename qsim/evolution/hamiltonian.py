@@ -53,7 +53,7 @@ class HamiltonianDriver(object):
                     self._diagonal_hamiltonian[k, 0] = np.sum(IS[k][2] == self.transition[0]) - np.sum(
                         IS[k][2] == self.transition[1])
                 self._diagonal_hamiltonian = self._diagonal_hamiltonian
-                self._hamiltonian = sparse.csr_matrix(
+                self._hamiltonian = sparse.csc_matrix(
                     (self._diagonal_hamiltonian.T[0], (np.arange(len(self._diagonal_hamiltonian)),
                                                        np.arange(len(self._diagonal_hamiltonian)))))
 
@@ -95,7 +95,7 @@ class HamiltonianDriver(object):
                     rows[num_terms:2 * num_terms] = columns[:num_terms]
                     entries[num_terms:2 * num_terms] = -1 * entries[:num_terms]
                 # Now, construct the Hamiltonian
-                self._hamiltonian = sparse.csr_matrix((entries, (rows, columns)), shape=(num_IS, num_IS))
+                self._hamiltonian = sparse.csc_matrix((entries, (rows, columns)), shape=(num_IS, num_IS))
             else:
                 raise Exception('self.pauli must be X, Y, or Z')
         else:
@@ -271,13 +271,23 @@ class HamiltonianDriver(object):
                     out = self.code.rotation(out, [i], self.energies[0] * time, self._operator)
             return out
         else:
-            # Handle dimensions
-            if self.hamiltonian.shape[1] == 1:
-                return State(np.exp(-1j * time * self.hamiltonian) * state, is_ket=state.is_ket,
-                             IS_subspace=state.IS_subspace, code=state.code)
+            if state.is_ket:
+                # Handle dimensions
+                if self.hamiltonian.shape[1] == 1:
+                    return State(np.exp(-1j * time * self.hamiltonian) * state, is_ket=state.is_ket,
+                                 IS_subspace=state.IS_subspace, code=state.code)
+                else:
+                    return State(expm_multiply(-1j * time * self.hamiltonian, state),
+                                 is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code)
             else:
-                return State(expm_multiply(-1j * time * self.hamiltonian, state),
-                             is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code)
+                if self.hamiltonian.shape[1] == 1:
+                    exp_hamiltonian = np.exp(-1j * time * self.hamiltonian)
+                    return State(exp_hamiltonian * state * exp_hamiltonian.conj().T,
+                                 is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code)
+                else:
+                    exp_hamiltonian = expm(-1j * time * self.hamiltonian)
+                    return State(exp_hamiltonian @ state @ exp_hamiltonian.conj().T,
+                                 is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code)
 
 
 class HamiltonianMaxCut(object):
@@ -871,11 +881,12 @@ class HamiltonianHeisenberg(object):
                                                     tools.identity(self.code.n * (j - i - 1), d=self.code.d),
                                                     self.code.U,
                                                     tools.identity(self.code.n * (self.N - j - 1), d=self.code.d)])
-            hamiltonian = sparse.csr_matrix(hamiltonian)
+            hamiltonian = sparse.csc_matrix(hamiltonian)
             self.hamiltonian = hamiltonian
 
         if not state.is_ket:
-            return State(expm(-1j * time * self.hamiltonian) @ state @ expm(1j * time * self.hamiltonian),
+            exp_hamiltonian = expm(-1j * time * self.hamiltonian)
+            return State(exp_hamiltonian @ state @ exp_hamiltonian.conj().T,
                          is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code)
         if state.is_ket:
             return State(expm_multiply(-1j * time * self.hamiltonian, state), is_ket=state.is_ket,
@@ -1024,6 +1035,20 @@ class HamiltonianEnergyShift(object):
                 out = self.code.rotation(out, [i], self.energies[0] * time, self._operator)
             return out
         else:
-            # Handle dimensions
-            return State(np.exp(-1j * self.energies[0] * time * self._diagonal_hamiltonian) * state,
-                         is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code)
+            if state.is_ket:
+                # Handle dimensions
+                if self.hamiltonian.shape[1] == 1:
+                    return State(np.exp(-1j * time * self.hamiltonian) * state, is_ket=state.is_ket,
+                                 IS_subspace=state.IS_subspace, code=state.code)
+                else:
+                    return State(expm_multiply(-1j * time * self.hamiltonian, state),
+                                 is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code)
+            else:
+                if self.hamiltonian.shape[1] == 1:
+                    exp_hamiltonian = np.exp(-1j * time * self.hamiltonian)
+                    return State(exp_hamiltonian * state * exp_hamiltonian.conj().T,
+                                 is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code)
+                else:
+                    exp_hamiltonian = expm(-1j * time * self.hamiltonian)
+                    return State(exp_hamiltonian @ state @ exp_hamiltonian.conj().T,
+                                 is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code)

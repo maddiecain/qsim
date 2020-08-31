@@ -1,7 +1,7 @@
 import numpy as np
 import unittest
 
-from qsim.graph_algorithms.graph import Graph
+from qsim.graph_algorithms.graph import line_graph
 from qsim import tools
 from qsim.evolution import hamiltonian
 from qsim.codes import rydberg
@@ -97,7 +97,7 @@ class TestHamiltonian(unittest.TestCase):
         psi2 = State(np.zeros((2 ** N, 1)))
         psi2[0, 0] = 1
         psi2 = hl_qubit.hamiltonian @ psi2
-        print(psi2 == psi0)
+        self.assertTrue(np.allclose(psi0, psi2))
 
         N = 3
         hl = hamiltonian.HamiltonianDriver(transition=(0, 1), code=rydberg)
@@ -116,6 +116,13 @@ class TestHamiltonian(unittest.TestCase):
         psi0[5, 0] = 1
         psi0 = hl.evolve(psi0, np.pi / 2)
         self.assertTrue(np.isclose(psi0[11, 0], -1))
+
+        # IS subspace
+        hl = hamiltonian.HamiltonianDriver(transition=(0, 2), code=rydberg, IS_subspace=True, graph=line_graph(2))
+        psi0 = State(np.zeros((8, 1)), code=rydberg)
+        psi0[-1,0] = 1
+        psi0 = State(tools.outer_product(psi0, psi0), code=rydberg)
+        self.assertTrue(tools.is_hermitian(hl.evolve(psi0, 1)))
 
 
 if __name__ == '__main__':

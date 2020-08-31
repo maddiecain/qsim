@@ -22,6 +22,7 @@ class LindbladJumpOperator(object):
         # Add new axes so that shapes are broadcastable
         return np.sqrt(self.rates[:, np.newaxis, np.newaxis]) * self._jump_operators
 
+    @property
     def evolution_operator(self):
         if self._evolution_operator is None and self.IS_subspace:
             num_IS = self._jump_operators.shape[1]
@@ -106,8 +107,11 @@ class LindbladJumpOperator(object):
                       self.jump_operators[j] @ state
         return State(out / 2, is_ket=state.is_ket, code=state.code, IS_subspace=state.IS_subspace)
 
-    def evolve(self, state: State):
-        pass
+    def evolve(self, state: State, time):
+        state_shape = state.shape
+        state = np.reshape(state, (state_shape[0] ** 2, 1))
+        out = sparse.linalg.expm_multiply(-1*time*self.evolution_operator, state)
+        return np.reshape(out, state_shape)
 
 
 class SpontaneousEmission(LindbladJumpOperator):
@@ -171,17 +175,20 @@ class SpontaneousEmission(LindbladJumpOperator):
     def jump_operators(self):
         return np.sqrt(self.rates[0]) * self._jump_operators
 
+    @property
     def evolution_operator(self):
         if self._evolution_operator is None:
-            num_IS = self._jump_operators.shape[1]
-            self._evolution_operator = sparse.csr_matrix((num_IS ** 2, num_IS ** 2))
-            for jump_operator in self._jump_operators:
-                # Jump operator is real, so we don't need to conjugate
-                self._evolution_operator = self._evolution_operator + sparse.kron(jump_operator,
-                                                                                  jump_operator) - 1 / 2 * \
-                                           sparse.kron(jump_operator.T @ jump_operator, sparse.identity(num_IS)) - \
-                                           1 / 2 * sparse.kron(sparse.identity(num_IS), jump_operator.T @ jump_operator)
-
+            if self.IS_subspace:
+                num_IS = self.graph.num_independent_sets
+                self._evolution_operator = sparse.csr_matrix((num_IS ** 2, num_IS ** 2))
+                for jump_operator in self._jump_operators:
+                    # Jump operator is real, so we don't need to conjugate
+                    self._evolution_operator = self._evolution_operator + sparse.kron(jump_operator, jump_operator) - \
+                                               1 / 2 * sparse.kron(jump_operator.T @ jump_operator,
+                                                                   sparse.identity(num_IS)) - 1 / 2 * \
+                                               sparse.kron(sparse.identity(num_IS), jump_operator.T @ jump_operator)
+            else:
+                raise NotImplementedError
         return self.rates[0] * self._evolution_operator
 
     def liouvillian(self, state: State, apply_to=None):
