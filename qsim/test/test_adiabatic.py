@@ -28,10 +28,10 @@ def adiabatic_simulation(graph, show_graph=False, IS_subspace=False, noisy=False
         rydberg_hamiltonian_cost = hamiltonian.HamiltonianMIS(graph, IS_subspace=IS_subspace)
         if trotterize:
             spontaneous_emission = quantum_channels.AmplitudeDampingChannel(graph=graph, IS_subspace=IS_subspace,
-                                                                            rates=(.01,))
+                                                                            rates=(.1,))
         else:
             spontaneous_emission = lindblad_operators.SpontaneousEmission(graph=graph, IS_subspace=IS_subspace,
-                                                                          rates=(.01,))
+                                                                          rates=(.1,))
 
         # Initialize adiabatic algorithm
         simulation = SimulateAdiabatic(graph, hamiltonian=[laser, detuning], noise_model='continuous',

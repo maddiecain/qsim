@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate._ivp.ivp import OdeResult
 
-from qsim.tools.tools import outer_product
+from qsim.tools.tools import outer_product, is_valid_state
 from qsim.codes import qubit
 from qsim.evolution.hamiltonian import HamiltonianMIS, HamiltonianDriver, HamiltonianMaxCut
 from qsim.graph_algorithms.graph import Graph
@@ -34,7 +34,7 @@ class SimulateAdiabatic(object):
         # Scale factor be 10 when time is one, should be one when time >= 10
         if method == 'trotterize':
             if self.noise_model == 'continuous' or self.noise_model is None:
-                return time * 100
+                return time * 1000
             elif self.noise_model == 'monte_carlo':
                 return time * int(max(30 / time, 50))
         else:
@@ -93,20 +93,20 @@ class SimulateAdiabatic(object):
         if initial_state is None:
             # Begin with all qudits in the ground s
             initial_state = State(np.zeros((self.cost_hamiltonian.hamiltonian.shape[0], 1)), code=self.code,
-                                  IS_subspace=self.IS_subspace)
+                                  IS_subspace=self.IS_subspace, graph=self.graph)
             initial_state[-1, -1] = 1
 
         if self.noise_model is not None and self.noise_model != 'monte_carlo':
             initial_state = State(outer_product(initial_state, initial_state), IS_subspace=self.IS_subspace,
-                                  code=self.code)
+                                  code=self.code, graph=self.graph)
 
         if self.noise_model == 'continuous':
             # Initialize master equation
             if method == 'trotterize':
                 master_equation = LindbladMasterEquation(hamiltonians=self.hamiltonian, jump_operators=self.noise)
                 results, info = master_equation.run_trotterized_solver(initial_state, 0, time, num=num,
-                                                               schedule=lambda t: schedule(t, time),
-                                                               full_output=full_output, verbose=verbose)
+                                                                       schedule=lambda t: schedule(t, time),
+                                                                       full_output=full_output, verbose=verbose)
             else:
                 master_equation = LindbladMasterEquation(hamiltonians=self.hamiltonian, jump_operators=self.noise)
                 results, info = master_equation.run_ode_solver(initial_state, 0, time, num=num,
@@ -127,8 +127,6 @@ class SimulateAdiabatic(object):
 
         else:
             assert self.noise_model == 'monte_carlo'
-            if method == 'trotterize':
-                raise NotImplementedError
             # Initialize master equation
             master_equation = LindbladMasterEquation(hamiltonians=self.hamiltonian, jump_operators=self.noise)
             results, info = master_equation.run_stochastic_wavefunction_solver(initial_state, 0, time, num=num,
@@ -139,10 +137,10 @@ class SimulateAdiabatic(object):
 
         if len(results.shape) == 2:
             # The algorithm has output a single state
-            out = [State(results, IS_subspace=self.IS_subspace, code=self.code)]
+            out = [State(results, IS_subspace=self.IS_subspace, code=self.code, graph=self.graph)]
         elif len(results.shape) == 3:
             # The algorithm has output an array of states
-            out = [State(res, IS_subspace=self.IS_subspace, code=self.code) for res in results]
+            out = [State(res, IS_subspace=self.IS_subspace, code=self.code, graph=self.graph) for res in results]
         else:
             assert len(results.shape) == 4
             if self.noise_model != 'monte_carlo':
@@ -153,7 +151,8 @@ class SimulateAdiabatic(object):
                 res = []
                 for j in range(results.shape[1]):
                     # For all times
-                    res.append(State(results[i, j, ...], IS_subspace=self.IS_subspace, code=self.code))
+                    res.append(
+                        State(results[i, j, ...], IS_subspace=self.IS_subspace, code=self.code, graph=self.graph))
                 out.append(res)
         return out, info
 
@@ -166,8 +165,9 @@ class SimulateAdiabatic(object):
             method = [method]
         metric_label = None
         min_performance = np.inf
-        all_performance = []
-        all_info = []
+        average_performance = []
+        total_performance = {m: {} for m in method}
+        all_info = {m: {} for m in method}
         colors = ['teal', 'purple', 'm', 'deepskyblue', 'deeppink', 'salmon', 'orange', 'r']
         scatter_label = None
         n = 0
@@ -203,12 +203,15 @@ class SimulateAdiabatic(object):
                     performance = np.zeros((iterations, len(results[0])))
                     for (i, trial) in zip(range(iterations), results):
                         performance[i, ...] = np.array([metric_function(trial[j]) for j in range(len(trial))])
+                    total_performance[method[l]][metric[m]] = performance
                     performance = np.mean(performance, axis=0)
 
                 else:
                     performance = [metric_function(results[i]) for i in range(len(results))]
-                all_performance.append(performance)
-                all_info.append(info)
+                    total_performance[method[l]][metric[m]] = performance
+                average_performance.append(performance)
+                info['results'] = results
+                all_info[method[l]][metric[m]] = info
                 if min(performance) < min_performance:
                     min_performance = min(performance)
                 if verbose:
@@ -231,8 +234,8 @@ class SimulateAdiabatic(object):
                     else:
                         if len(metric) > 1:
                             scatter_label = metric_label
-                    plt.scatter(times, performance, color=colors[n], label=scatter_label)
-                    plt.plot(times, performance, color=colors[n])
+                    plt.scatter(times, average_performance[n], color=colors[n], label=scatter_label)
+                    plt.plot(times, average_performance[n], color=colors[n])
                     n += 1
         if plot:
             plt.xlim(-1, time + 1)
@@ -244,7 +247,8 @@ class SimulateAdiabatic(object):
             if scatter_label is not None:
                 plt.legend(loc='lower right')
             plt.show()
-        return all_performance
+
+        return total_performance, all_info
 
     def performance_vs_total_time(self, time, schedule, num=None, metric='approximation_ratio', initial_state=None,
                                   plot=False, verbose=False, method='RK45', iterations=None, errorbar=False):
@@ -255,7 +259,12 @@ class SimulateAdiabatic(object):
             method = [method]
         metric_label = None
         min_performance = np.inf
-        all_performance = np.zeros((len(method), len(metric), len(time)))
+        total_performance = {m: {} for m in method}
+        all_info = {m: {} for m in method}
+        if isinstance(time, int):
+            all_performance = np.zeros((len(method), len(metric), len(np.linspace(0, 1, num=int(num)))))
+        else:
+            all_performance = np.zeros((len(method), len(metric), len(time)))
         if errorbar:
             stdev = np.zeros((len(method), len(metric), len(time)))
         colors = ['teal', 'purple', 'm', 'deepskyblue', 'deeppink', 'salmon', 'orange', 'r']
@@ -266,7 +275,10 @@ class SimulateAdiabatic(object):
                     print('Solving time: ' + str(time[t]))
                 results, info = self.run(time[t], schedule, num=num, initial_state=initial_state, full_output=False,
                                          method=method[l], iterations=iterations, verbose=verbose)
+                # print(np.around(results[-1], decimals=3), is_valid_state(results[-1], is_ket=False))
                 for m in range(len(metric)):
+                    if t == 0:
+                        total_performance[method[l]][metric[m]] = []
                     if metric[m] != 'approximation_ratio' and metric[m] != 'optimum_overlap' and metric[m] != \
                             'cost_function':
                         print('Metric must be approximation_ratio, cost_function or optimum_overlap. Metric ' +
@@ -288,6 +300,7 @@ class SimulateAdiabatic(object):
                             performance_time = np.zeros(iterations)
                             for (p, trial) in zip(range(iterations), results):
                                 performance_time[p, ...] = metric_function(trial)
+                            total_performance[method[l]][metric[m]].append(performance_time)
                             all_performance[l, m, t] = np.mean(performance_time, axis=0)
 
                         else:
@@ -311,9 +324,13 @@ class SimulateAdiabatic(object):
                                 vals = np.arange(len(res)) / (len(res) - 1)
                                 x0 = np.sum(res * vals)
                                 stdev[l, m, t] = np.sum(res * (vals - x0) ** 2) ** .5
+                            total_performance[method[l]][metric[m]].append(metric_function(results[-1]))
                             all_performance[l, m, t] = metric_function(results[-1])
                             if all_performance[l, m, t] < min_performance:
                                 min_performance = all_performance[l, m, t]
+
+                        info['results'] = results
+                        all_info[method[l]][metric[m]] = info
                     if verbose:
                         np.set_printoptions(threshold=np.inf)
                         print('Performance: ', all_performance[l, m, t])
@@ -328,8 +345,8 @@ class SimulateAdiabatic(object):
             n = 0
             for l in range(len(method)):
                 for m in range(len(metric)):
-                    if metric[m] != 'approximation_ratio' and metric[m] != 'optimum_overlap' and metric[
-                        m] != 'cost_function':
+                    if metric[m] != 'approximation_ratio' and metric[m] != 'optimum_overlap' and metric[m] != \
+                            'cost_function':
                         raise NotImplementedError(
                             'Metric must be approximation_ratio, cost_function or optimum_overlap.')
                     else:
@@ -357,7 +374,7 @@ class SimulateAdiabatic(object):
             if scatter_label is not None:
                 plt.legend(loc='lower right')
             plt.show()
-        return all_performance
+        return total_performance, all_info
 
     def spectrum_vs_time(self, time, schedule, k=2, num=None, plot=False, which='S', hamiltonian=True):
         """Solves for the small (S) or large (L) energy sector."""

@@ -16,7 +16,7 @@ class SchrodingerEquation(object):
         self.hamiltonians = hamiltonians
 
     def evolution_generator(self, state: State):
-        res = State(np.zeros(state.shape), is_ket=state.is_ket, code=state.code, IS_subspace=state.IS_subspace)
+        res = State(np.zeros(state.shape), is_ket=state.is_ket, code=state.code, IS_subspace=state.IS_subspace, graph=state.graph)
         for i in range(len(self.hamiltonians)):
             res = res - 1j * self.hamiltonians[i].left_multiply(state)
         return res
@@ -36,6 +36,7 @@ class SchrodingerEquation(object):
         is_ket = state.is_ket
         code = state.code
         IS_subspace = state.IS_subspace
+        graph = state.graph
 
         def f(t, s):
             global state
@@ -44,7 +45,7 @@ class SchrodingerEquation(object):
             if method != 'odeint':
                 s = np.reshape(np.expand_dims(s, axis=0), state_shape)
             schedule(t)
-            s = State(s, is_ket=is_ket, code=code, IS_subspace=IS_subspace)
+            s = State(s, is_ket=is_ket, code=code, IS_subspace=IS_subspace, graph=graph)
             return np.asarray(self.evolution_generator(s)).flatten()
 
         # s is a ket specifying the initial codes
@@ -138,7 +139,6 @@ class SchrodingerEquation(object):
         z = z / norms
         return z, infodict
 
-
     def eig(self, k=2, which='S'):
         # Construct a LinearOperator for the Hamiltonians
         linear_operator = False
@@ -151,7 +151,6 @@ class SchrodingerEquation(object):
                     ham = h.hamiltonian
                 else:
                     ham = ham + h.hamiltonian
-
         if not linear_operator:
             if isinstance(ham, np.ndarray):
                 eigvals, eigvecs = np.linalg.eigh(ham)
@@ -168,7 +167,7 @@ class SchrodingerEquation(object):
             raise NotImplementedError
         return eigvals, eigvecs
 
-    def ground_state(self):
+    def ground_state(self, which='S'):
         """Returns the ground state and ground state energy"""
         # Construct a LinearOperator for the Hamiltonians
         linear_operator = False
@@ -184,13 +183,13 @@ class SchrodingerEquation(object):
 
         if not linear_operator:
             eigvals, eigvecs = np.linalg.eigh(ham)
-            eigvecs = np.reshape(eigvecs, [ham.shape[0], ham.shape[1], eigvecs.shape[-1]])
-            eigvecs = np.moveaxis(eigvecs, -1, 0)
+            eigvecs = eigvecs.T
             # Reorder eigenvalues and eigenvectors
-            #order = np.argsort(eigvals)
-            #eigvals = np.take_along_axis(eigvals, order, axis=0)
-            #eigvecs = np.take_along_axis(eigvecs, order, axis=0)
         else:
             # Construct a LinearOperator from the Hamiltonians
             raise NotImplementedError
-        return eigvecs[0], eigvals[0]
+        if which == 'S':
+            return eigvals[0], State(eigvecs[0, np.newaxis].T, is_ket=True)
+        elif which == 'L':
+            return eigvals[-1], State(eigvecs[-1, np.newaxis].T, is_ket=True)
+

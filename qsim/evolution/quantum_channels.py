@@ -31,13 +31,21 @@ class QuantumChannel(object):
         probabilities = np.arange(0, 1, .1)
         for p in probabilities:
             povm_p = self.povm(p)
-            try:
-                assert np.allclose(np.sum(np.transpose(np.array(povm_p).conj(), [0, 2, 1]) @ np.array(povm_p), axis=0),
-                                   np.identity(povm_p[0].shape[0]))
-            except AssertionError:
-                print('Is valid povm?', False)
-                return False
-        print('Is valid povm?', True)
+            if not self.IS_subspace:
+                if not np.allclose(np.sum(np.transpose(np.array(povm_p).conj(), [0, 2, 1]) @ np.array(povm_p), axis=0),
+                                   np.identity(povm_p[0].shape[0])):
+                    print('Is valid povm?', False)
+                    return False
+            else:
+                # each qubit corresponds to a separate povm
+                povm_shape = povm_p[0][0].shape
+                for e in povm_p:
+                    out = np.zeros(povm_shape)
+                    for op in e:
+                        out = out + op.conj().T @ op
+                    if not np.allclose(out, np.identity(povm_shape[0])):
+                        print('Is valid povm?', False)
+                        return False
         return True
 
     def channel(self, state: State, p: float, apply_to: Union[int, list] = None):
@@ -54,10 +62,8 @@ class QuantumChannel(object):
         if state.is_ket:
             print('Converting ket to density matrix.')
             state = State(tools.outer_product(state, state))
-        if apply_to is None and not self.IS_subspace:
+        if apply_to is None:
             apply_to = list(range(state.number_physical_qudits))
-        # Empty s to store the output
-        out = State(np.zeros_like(state), is_ket=state.is_ket, code=state.code, IS_subspace=state.IS_subspace)
 
         # Assume that apply_to is a list of integers
         if isinstance(apply_to, int):
@@ -71,29 +77,40 @@ class QuantumChannel(object):
 
         if self.IS_subspace:
             povm = self.povm(p)
-            for j in range(len(povm)):
-                out = out + povm[j] @ state @ povm[j].conj().T
+            temp = state.copy()
+            out = None
+            for i in apply_to:
+                out = State(np.zeros_like(state), is_ket=state.is_ket, code=state.code, IS_subspace=state.IS_subspace,
+                            graph=state.graph)
+                for j in range(len(povm[i])):
+                    out = out + povm[i][j] @ temp @ povm[i][j].conj().T
+                temp = out
             return out
         # Handle apply_to recursively
         # Only apply to one qudit
-        elif len(apply_to) == 1:
-            povm = self.povm(p)
-            for j in range(len(povm)):
-                out = out + code.multiply(state, apply_to, povm[j])
-            return out
         else:
-            last_element = apply_to.pop()
-            recursive_solution = self.channel(state, p, apply_to=apply_to)
-            povm = self.povm(p)
-            for j in range(len(povm)):
-                out = out + code.multiply(recursive_solution, [last_element], povm[j])
-            return out
+            # Empty s to store the output
+            out = State(np.zeros_like(state), is_ket=state.is_ket, code=state.code, IS_subspace=state.IS_subspace,
+                        graph=state.graph)
+
+            if len(apply_to) == 1:
+                povm = self.povm(p)
+                for j in range(len(povm)):
+                    out = out + code.multiply(state, apply_to, povm[j])
+                return out
+            else:
+                last_element = apply_to.pop()
+                recursive_solution = self.channel(state, p, apply_to=apply_to)
+                povm = self.povm(p)
+                for j in range(len(povm)):
+                    out = out + code.multiply(recursive_solution, [last_element], povm[j])
+                return out
 
     def evolve(self, state: State, time, threshold=.05, apply_to: Union[int, list] = None):
         if state.is_ket:
             print('Converting ket to density matrix.')
             state = State(tools.outer_product(state, state))
-        if apply_to is None and not self.IS_subspace:
+        if apply_to is None:
             apply_to = list(range(state.number_physical_qudits))
         # Assume that apply_to is a list of integers
         if isinstance(apply_to, int):
@@ -248,6 +265,7 @@ class AmplitudeDampingChannel(QuantumChannel):
                 num_terms_coherence = 0
                 num_terms_population_decay = 0
                 num_terms_population_stable = 0
+                num_terms = 0
                 rows_coherence = np.zeros(graph.n * num_IS, dtype=int)
                 columns_coherence = np.zeros(graph.n * num_IS, dtype=int)
                 rows_population_decay = np.zeros(num_IS, dtype=int)
@@ -255,6 +273,7 @@ class AmplitudeDampingChannel(QuantumChannel):
                 rows_population_stable = np.zeros(num_IS, dtype=int)
                 columns_population_stable = np.zeros(num_IS, dtype=int)
                 for i in IS:
+                    num_terms += 1
                     # For each spin
                     if IS[i][2][j] == self.transition[0]:
                         # Higher energy state
@@ -284,18 +303,17 @@ class AmplitudeDampingChannel(QuantumChannel):
                 rows_population_decay = rows_population_decay[: num_terms_population_decay]
                 columns_population_stable = columns_population_stable[: num_terms_population_stable]
                 rows_population_stable = rows_population_stable[: num_terms_population_stable]
-                self._povm_coherence.append(sparse.csr_matrix((np.ones(num_terms_coherence, dtype=np.complex128),
+                self._povm_coherence.append(sparse.csc_matrix((np.ones(num_terms_coherence, dtype=np.complex128),
                                                                (rows_coherence, columns_coherence)),
-                                                              shape=(self.graph.num_independent_sets,
-                                                                     self.graph.num_independent_sets)))
+                                                              shape=(num_terms, num_terms)))
                 self._povm_population_decay.append(
-                    sparse.csr_matrix((np.ones(num_terms_population_decay, dtype=np.complex128),
+                    sparse.csc_matrix((np.ones(num_terms_population_decay, dtype=np.complex128),
                                        (rows_population_decay, columns_population_decay)),
-                                      shape=(self.graph.num_independent_sets, self.graph.num_independent_sets)))
+                                      shape=(num_terms, num_terms)))
                 self._povm_population_stable.append(
-                    sparse.csr_matrix((np.ones(num_terms_population_stable, dtype=np.complex128),
+                    sparse.csc_matrix((np.ones(num_terms_population_stable, dtype=np.complex128),
                                        (rows_population_stable, columns_population_stable)),
-                                      shape=(self.graph.num_independent_sets, self.graph.num_independent_sets)))
+                                      shape=(num_terms, num_terms)))
 
         def povm(p):
             if not self.IS_subspace:
@@ -313,9 +331,8 @@ class AmplitudeDampingChannel(QuantumChannel):
                     # Don't regenerate the new povm if you can reuse the previously generated povm
                     return self._last_povm
                 else:
-                    new_povm = [self._povm_coherence[k] * np.sqrt(p) for k in range(self.graph.n)] + \
-                               [self._povm_population_decay[l] * np.sqrt(1 - p) + self._povm_population_stable[l] for l
-                                in range(self.graph.n)]
+                    new_povm = [[self._povm_coherence[k] * np.sqrt(p), self._povm_population_decay[k] * np.sqrt(1 - p) +
+                                 self._povm_population_stable[k]] for k in range(self.graph.n)]
                     self._last_p = p
                     self._last_povm = new_povm
                     return new_povm

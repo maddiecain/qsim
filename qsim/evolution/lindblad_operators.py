@@ -4,6 +4,8 @@ from qsim.codes import qubit
 from qsim.codes.quantum_state import State
 import scipy.sparse as sparse
 from qsim.graph_algorithms.graph import Graph
+from scipy.linalg import expm
+from scipy.sparse.linalg import expm_multiply
 
 
 class LindbladJumpOperator(object):
@@ -16,6 +18,8 @@ class LindbladJumpOperator(object):
         if self.IS_subspace:
             assert isinstance(graph, Graph)
         self.graph = graph
+        self._nh_hamiltonian = None
+        self._evolution_operator = None
 
     @property
     def jump_operators(self):
@@ -23,7 +27,20 @@ class LindbladJumpOperator(object):
         return np.sqrt(self.rates[:, np.newaxis, np.newaxis]) * self._jump_operators
 
     @property
-    def evolution_operator(self):
+    def nh_hamiltonian(self):
+        if self._nh_hamiltonian is None and self.IS_subspace:
+            if self.IS_subspace:
+                num_IS = self.jump_operators[0].shape[0]
+                out = np.zeros((num_IS, num_IS))
+                for j in range(len(self.jump_operators)):
+                    out = out - self.jump_operators[j].conj().T @ self.jump_operators[j]
+                self._nh_hamiltonian = out
+            else:
+                raise NotImplementedError
+        return 1j * self.rates[0] / 2 * self._nh_hamiltonian
+
+    @property
+    def liouville_evolution_operator(self):
         if self._evolution_operator is None and self.IS_subspace:
             num_IS = self._jump_operators.shape[1]
             self._evolution_operator = sparse.csr_matrix((num_IS ** 2, num_IS ** 2))
@@ -110,8 +127,18 @@ class LindbladJumpOperator(object):
     def evolve(self, state: State, time):
         state_shape = state.shape
         state = np.reshape(state, (state_shape[0] ** 2, 1))
-        out = sparse.linalg.expm_multiply(-1*time*self.evolution_operator, state)
+        out = sparse.linalg.expm_multiply(time * self.liouville_evolution_operator, state)
         return np.reshape(out, state_shape)
+
+    def nh_evolve(self, state: State, time: float):
+        """Non-hermitian time evolution."""
+        if state.is_ket:
+            return State(expm_multiply(-1j * time * self.nh_hamiltonian, state), is_ket=state.is_ket,
+                         IS_subspace=state.IS_subspace, code=state.code, graph=self.graph)
+        else:
+            temp = expm(-1j * time * self.nh_hamiltonian)
+            return State(temp @ state @ temp.conj().T, is_ket=state.is_ket, IS_subspace=state.IS_subspace,
+                         code=state.code, graph=self.graph)
 
 
 class SpontaneousEmission(LindbladJumpOperator):
@@ -166,7 +193,7 @@ class SpontaneousEmission(LindbladJumpOperator):
                 rows = rows[:num_terms]
                 entries = entries[:num_terms]
                 # Now, append the jump operator
-                jump_operator = sparse.csr_matrix((entries, (rows, columns)), shape=(num_IS, num_IS))
+                jump_operator = sparse.csc_matrix((entries, (rows, columns)), shape=(num_IS, num_IS))
                 self._jump_operators.append(jump_operator)
 
         super().__init__(np.asarray(self._jump_operators), rates, code=code, graph=graph, IS_subspace=IS_subspace)
@@ -176,20 +203,37 @@ class SpontaneousEmission(LindbladJumpOperator):
         return np.sqrt(self.rates[0]) * self._jump_operators
 
     @property
-    def evolution_operator(self):
-        if self._evolution_operator is None:
-            if self.IS_subspace:
-                num_IS = self.graph.num_independent_sets
-                self._evolution_operator = sparse.csr_matrix((num_IS ** 2, num_IS ** 2))
-                for jump_operator in self._jump_operators:
-                    # Jump operator is real, so we don't need to conjugate
-                    self._evolution_operator = self._evolution_operator + sparse.kron(jump_operator, jump_operator) - \
-                                               1 / 2 * sparse.kron(jump_operator.T @ jump_operator,
-                                                                   sparse.identity(num_IS)) - 1 / 2 * \
-                                               sparse.kron(sparse.identity(num_IS), jump_operator.T @ jump_operator)
-            else:
-                raise NotImplementedError
-        return self.rates[0] * self._evolution_operator
+    def evolution_operator(self, vector_space='hilbert'):
+        if vector_space != 'hilbert' and vector_space != 'liouville':
+            raise Exception('Attribute vector_space must be hilbert or liouville')
+        if vector_space == 'liouville':
+            if self._evolution_operator is None:
+                if self.IS_subspace:
+                    num_IS = self.jump_operators[0].shape[0]
+                    self._evolution_operator = sparse.csc_matrix((num_IS ** 2, num_IS ** 2))
+                    for jump_operator in self._jump_operators:
+                        # Jump operator is real, so we don't need to conjugate
+                        self._evolution_operator = self._evolution_operator + sparse.kron(jump_operator,
+                                                                                          jump_operator) - \
+                                                   1 / 2 * sparse.kron(jump_operator.T @ jump_operator,
+                                                                       sparse.identity(num_IS)) - 1 / 2 * \
+                                                   sparse.kron(sparse.identity(num_IS), jump_operator.T @ jump_operator)
+                else:
+                    raise NotImplementedError
+            return self.rates[0] * self._evolution_operator
+
+        else:
+            # Vector space is hilbert
+            if self._evolution_operator is None:
+                if self.IS_subspace:
+                    num_IS = self.jump_operators[0].shape[0]
+                    out = np.zeros((num_IS, num_IS))
+                    for j in range(len(self.jump_operators)):
+                        out = out - self.jump_operators[j].conj().T @ self.jump_operators[j]
+                    self._evolution_operator = out
+                else:
+                    raise NotImplementedError
+            return 1j * self.rates[0] / 2 * self._evolution_operator
 
     def liouvillian(self, state: State, apply_to=None):
         if apply_to is None:
@@ -206,15 +250,11 @@ class SpontaneousEmission(LindbladJumpOperator):
         else:
             for i in range(len(apply_to)):
                 out = out + self.code.multiply(state, [apply_to[i]],
-                                               self.jump_operators[0]) - 1 / 2 * self.code.left_multiply(state,
-                                                                                                         [apply_to[i]],
-                                                                                                         self.jump_operators[
-                                                                                                             0].T @
-                                                                                                         self.jump_operators[
-                                                                                                             0]) - 1 / 2 \
-                      * self.code.right_multiply(state, [apply_to[i]],
-                                                 self.jump_operators[0].T @ self.jump_operators[0])
-        return State(out, is_ket=state.is_ket, code=state.code, IS_subspace=state.IS_subspace)
+                                               self.jump_operators[0]) - 1 / 2 * \
+                      self.code.left_multiply(state, [apply_to[i]], self.jump_operators[0].T @ self.jump_operators[0]) \
+                      - 1 / 2 * self.code.right_multiply(state, [apply_to[i]],
+                                                         self.jump_operators[0].T @ self.jump_operators[0])
+        return State(out, is_ket=state.is_ket, code=state.code, IS_subspace=state.IS_subspace, graph=state.graph)
 
     def jump_rate(self, state: State, apply_to=None):
         assert state.is_ket
@@ -258,3 +298,4 @@ class SpontaneousEmission(LindbladJumpOperator):
             for j in range(len(self.jump_operators)):
                 out = out - 1j * self.jump_operators[j].conj().T @ (self.jump_operators[j] @ state)
         return State(out / 2, is_ket=state.is_ket, code=state.code, IS_subspace=state.IS_subspace)
+

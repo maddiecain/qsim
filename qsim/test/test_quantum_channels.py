@@ -4,6 +4,7 @@ import unittest
 from qsim.evolution import quantum_channels
 from qsim import tools
 from qsim.codes.quantum_state import State
+from qsim.codes import rydberg
 from qsim.graph_algorithms.graph import line_graph
 
 
@@ -56,12 +57,20 @@ class TestDissipation(unittest.TestCase):
         psi0[0, 0] = 1
         psi0 = spontaneous_emission.evolve(psi0, 20)
         self.assertTrue(np.allclose(psi0, np.array([[0, 0], [0, 1]])))
-        psi0 = State(np.zeros((2, 2)), IS_subspace=True)
+        psi0 = State(np.zeros((2, 2)), IS_subspace=True, graph=line_graph(1))
         psi0[0, 0] = 1
         spontaneous_emission = quantum_channels.AmplitudeDampingChannel(IS_subspace=True, graph=line_graph(1),
                                                                         rates=(2,))
         psi0 = spontaneous_emission.evolve(psi0, 20)
         self.assertTrue(np.allclose(psi0, np.array([[0, 0], [0, 1]])))
+
+        psi0 = State(np.zeros((8, 8)), IS_subspace=True, code=rydberg, graph=line_graph(2))
+        psi0[3, 3] = 1
+        spontaneous_emission = quantum_channels.AmplitudeDampingChannel(IS_subspace=True, graph=line_graph(2),
+                                                                        rates=(2,), code=rydberg, transition=(1, 2))
+        psi0 = spontaneous_emission.evolve(psi0, 1)
+        print(psi0)
+        #self.assertTrue(np.allclose(psi0, np.array([[0, 0], [0, 1]])))
 
 
 if __name__ == '__main__':
