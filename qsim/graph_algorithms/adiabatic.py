@@ -326,18 +326,23 @@ class SimulateAdiabatic(object):
                                 stdev[l, m, t] = np.sum(res * (vals - x0) ** 2) ** .5
                             total_performance[method[l]][metric[m]].append(metric_function(results[-1]))
                             all_performance[l, m, t] = metric_function(results[-1])
-                            if all_performance[l, m, t] < min_performance:
-                                min_performance = all_performance[l, m, t]
+                        if all_performance[l, m, t] < min_performance:
+                            min_performance = all_performance[l, m, t]
 
                         info['results'] = results
-                        all_info[method[l]][metric[m]] = info
+                        if t == 0:
+                            all_info[method[l]][metric[m]] = {key:[] for key in info}
+                        for key in info:
+                            all_info[method[l]][metric[m]][key].append(info[key])
+
                     if verbose:
                         np.set_printoptions(threshold=np.inf)
                         print('Performance: ', all_performance[l, m, t])
-        if 'cost_function' not in metric:
+        if 'cost_function' not in metric and plot:
             plt.hlines(1, min(time) - 1, max(time) + 1, linestyles=':', colors='k')
+            print(min_performance)
             plt.ylim(min_performance - .03, 1.03)
-        else:
+        elif plot:
             plt.hlines(self.cost_hamiltonian.optimum, min(time) - 1, max(time) + 1, linestyles=':', colors='k')
             plt.ylim(min_performance - .05 * self.cost_hamiltonian.optimum, self.cost_hamiltonian.optimum + .05 *
                      self.cost_hamiltonian.optimum)
@@ -391,7 +396,10 @@ class SimulateAdiabatic(object):
             for i in range(len(times)):
                 schedule(times[i], time)
                 eigval, eigvec = schrodinger_equation.eig(which=which, k=k)
-                eigvals[i] = eigval
+                if which == 'S':
+                    eigvals[i] = eigval[0:k]
+                elif which == 'L':
+                    eigvals[i] = eigval[len(eigval)-k-1:-1]
             if plot:
                 plotted_eigvals = np.swapaxes(eigvals, 0, 1)
                 for i in range(k):

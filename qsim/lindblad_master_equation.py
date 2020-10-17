@@ -92,7 +92,7 @@ class LindbladMasterEquation(object):
                     else:
                         s = odeintw(f, s, [times[i - 1], times[i]], full_output=False)[-1]
                         # Normalize output?
-                        norms[i] = np.trace(s)
+                        norms[i] = np.trace(s).real
                 infodict = {'t': times}
                 if verbose:
                     print('Fraction of integrator results normalized:',
@@ -283,7 +283,6 @@ class LindbladMasterEquation(object):
         graph = state.graph
         state_shape = state.shape
 
-
         def f(flattened):
             s = State(flattened.reshape(state_shape))
             res = self.evolution_generator(s)
@@ -321,7 +320,7 @@ class LindbladMasterEquation(object):
         else:
             return None, None
 
-    def steady_state(self, state: State, k=6, which='LR', use_initial_guess=False, plot=False, tol=1e-8):
+    def steady_state(self, state: State, k=6, which='LR', use_initial_guess=False, plot=False, tol=1e-8, verbose=False):
         """Returns a list of the eigenvalues and the corresponding valid density matrix."""
         assert not state.is_ket
         state_shape = state.shape
@@ -348,11 +347,14 @@ class LindbladMasterEquation(object):
             eigvecs = np.reshape(eigvecs, [eigvecs.shape[0], state_shape[0], state_shape[1]])
             steady_state_indices = np.argwhere(eigvals.real > -1 * tol).T[0]
             steady_state_eigvecs = eigvecs[steady_state_indices, :, :]
+            if verbose:
+                print('Number of steady states is ', str(steady_state_eigvecs.shape[0]))
             # If there is one steady s, then normalize it because it is a valid density matrix
             if steady_state_eigvecs.shape[0] == 1:
                 steady_state_eigvecs[0, :, :] = steady_state_eigvecs[0, :, :] / np.trace(steady_state_eigvecs[0, :, :])
-                print('Steady state is a valid density matrix:',
-                      tools.is_valid_state(steady_state_eigvecs[0, :, :], verbose=False))
+                if verbose:
+                    print('Steady state is a valid density matrix:',
+                          tools.is_valid_state(steady_state_eigvecs[0, :, :], verbose=False))
             steady_state_eigvals = eigvals[steady_state_indices]
             if plot:
                 steady_state_eigvals_cc = steady_state_eigvals.conj()
