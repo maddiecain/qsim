@@ -100,10 +100,11 @@ class HamiltonianDriver(object):
                     entries[num_terms:2 * num_terms] = -1 * entries[:num_terms]
                 # Now, construct the Hamiltonian
                 self._csc_hamiltonian = sparse.csc_matrix((entries, (rows, columns)), shape=(num_IS, num_IS))
-                try:
-                    self._hamiltonian = self._csc_hamiltonian.toarray()
-                except MemoryError:
-                    self._hamiltonian = self._csc_hamiltonian
+                self._hamiltonian = self._csc_hamiltonian
+                # try:
+                #    self._hamiltonian = self._csc_hamiltonian.toarray()
+                # except MemoryError:
+                #    self._hamiltonian = self._csc_hamiltonian
             else:
                 raise Exception('self.pauli must be X, Y, or Z')
         else:
@@ -201,7 +202,8 @@ class HamiltonianDriver(object):
                         state = state.reshape(state_shape, order='F')
                         out = out.reshape(state_shape, order='F')
                     temp = temp + out
-            return State(self.energies[0] * temp, is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code, graph=self.graph)
+            return State(self.energies[0] * temp, is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code,
+                         graph=self.graph)
         else:
             # Handle dimensions
             if self.pauli == 'Z' and not self.code.logical_code:  # In this case, the Hamiltonian is diagonal
@@ -255,7 +257,8 @@ class HamiltonianDriver(object):
                     state = state.reshape(state_shape, order='F')
                     out = out.reshape(state_shape, order='F')
                     temp = temp + out
-            return State(self.energies[0] * temp, is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code, graph=self.graph)
+            return State(self.energies[0] * temp, is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code,
+                         graph=self.graph)
         else:
             if self.pauli == 'Z' and not self.code.logical_code:  # In this case, the Hamiltonian is diagonal
                 return State(state * self.hamiltonian.T, is_ket=state.is_ket, IS_subspace=state.IS_subspace,
@@ -301,7 +304,7 @@ class HamiltonianDriver(object):
 
 
 class HamiltonianMaxCut(object):
-    def __init__(self, G: Graph, code=qubit, energies=(1,)):
+    def __init__(self, G: Graph, code=qubit, energies=(1,), cost_function=True, use_Z2_symmetry=False):
         # If MIS is true, create an MIS Hamiltonian. Otherwise, make a MaxCut Hamiltonian
         r"""
         Generate a vector corresponding to the diagonal of the MaxCut Hamiltonian.
@@ -313,7 +316,10 @@ class HamiltonianMaxCut(object):
         self.graph = G
         self.optimization = 'max'
         self.N = self.graph.n
-        c = np.zeros([self.code.d ** (self.code.n * self.N), 1])
+        if use_Z2_symmetry:
+            c = np.zeros([self.code.d ** (self.code.n * (self.N-1)), 1])
+        else:
+            c = np.zeros([self.code.d ** (self.code.n * self.N), 1])
         if tools.is_diagonal(self.code.Z):
             self._is_diagonal = True
             z = np.expand_dims(np.diagonal(self.code.Z), axis=0).T
@@ -331,8 +337,28 @@ class HamiltonianMaxCut(object):
             for a, b in self.graph.edges:
                 if b < a:
                     a, b = b, a
-                c = c - 1 / 2 * G.graph[a][b]['weight'] * (tools.tensor_product(
-                    [my_eye(a), z, my_eye(b - a - 1), z, my_eye(self.N - b - 1)]) - my_eye(self.N))
+                if use_Z2_symmetry:
+                    if cost_function:
+                        if a == min(self.graph.nodes):
+                            c = c - 1 / 2 * G.graph[a][b]['weight'] * (tools.tensor_product(
+                                [my_eye(b-1), z, my_eye(self.N - b - 1)]) - my_eye(self.N-1))
+                        else:
+                            c = c - 1 / 2 * G.graph[a][b]['weight'] * (tools.tensor_product(
+                                [my_eye(a-1), z, my_eye(b - a - 1), z, my_eye(self.N - b - 1)]) - my_eye(self.N-1))
+                    else:
+                        if a == min(self.graph.nodes):
+                            c = c + G.graph[a][b]['weight'] * (tools.tensor_product(
+                                [my_eye(b - 1), z, my_eye(self.N - b - 1)]))
+                        else:
+                            c = c + G.graph[a][b]['weight'] * (tools.tensor_product(
+                                [my_eye(a - 1), z, my_eye(b - a - 1), z, my_eye(self.N - b - 1)]))
+                else:
+                    if cost_function:
+                        c = c - 1 / 2 * G.graph[a][b]['weight'] * (tools.tensor_product(
+                            [my_eye(a), z, my_eye(b - a - 1), z, my_eye(self.N - b - 1)]) - my_eye(self.N))
+                    else:
+                        c = c + G.graph[a][b]['weight'] * tools.tensor_product(
+                            [my_eye(a), z, my_eye(b - a - 1), z, my_eye(self.N - b - 1)])
             self._optimum = np.max(c).real
             c = sparse.csr_matrix((self.code.d ** (self.code.n * self.N), self.code.d ** (self.code.n * self.N)))
 
@@ -345,13 +371,43 @@ class HamiltonianMaxCut(object):
         for a, b in self.graph.edges:
             if b < a:
                 a, b = b, a
-            c = c - 1 / 2 * G.graph[a][b]['weight'] * (tools.tensor_product(
-                [my_eye(a), z, my_eye(b - a - 1), z, my_eye(self.N - b - 1)], sparse=(not self._is_diagonal)) - my_eye(
-                self.N))
+
+            if cost_function:
+                if use_Z2_symmetry:
+                    if a == min(self.graph.nodes):
+                        c = c - 1 / 2 * G.graph[a][b]['weight'] * (tools.tensor_product(
+                            [my_eye(b - 1), z, my_eye(self.N - b - 1)]) - my_eye(self.N - 1))
+                    else:
+                        c = c - 1 / 2 * G.graph[a][b]['weight'] * (tools.tensor_product(
+                            [my_eye(a - 1), z, my_eye(b - a - 1), z, my_eye(self.N - b - 1)]) - my_eye(self.N - 1))
+                else:
+                    c = c - 1 / 2 * G.graph[a][b]['weight'] * (tools.tensor_product(
+                        [my_eye(a), z, my_eye(b - a - 1), z, my_eye(self.N - b - 1)],
+                        sparse=(not self._is_diagonal)) - my_eye(
+                        self.N))
+            else:
+                if use_Z2_symmetry:
+                    if a == min(self.graph.nodes):
+                        c = c + G.graph[a][b]['weight'] * (tools.tensor_product(
+                            [my_eye(b - 1), z, my_eye(self.N - b - 1)]))
+                    else:
+                        c = c + G.graph[a][b]['weight'] * (tools.tensor_product(
+                            [my_eye(a - 1), z, my_eye(b - a - 1), z, my_eye(self.N - b - 1)]))
+
+                else:
+                    c = c + G.graph[a][b]['weight'] * (tools.tensor_product(
+                        [my_eye(a), z, my_eye(b - a - 1), z, my_eye(self.N - b - 1)],
+                        sparse=(not self._is_diagonal)))
         if self._is_diagonal:
             self._diagonal_hamiltonian = c
             self._optimum = np.max(c).real
-            c = sparse.csr_matrix((c.flatten(), (np.arange(self.code.d ** (self.code.n * self.N)),
+            if use_Z2_symmetry:
+                c = sparse.csr_matrix((c.flatten(), (np.arange(self.code.d ** (self.code.n * (self.N-1))),
+                                                     np.arange(self.code.d ** (self.code.n * (self.N-1))))),
+                                      shape=(self.code.d ** (self.code.n * (self.N-1)),
+                                             self.code.d ** (self.code.n * (self.N-1))))
+            else:
+                c = sparse.csr_matrix((c.flatten(), (np.arange(self.code.d ** (self.code.n * self.N)),
                                                  np.arange(self.code.d ** (self.code.n * self.N)))),
                                   shape=(self.code.d ** (self.code.n * self.N),
                                          self.code.d ** (self.code.n * self.N)))
@@ -779,13 +835,15 @@ class HamiltonianBookatzPenalty(object):
         out = np.zeros_like(state, dtype=np.complex128)
         for i in range(state.number_logical_qudits):
             out = out + self.code.left_multiply(state, [i], self.projector)
-        return State(self.energies[0] * out, is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code, graph=self.graph)
+        return State(self.energies[0] * out, is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code,
+                     graph=self.graph)
 
     def right_multiply(self, state: State):
         out = np.zeros_like(state, dtype=np.complex128)
         for i in range(state.number_logical_qudits):
             out = out + self.code.right_multiply(state, [i], self.projector)
-        return State(self.energies[0] * out, is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code, graph=self.graph)
+        return State(self.energies[0] * out, is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code,
+                     graph=self.graph)
 
 
 class HamiltonianMarvianPenalty(object):
@@ -996,7 +1054,8 @@ class HamiltonianEnergyShift(object):
                         state = state.reshape(state_shape, order='F')
                         out = out.reshape(state_shape, order='F')
                     temp = temp + out
-            return State(self.energies[0] * temp, is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code, graph=self.graph)
+            return State(self.energies[0] * temp, is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code,
+                         graph=self.graph)
         else:
             # Handle dimensions
             return State(self.energies[0] * self._diagonal_hamiltonian * state, is_ket=state.is_ket,
@@ -1027,7 +1086,8 @@ class HamiltonianEnergyShift(object):
                     state = state.reshape(state_shape, order='F')
                     out = out.reshape(state_shape, order='F')
                     temp = temp + out
-            return State(self.energies[0] * temp, is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code, graph=self.graph)
+            return State(self.energies[0] * temp, is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code,
+                         graph=self.graph)
         else:
             return State(self.energies[0] * state * self._diagonal_hamiltonian.T, is_ket=state.is_ket,
                          IS_subspace=state.IS_subspace,

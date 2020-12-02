@@ -99,7 +99,7 @@ class LindbladJumpOperator(object):
                 jump_rates.append(np.vdot(out, out).real)
                 # IMPORTANT: add in a factor of sqrt(rates) for normalization purposes later
                 jumped_states.append(State(out, is_ket=state.is_ket, code=state.code,
-                                           IS_subspace=state.IS_subspace))
+                                           IS_subspace=state.IS_subspace, graph=state.graph))
 
         return np.asarray(jumped_states), np.asarray(jump_rates)
 

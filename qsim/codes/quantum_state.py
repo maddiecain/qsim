@@ -20,7 +20,7 @@ class State(np.ndarray):
         arr.dimension = state.shape[0]
         arr.IS_subspace = IS_subspace
         # Identify the number of physical qudits
-        # TODO: identify how to deal with this if you're on a graph s
+        # TODO: identify how to deal with this if you're on a graph
         arr.graph = graph
         if IS_subspace:
             arr.number_physical_qudits = graph.n

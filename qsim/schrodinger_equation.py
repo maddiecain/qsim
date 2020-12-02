@@ -67,7 +67,7 @@ class SchrodingerEquation(object):
                 return z, infodict
             else:
                 if times is None:
-                    times = np.linspace(t0, tf, num=num)
+                    times = np.linspace(int(t0), int(tf), num=int(num))
                 norms = np.zeros(len(times))
                 s = state_asarray.copy()
                 for (i, t) in zip(range(len(times)), times):
@@ -139,7 +139,7 @@ class SchrodingerEquation(object):
         z = z / norms
         return z, infodict
 
-    def eig(self, k=2, which='S'):
+    def eig(self, k=2, which='S', return_eigenvectors=True):
         # Construct a LinearOperator for the Hamiltonians
         linear_operator = False
         ham = None
@@ -152,20 +152,33 @@ class SchrodingerEquation(object):
                 else:
                     ham = ham + h.hamiltonian
         if not linear_operator:
-            if isinstance(ham, np.ndarray):
-                eigvals, eigvecs = np.linalg.eigh(ham)
+            if isinstance(ham, np.ndarray) or k == 'all':
+                try:
+                    eigvals, eigvecs = np.linalg.eigh(ham.todense())
+                except:
+                    eigvals, eigvecs = np.linalg.eigh(np.asarray(ham))
+
             else:
                 # Hamiltonian is a sparse matrix
-                if which == 'S':
-                    eigvals, eigvecs = eigsh(ham, k=k, which='SM')
+                if return_eigenvectors:
+                    if which == 'S':
+                        eigvals, eigvecs = eigsh(ham, k=k, which='SA')
+                    else:
+                        eigvals, eigvecs = eigsh(ham, k=k, which='LA')
                 else:
-                    eigvals, eigvecs = eigsh(ham, k=k, which='LM')
-
-            eigvecs = np.moveaxis(eigvecs, -1, 0)
+                    if which == 'S':
+                        eigvals = eigsh(ham, k=k, which='SA', return_eigenvectors=return_eigenvectors)
+                    else:
+                        eigvals = eigsh(ham, k=k, which='LA', return_eigenvectors=return_eigenvectors)
+            if return_eigenvectors:
+                eigvecs = np.moveaxis(eigvecs, -1, 0)
         else:
             # Construct a LinearOperator from the Hamiltonians
             raise NotImplementedError
-        return eigvals, eigvecs
+        if return_eigenvectors:
+            return eigvals, eigvecs
+        else:
+            return eigvals
 
     def ground_state(self, which='S'):
         """Returns the ground state and ground state energy"""
@@ -182,7 +195,11 @@ class SchrodingerEquation(object):
                     ham = ham + h.hamiltonian
 
         if not linear_operator:
-            eigvals, eigvecs = np.linalg.eigh(ham)
+            if which == 'S':
+                w = 'SA'
+            else:
+                w = 'LA'
+            eigvals, eigvecs = scipy.sparse.linalg.eigsh(ham, k=1, which=w)
             eigvecs = eigvecs.T
             # Reorder eigenvalues and eigenvectors
         else:

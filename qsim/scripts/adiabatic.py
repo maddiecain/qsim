@@ -545,14 +545,15 @@ def time_performance():
 #                                                                                                               Delta]),
 #                               plot=True, method='odeint', verbose=True)
 graph = line_graph(2)
-simulation_eit = eit_simulation(graph, noise_model='continuous', gamma=0, delta=1, Omega_g=1, Omega_r=1)
+simulation_eit = eit_simulation(graph, noise_model='continuous', gamma=0, delta=25, Omega_g=5, Omega_r=5)
+"""
 
 performance = simulation_eit.run(2000, schedule=lambda t, tf: rydberg_EIT_schedule(t, tf, coefficients=[1, 1]),
                                  verbose=True, method='odeint')
 print(np.round(performance[0][-1], 2))
 
 eigvals = simulation_eit.spectrum_vs_time(1, num=30, k=6, schedule=lambda t, tf: rydberg_EIT_schedule(t, tf, coefficients=[1, 1]), plot=True)
-
+"""
 
 def normalized_time_plot():
     gamma = 1
@@ -616,9 +617,9 @@ def time_scales_plot():
 
 
 # time_scales_plot()
-# simulation_eit.performance_vs_total_time(list(np.arange(10, 150, 5)),
-#                                   schedule=lambda t, tf: rydberg_EIT_schedule(t, tf, coefficients=[3.8, 3.8]),
-#                                   plot=False, verbose=True, method='RK45')
+simulation_eit.performance_vs_total_time(list(np.arange(10, 60, 5)),
+                                   schedule=lambda t, tf: rydberg_EIT_schedule(t, tf, coefficients=[3.8, 3.8]),
+                                   plot=False, verbose=True, method='RK45')
 
 """for i in [10]:
     print('Line size', i)
