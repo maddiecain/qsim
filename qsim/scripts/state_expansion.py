@@ -314,18 +314,19 @@ def compute_alpha_order(rhos, eq:LindbladMasterEquation, schedule):
     return s
 
 
-def compute_first_alpha_order(eq:LindbladMasterEquation, schedule):
+def compute_first_alpha_order(eq:LindbladMasterEquation, schedule, degenerate=False):
     """Use quad integrator, and only integrate the function at set times. Solve for the lowest eigenvalue only.
     """
     def evolve(t):
         # Generate a mapping from a time to an index
-        print(t)
         schedule(t, 1)
         ground_energy, ground_state = SchrodingerEquation(hamiltonians=eq.hamiltonians).ground_state()
         overlap = 0
-        for op in eq.jump_operators[0].jump_operators:
-            overlap = overlap + (np.abs(ground_state.conj().T@op@ground_state)**2)[0,0]-(ground_state.conj().T @op.conj().T @op @ ground_state)[0,0]
-        #print(t, overlap.real)
+        if not degenerate:
+            for op in eq.jump_operators[0].jump_operators:
+                overlap = overlap + (np.abs(ground_state.conj().T@op@ground_state)**2)[0,0]-(ground_state.conj().T @op.conj().T @op @ ground_state)[0,0]
+        else:
+            raise NotImplementedError
         return overlap.real
     return scipy.integrate.quad(evolve, 0, 1, epsrel=1e-7, epsabs=1e-7)[0]
 
@@ -468,8 +469,8 @@ def expansion(mode='reit'):
 
     if mode == 'adiabatic':
         def schedule_adiabatic(t, tf):
-            energy_shift.energies = (- 5 * (t / tf - 1 / 2),)
-            laser.energies = (np.sin(t / tf * np.pi) ** 2,)
+            energy_shift.energies = (- 3 * (t / tf - 1 / 2),)
+            laser.energies = (np.cos(t / tf * np.pi)*np.sin(t / tf * np.pi),)
             dissipation.rates = (np.sin(t / tf * np.pi) ** 2,)
             # Now run the standard adiabatic algorithm
 
@@ -484,20 +485,40 @@ def expansion(mode='reit'):
         schedule = schedule_adiabatic
         eq = LindbladMasterEquation(hamiltonians=[laser, energy_shift], jump_operators=[dissipation])
 
-    #rho = np.zeros((5, num, graph.num_independent_sets, graph.num_independent_sets), dtype=np.complex128)
+    if mode == 'hybrid':
+        def schedule_hybrid(t, tf):
+            phi = (tf - t) / tf * np.pi / 2
+            energy_shift.energies = (- 1.35  * (t / tf - 1 / 2),)
+            laser.omega_g = np.cos(phi)
+            laser.omega_r = np.sin(phi)
+            dissipation.omega_g = np.cos(phi)
+            dissipation.omega_r = np.sin(phi)
+
+        laser = EffectiveOperatorHamiltonian(graph=graph, IS_subspace=True,
+                                             energies=(1,),
+                                             omega_g=np.cos(np.pi / 4),
+                                             omega_r=np.sin(np.pi / 4))
+        energy_shift = hamiltonian.HamiltonianEnergyShift(IS_subspace=True, graph=graph,
+                                                          energies=(2.5,), index=0)
+        dissipation = EffectiveOperatorDissipation(graph=graph, omega_r=1, omega_g=1,
+                                                   rates=(1,))
+        schedule = schedule_hybrid
+        eq = LindbladMasterEquation(hamiltonians=[laser, energy_shift], jump_operators=[dissipation])
+
+    rho = np.zeros((5, num, graph.num_independent_sets, graph.num_independent_sets), dtype=np.complex128)
     # Allow the integrator to allocate space. First get the zeroth order solution
-    #psi0 = np.zeros((graph.num_independent_sets, graph.num_independent_sets))
-    #psi0[0, 0] = 1
+    psi0 = np.zeros((graph.num_independent_sets, graph.num_independent_sets))
+    psi0[0, 0] = 1
     # Convert results to density matrices
-    #for i in range(num):
-    #    rho[0, i, :] = psi0
+    for i in range(num):
+        rho[0, i, :] = psi0
     # Compute orders in alpha
     #rho[o,:] = compute_alpha_order(rho[o-1,:], eq, schedule)
     #print(rho[o,-1,0,0])
     #print(compute_first_alpha_order(eq, schedule))
     print(compute_first_beta_order(eq, schedule))
 
-expansion(mode='reit')
+expansion(mode='adiabatic')
 
 
 """Implementation: 
