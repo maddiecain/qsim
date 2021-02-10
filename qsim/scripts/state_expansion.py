@@ -1,9 +1,12 @@
 import itertools
 
+import sys
 import numpy as np
 import scipy.integrate
 import scipy.optimize
 from odeintw import odeintw
+import matplotlib.pyplot as plt
+import networkx as nx
 
 import scipy.sparse as sparse
 from scipy.linalg import expm
@@ -13,7 +16,7 @@ from qsim.codes import qubit
 from qsim.codes.quantum_state import State
 from qsim.evolution import lindblad_operators, hamiltonian
 from qsim.graph_algorithms.graph import Graph
-from qsim.graph_algorithms.graph import line_graph, degree_fails_graph
+from qsim.graph_algorithms.graph import line_graph, degree_fails_graph, ring_graph
 from qsim.lindblad_master_equation import LindbladMasterEquation
 from qsim.schrodinger_equation import SchrodingerEquation
 from qsim.tools import tools
@@ -212,7 +215,7 @@ def Q_two_atoms(phi):
         1 + np.sin(2 * phi) ** 2))
     Q = np.zeros((3, 3))
     Q[0, 1] = np.sin(theta / 2) ** 2 * (
-                np.cos(phi) / 2 * np.cos(theta / 2) + np.sin(phi) / np.sqrt(2) * np.sin(theta / 2)) ** 2
+            np.cos(phi) / 2 * np.cos(theta / 2) + np.sin(phi) / np.sqrt(2) * np.sin(theta / 2)) ** 2
 
 
 def Q(eq: SchrodingerEquation, dissipation):
@@ -238,10 +241,10 @@ def Q(eq: SchrodingerEquation, dissipation):
 
 
 def hamiltonian_time_derivative_term(t, eq: LindbladMasterEquation, eigenbasis, eigenenergies):
-
-    hammy = np.pi/2*(eq.hamiltonians[0]._hamiltonian_rr * 2*np.sin((1-t)*np.pi/2)*np.cos((1-t)*np.pi/2)-\
-    eq.hamiltonians[0]._hamiltonian_gg * 2 * np.sin((1 - t) * np.pi / 2) * np.cos((1 - t)* np.pi / 2)+\
-        np.cos((1-t)*np.pi)* eq.hamiltonians[0]._hamiltonian_cross_terms)
+    hammy = np.pi / 2 * (
+            eq.hamiltonians[0]._hamiltonian_rr * 2 * np.sin((1 - t) * np.pi / 2) * np.cos((1 - t) * np.pi / 2) - \
+            eq.hamiltonians[0]._hamiltonian_gg * 2 * np.sin((1 - t) * np.pi / 2) * np.cos((1 - t) * np.pi / 2) + \
+            np.cos((1 - t) * np.pi) * eq.hamiltonians[0]._hamiltonian_cross_terms)
     return hammy
 
 
@@ -251,18 +254,21 @@ def compute_first_order_beta(rho, eq, theta, schedule):
     times = np.linspace(0, 1, num)
     dim = eq.hamiltonians[0].hamiltonian.shape[0]
     times = times[5:-5]
+
     def evolve(rho, t):
         # Generate a mapping from a time to an index
         schedule(t, 1)
         eigenenergies, eigenbasis = np.linalg.eigh(eq.hamiltonians[0].hamiltonian)
         eigenenergies = np.flip(eigenenergies)
         eigenbasis = np.flip(eigenbasis, axis=1)
+
         # Compute theta
         def compute_eigenenergies(t, y):
             schedule(t, 1)
             # Compute the Hamiltonian basis vectors
             eigval, eigvec = np.linalg.eigh(eq.hamiltonians[0].hamiltonian)
             return eigval
+
         theta = \
             scipy.integrate.solve_ivp(compute_eigenenergies, (0, t), np.zeros(dim), atol=1e-8, rtol=1e-6,
                                       method='DOP853')['y'].T[-1]
@@ -271,34 +277,36 @@ def compute_first_order_beta(rho, eq, theta, schedule):
 
         # Generate matrix of energy denominators
         energy_denom = np.reshape(np.repeat(eigenenergies, dim), (dim, dim))
-        energy_denom = energy_denom.T-energy_denom
+        energy_denom = energy_denom.T - energy_denom
         np.fill_diagonal(energy_denom, np.ones(dim))
-        energy_denom = 1/energy_denom
+        energy_denom = 1 / energy_denom
         rho = rho @ (hamiltonian_time_derivative_term(t, eq, eigenbasis, eigenbasis) * energy_denom) \
               - (hamiltonian_time_derivative_term(t, eq, eigenbasis, eigenbasis) * energy_denom) @ rho
-        rho = rho*np.exp(-1j*(theta))*np.exp(1j*(theta)).T
+        rho = rho * np.exp(-1j * (theta)) * np.exp(1j * (theta)).T
         return rho
 
     psi0 = np.zeros((dim, dim), dtype=np.complex128)
     psi0[-1, -1] = 1
-    s = odeintw(evolve, psi0, times, full_output=True)[0][-1,:,:]
+    s = odeintw(evolve, psi0, times, full_output=True)[0][-1, :, :]
     print(s, np.linalg.eigh(s), tools.is_hermitian(s))
 
-def compute_alpha_order(rhos, eq:LindbladMasterEquation, schedule):
+
+def compute_alpha_order(rhos, eq: LindbladMasterEquation, schedule):
     num = 100
     times = np.linspace(0, 1, num)
     dim = eq.hamiltonians[0].hamiltonian.shape[0]
+
     def evolve(t):
         # Generate a mapping from a time to an index
         def find_nearest_index(array, value):
             array = np.asarray(array)
             idx = (np.abs(array - value)).argmin()
             return idx
+
         index = find_nearest_index(times, t)
         schedule(t, 1)
         eigenenergies, eigenbasis = SchrodingerEquation(hamiltonians=eq.hamiltonians).eig()
         eigenbasis = eigenbasis.T
-
 
         ops = []
         for op in eq.jump_operators[0].jump_operators:
@@ -306,85 +314,75 @@ def compute_alpha_order(rhos, eq:LindbladMasterEquation, schedule):
 
         temp = np.zeros((dim, dim))
         for op in ops:
-            temp = temp + op @ rhos[index] @ op.conj().T - 1/2*(op.conj().T @ op @ rhos[index] +
-                                                              rhos[index] @ op.conj().T @ op)
+            temp = temp + op @ rhos[index] @ op.conj().T - 1 / 2 * (op.conj().T @ op @ rhos[index] +
+                                                                    rhos[index] @ op.conj().T @ op)
         return np.diag(np.multiply(temp, np.identity(dim)))
 
     s = scipy.integrate.quad_vec(evolve, 0, 1, epsrel=1e-5)[0]
     return s
 
 
-def compute_first_alpha_order(eq:LindbladMasterEquation, schedule, degenerate=False):
+def compute_first_alpha_order(eq: LindbladMasterEquation, schedule, degeneracy=False, full_output=False):
     """Use quad integrator, and only integrate the function at set times. Solve for the lowest eigenvalue only.
     """
+
     def evolve(t):
         # Generate a mapping from a time to an index
         schedule(t, 1)
-        ground_energy, ground_state = SchrodingerEquation(hamiltonians=eq.hamiltonians).ground_state()
-        overlap = 0
-        if not degenerate:
-            for op in eq.jump_operators[0].jump_operators:
-                overlap = overlap + (np.abs(ground_state.conj().T@op@ground_state)**2)[0,0]-(ground_state.conj().T @op.conj().T @op @ ground_state)[0,0]
+        if not full_output:
+            if degeneracy == 1:
+                ground_energy, ground_state = SchrodingerEquation(hamiltonians=eq.hamiltonians).ground_state()
+                overlap = 0
+                for op in eq.jump_operators[0].jump_operators:
+                    overlap = overlap - (np.abs(ground_state.conj().T @ op @ ground_state) ** 2)[0, 0] + \
+                              (ground_state.conj().T @ op.conj().T @ op @ ground_state)[0, 0]
+            else:
+                # Solve for the k lowest eigenvalues, where k=degeneracy
+                energies, states = SchrodingerEquation(hamiltonians=eq.hamiltonians).eig(k=degeneracy)
+                states = states.T
+                ground_state = states[:,0]
+                overlap = np.zeros(energies.shape[0] ** 2)
+                diag = np.zeros(energies.shape[0])
+                for op in eq.jump_operators[0].jump_operators:
+                    overlap = overlap + (np.abs(states.conj().T @ op @ states) ** 2).flatten()
+                    diag = diag - ground_state.conj().T @ op.conj().T @ op @ ground_state
+                overlap = overlap + np.diag(diag).flatten()
         else:
-            raise NotImplementedError
+            energies, states = SchrodingerEquation(hamiltonians=eq.hamiltonians).eig(k='all')
+            states = states.T
+            overlap = np.zeros(energies.shape[0] ** 2)
+            for op in eq.jump_operators[0].jump_operators:
+                overlap = overlap + (np.abs(states.conj().T @ op @ states) ** 2).flatten()
         return overlap.real
-    return scipy.integrate.quad(evolve, 0, 1, epsrel=1e-7, epsabs=1e-7)[0]
+
+    if not full_output:
+        if degeneracy == 1:
+            return scipy.integrate.quad(evolve, 0, 1, epsrel=1e-7, epsabs=1e-7)[0]
+        else:
+            times = np.linspace(0, 1, 100)
+            outputs = np.zeros((degeneracy**2, 100))
+            for i in range(100):
+                outputs[:, i] = evolve(times[i])
+            res = np.trapz(outputs, axis=1, x=times)
+            res = res.reshape((degeneracy, degeneracy))
+            return res
+    else:
+        shape = eq.hamiltonians[0].hamiltonian.shape[0]
+        times = np.linspace(0, 1, 100)
+        outputs = np.zeros((shape ** 2, 100))
+        for i in range(100):
+            outputs[:, i] = evolve(times[i])
+        res = np.trapz(outputs, axis=1, x=times)
+        res = res.reshape((shape, shape))
+        res = res * (np.ones(res.shape) - np.identity(shape))
+        res = res - np.diag(np.sum(res, axis=0))
+        return res
 
 
-def compute_correction_specific_beta(eq:LindbladMasterEquation, schedule):
+def compute_correction_specific_beta(eq: LindbladMasterEquation, schedule):
     """Use quad integrator, and only integrate the function at set times. Solve for the lowest eigenvalue only.
     """
-    def energy_difference(t):
-        schedule(t, 1)
-        eigvals, eigvecs = SchrodingerEquation(hamiltonians=eq.hamiltonians).eig()
-        return eigvals[-1]-eigvals[0]
 
-    def integrated_phase_factor(t):
-        return scipy.integrate.quad(energy_difference, 0, t, epsrel=1e-7, epsabs=1e-7)[0]
-
-    def evolve(t, part='real'):
-        # Generate a mapping from a time to an index
-        dt=.001
-        phase = integrated_phase_factor(t)
-        schedule(t, 1)
-        eigvals, eigvecs = SchrodingerEquation(hamiltonians=eq.hamiltonians).eig()
-        schedule(t-dt, 1)
-        eigvals_past, eigvecs_past = SchrodingerEquation(hamiltonians=eq.hamiltonians).eig()
-        # ensure that the first eigenvalue is positive
-        if eigvecs[0][0]<=0:
-            eigvecs[0] = eigvecs[0]*-1
-
-        if eigvecs_past[0][0]<=0:
-            eigvecs_past[0] = eigvecs_past[0]*-1
-
-        if eigvecs[-1][0]<=0:
-            eigvecs[-1] = eigvecs[-1]*-1
-
-        if eigvecs_past[-1][0]<=0:
-            eigvecs_past[-1] = eigvecs_past[-1]*-1
-        #print(eigvecs[0]-eigvecs_past[0])
-        #print(t, np.vdot(eigvecs[-1], (eigvecs[0]-eigvecs_past[0])/dt))
-        if part == 'real':
-            res = (np.vdot(eigvecs[-1], (eigvecs[0]-eigvecs_past[0])/dt)*np.exp(-1j*phase)).real
-            if res < 0:
-                print('warning: real part is negative', t, res)
-                #return 0
-            return res
-        else:
-            res = (np.vdot(eigvecs[-1], (eigvecs[0]-eigvecs_past[0])/dt)*np.exp(-1j*phase)).imag
-            if res > 0:
-                print('warning: complex part is positive', t, res)
-                #return 0
-            return res
-
-    real = scipy.integrate.quad(lambda t: evolve(t, part='real'), 0.0, 1)[0]
-    complex = scipy.integrate.quad(lambda t: evolve(t, part='complex'), 0.0, 1)[0]
-    print(real + 1j*complex)
-    return real**2 + complex**2
-
-
-def compute_first_beta_order(eq:LindbladMasterEquation, schedule):
-    dt = .001
     def energy_difference(t):
         schedule(t, 1)
         eigvals, eigvecs = SchrodingerEquation(hamiltonians=eq.hamiltonians).eig()
@@ -393,53 +391,106 @@ def compute_first_beta_order(eq:LindbladMasterEquation, schedule):
     def integrated_phase_factor(t):
         return scipy.integrate.quad(energy_difference, 0, t, epsrel=1e-7, epsabs=1e-7)[0]
 
-    phase = integrated_phase_factor(1)
+    def evolve(t, part='real'):
+        # Generate a mapping from a time to an index
+        dt = .001
+        phase = integrated_phase_factor(t)
+        schedule(t, 1)
+        eigvals, eigvecs = SchrodingerEquation(hamiltonians=eq.hamiltonians).eig()
+        schedule(t - dt, 1)
+        eigvals_past, eigvecs_past = SchrodingerEquation(hamiltonians=eq.hamiltonians).eig()
+        # ensure that the first eigenvalue is positive
+        if eigvecs[0][0] <= 0:
+            eigvecs[0] = eigvecs[0] * -1
+
+        if eigvecs_past[0][0] <= 0:
+            eigvecs_past[0] = eigvecs_past[0] * -1
+
+        if eigvecs[-1][0] <= 0:
+            eigvecs[-1] = eigvecs[-1] * -1
+
+        if eigvecs_past[-1][0] <= 0:
+            eigvecs_past[-1] = eigvecs_past[-1] * -1
+        # print(eigvecs[0]-eigvecs_past[0])
+        # print(t, np.vdot(eigvecs[-1], (eigvecs[0]-eigvecs_past[0])/dt))
+        if part == 'real':
+            res = (np.vdot(eigvecs[-1], (eigvecs[0] - eigvecs_past[0]) / dt) * np.exp(-1j * phase)).real
+            if res < 0:
+                print('warning: real part is negative', t, res)
+                # return 0
+            return res
+        else:
+            res = (np.vdot(eigvecs[-1], (eigvecs[0] - eigvecs_past[0]) / dt) * np.exp(-1j * phase)).imag
+            if res > 0:
+                print('warning: complex part is positive', t, res)
+                # return 0
+            return res
+
+    real = scipy.integrate.quad(lambda t: evolve(t, part='real'), 0.0, 1)[0]
+    complex = scipy.integrate.quad(lambda t: evolve(t, part='complex'), 0.0, 1)[0]
+    print(real + 1j * complex)
+    return real ** 2 + complex ** 2
+
+
+def compute_first_beta_order(eq: LindbladMasterEquation, schedule):
+    dt = .001
+
+    def energy_difference(t):
+        schedule(t, 1)
+        eigvals, eigvecs = SchrodingerEquation(hamiltonians=eq.hamiltonians).eig()
+        return eigvals[-1] - eigvals[0]
+
+    def integrated_phase_factor(t):
+        return scipy.integrate.quad(energy_difference, 0, t, epsrel=1e-7, epsabs=1e-7)[0]
+
     # Compute matrix element at the very beginning and end
-    schedule(1-dt, 1)
-    eigvals, eigvecs = SchrodingerEquation(hamiltonians=eq.hamiltonians).eig()
-    schedule(1 - 2*dt, 1)
-    eigvals_past, eigvecs_past = SchrodingerEquation(hamiltonians=eq.hamiltonians).eig()
+    schedule(1, 1)
+    eigvals, eigvecs = SchrodingerEquation(hamiltonians=eq.hamiltonians).eig(k='all')
+    schedule(1 - dt, 1)
+    eigvals_past, eigvecs_past = SchrodingerEquation(hamiltonians=eq.hamiltonians).eig(k='all')
     # ensure that the first eigenvalue is positive
-    if eigvecs[0][0] <= 0:
+    if eigvecs[0,0] <= 0:
         eigvecs[0] = eigvecs[0] * -1
 
-    if eigvecs_past[0][0] <= 0:
+    if eigvecs_past[0,0] <= 0:
         eigvecs_past[0] = eigvecs_past[0] * -1
 
-    if eigvecs[-1][0] <= 0:
+    if eigvecs[-1,0] <= 0:
         eigvecs[-1] = eigvecs[-1] * -1
 
-    if eigvecs_past[-1][0] <= 0:
+    if eigvecs_past[-1,0] <= 0:
         eigvecs_past[-1] = eigvecs_past[-1] * -1
 
-    res_end = (np.vdot(eigvecs[-1], (eigvecs[0] - eigvecs_past[0]) / dt)/(eigvals[0]-eigvals[-1]))
-    schedule(2*dt, 1)
-    eigvals, eigvecs = SchrodingerEquation(hamiltonians=eq.hamiltonians).eig()
+    res_end = (np.vdot(eigvecs[-1], (eigvecs[0] - eigvecs_past[0]) / dt) / (eigvals[0] - eigvals[-1]))
     schedule(dt, 1)
-    eigvals_past, eigvecs_past = SchrodingerEquation(hamiltonians=eq.hamiltonians).eig()
+    eigvals, eigvecs = SchrodingerEquation(hamiltonians=eq.hamiltonians).eig(k='all')
+    schedule(0, 1)
+    eigvals_past, eigvecs_past = SchrodingerEquation(hamiltonians=eq.hamiltonians).eig(k='all')
     # ensure that the first eigenvalue is positive
-    if eigvecs[0][0] <= 0:
+    if eigvecs[0,0] <= 0:
         eigvecs[0] = eigvecs[0] * -1
 
-    if eigvecs_past[0][0] <= 0:
+    if eigvecs_past[0,0] <= 0:
         eigvecs_past[0] = eigvecs_past[0] * -1
 
-    if eigvecs[-1][0] <= 0:
+    if eigvecs[-1,0] <= 0:
         eigvecs[-1] = eigvecs[-1] * -1
 
-    if eigvecs_past[-1][0] <= 0:
+    if eigvecs_past[-1,0] <= 0:
         eigvecs_past[-1] = eigvecs_past[-1] * -1
 
-    res_beginning = (np.vdot(eigvecs[-1], (eigvecs[0] - eigvecs_past[0]) / dt)/(eigvals[0]-eigvals[-1]))
-    print(res_end**2+res_beginning**2)
+    res_beginning = (np.vdot(eigvecs[-1], (eigvecs[0] - eigvecs_past[0]) / dt) / (eigvals[0] - eigvals[-1]))
+    return res_end ** 2 + res_beginning ** 2
 
 
-
-def expansion(mode='reit'):
+def expansion(graph=line_graph(n=3), mode='reit', full_output = False, alpha_order=1, beta_order=1):
     # Find the performance vs alpha
-    graph = line_graph(n=2)
+    ground_energy = graph.independent_sets[0][1]
+    degeneracy = 0
+    for IS in graph.independent_sets:
+        if graph.independent_sets[IS][1] == ground_energy:
+            degeneracy += 1
     num = 100
-    times = np.linspace(0, 1, 100)
     if mode == 'reit':
         laser = EffectiveOperatorHamiltonian(graph=graph, omega_r=1, omega_g=1,
                                              energies=(1,))
@@ -454,32 +505,24 @@ def expansion(mode='reit'):
             dissipation.omega_g = np.cos(phi)
             dissipation.omega_r = np.sin(phi)
 
-        """def compute_eigenenergies(t, y):
-            schedule_EIT(t, 1)
-            # Compute the Hamiltonian basis vectors
-            eq = SchrodingerEquation(hamiltonians=[laser])
-            eigval, eigvec = eq.eig()
-            return eigval
-        """
-        #theta = \
-        #    scipy.integrate.solve_ivp(compute_eigenenergies, (0, 1), np.zeros(eigval.shape), atol=1e-8, rtol=1e-6,
-        #                              method='DOP853', t_eval=times)['y'].T
-        schedule=schedule_EIT
+        schedule = schedule_EIT
         eq = LindbladMasterEquation(hamiltonians=[laser], jump_operators=[dissipation])
 
     if mode == 'adiabatic':
         def schedule_adiabatic(t, tf):
-            energy_shift.energies = (- 3 * (t / tf - 1 / 2),)
-            laser.energies = (np.cos(t / tf * np.pi)*np.sin(t / tf * np.pi),)
-            dissipation.rates = (np.sin(t / tf * np.pi) ** 2,)
+            phi = (tf-t) / tf * np.pi/2
+            energy_shift.energies = (4*np.sin(phi)**2-np.cos(phi)**2,)
+            laser.energies = (np.cos(phi)*np.sin(phi),)
+            dissipation.rates = (np.cos(phi)*np.sin(phi),)
             # Now run the standard adiabatic algorithm
 
-        laser = EffectiveOperatorHamiltonian(graph=graph, IS_subspace=True,
+        """laser = EffectiveOperatorHamiltonian(graph=graph, IS_subspace=True,
                                              energies=(1,),
                                              omega_g=np.cos(np.pi / 4),
-                                             omega_r=np.sin(np.pi / 4))
+                                             omega_r=np.sin(np.pi / 4))"""
+        laser = hamiltonian.HamiltonianDriver(graph=graph, IS_subspace=True, energies=(1,))
         energy_shift = hamiltonian.HamiltonianEnergyShift(IS_subspace=True, graph=graph,
-                                                          energies=(2.5,), index=0)
+                                                          energies=(1,), index=0)
         dissipation = EffectiveOperatorDissipation(graph=graph, omega_r=1, omega_g=1,
                                                    rates=(1,))
         schedule = schedule_adiabatic
@@ -488,11 +531,11 @@ def expansion(mode='reit'):
     if mode == 'hybrid':
         def schedule_hybrid(t, tf):
             phi = (tf - t) / tf * np.pi / 2
-            energy_shift.energies = (- 1.35  * (t / tf - 1 / 2),)
-            laser.omega_g = np.cos(phi)
+            energy_shift.energies = (np.sin(phi) ** 2,)  # (- 1.35 * (t / tf - 1 / 2),)
             laser.omega_r = np.sin(phi)
-            dissipation.omega_g = np.cos(phi)
+            laser.omega_g = np.cos(phi)
             dissipation.omega_r = np.sin(phi)
+            dissipation.omega_g = np.cos(phi)
 
         laser = EffectiveOperatorHamiltonian(graph=graph, IS_subspace=True,
                                              energies=(1,),
@@ -504,21 +547,444 @@ def expansion(mode='reit'):
                                                    rates=(1,))
         schedule = schedule_hybrid
         eq = LindbladMasterEquation(hamiltonians=[laser, energy_shift], jump_operators=[dissipation])
-
-    rho = np.zeros((5, num, graph.num_independent_sets, graph.num_independent_sets), dtype=np.complex128)
-    # Allow the integrator to allocate space. First get the zeroth order solution
-    psi0 = np.zeros((graph.num_independent_sets, graph.num_independent_sets))
-    psi0[0, 0] = 1
-    # Convert results to density matrices
-    for i in range(num):
-        rho[0, i, :] = psi0
     # Compute orders in alpha
-    #rho[o,:] = compute_alpha_order(rho[o-1,:], eq, schedule)
-    #print(rho[o,-1,0,0])
-    #print(compute_first_alpha_order(eq, schedule))
-    print(compute_first_beta_order(eq, schedule))
+    # rho[o,:] = compute_alpha_order(rho[o-1,:], eq, schedule)
+    # print(rho[o,-1,0,0])
+    if alpha_order == 1:
+        rates = compute_first_alpha_order(eq, schedule, degeneracy, full_output=full_output)
+        return rates
+        rates = rates[:,0]
+        print(np.sum(rates[1:]))
+        if degeneracy > 1:
+            return -np.sum(rates)
+        else:
+            return rates
+    if beta_order == 1:
+        print('rate', compute_first_beta_order(eq, schedule).real)
 
-expansion(mode='adiabatic')
+#rates = expansion(line_graph(9), mode='adiabatic', full_output=False, alpha_order=1, beta_order=0)
+#rates = rates[:,0].flatten()
+
+#print(np.sum(rates[1:]),rates[0], -3.59589991e-01+np.sum(rates[1:]))
+
+def optimize_schedule(times, bad, graph=line_graph(n=2), initial_guesses=10):
+    # Good is a list of good eigenvalues
+    # Bad is a list of bad eigenvalues. If 'other', defaults to all remaining eigenvalues outside of 'good'
+    def schedule_hybrid(t, tf):
+        phi = (tf - t) / tf * np.pi / 2
+        laser.omega_g = np.cos(phi)
+        laser.omega_r = np.sin(phi)
+        dissipation.omega_g = np.cos(phi)
+        dissipation.omega_r = np.sin(phi)
+
+    laser = EffectiveOperatorHamiltonian(graph=graph, IS_subspace=True,
+                                         energies=(1,),
+                                         omega_g=np.cos(np.pi / 4),
+                                         omega_r=np.sin(np.pi / 4))
+    energy_shift = hamiltonian.HamiltonianEnergyShift(IS_subspace=True, graph=graph,
+                                                      energies=(2.5,), index=0)
+    dissipation = EffectiveOperatorDissipation(graph=graph, omega_r=1, omega_g=1,
+                                               rates=(1,))
+    schedule = schedule_hybrid
+    eq = SchrodingerEquation(hamiltonians=[laser, energy_shift])
+
+    def optimize_delta_r(delta_r):
+        delta_r = delta_r[0]
+        energy_shift.energies = (delta_r,)
+        if bad == 'other':
+            ground_energy, ground_state = eq.ground_state()
+            overlap = 0
+            for op in dissipation.jump_operators:
+                overlap = overlap + (np.abs(ground_state.conj().T @ op @ ground_state) ** 2)[0, 0] - \
+                          (ground_state.conj().T @ op.conj().T @ op @ ground_state)[0, 0]
+            return overlap.real
+        else:
+            # Construct the first order transition matrix
+            energies, states = eq.eig(k='all')
+            states = states.T
+            rates = np.zeros(energies.shape[0] ** 2)
+            for op in dissipation.jump_operators:
+                rates = rates + (np.abs(states.conj().T @ op @ states) ** 2).flatten()
+            # Select the relevant rates from 'good' to 'bad'
+            rates = np.reshape(rates.real, (int(np.sqrt(rates.shape[0])), int(np.sqrt(rates.shape[0]))))
+            rate = 0
+            for i in bad:
+                rate += rates[i, 0]
+            # print(time, rates, rate, delta_r)
+            return rate
+
+    delta_rs = []
+    rates = []
+    for time in times:
+        print(time)
+        schedule(time, 1)
+        min_rate = np.inf
+        min_delta_r = np.inf
+        for i in range(initial_guesses):
+            bounds = [-3, 3]
+            rand = np.random.uniform(bounds[0], bounds[1], 1)
+            delta_r = scipy.optimize.minimize(lambda dr: optimize_delta_r(dr), rand, bounds=[bounds])
+            print(time, delta_r.x[0], delta_r.fun)
+            if delta_r.fun < min_rate:
+                min_delta_r = delta_r.x[0]
+                min_rate = delta_r.fun
+        delta_rs.append(min_delta_r)
+        rates.append(min_rate)
+    return delta_rs, rates
+
+
+def dissipation_over_time(times, delta_rs, graph=line_graph(n=2), mode='hybrid', which='S'):
+
+    rates = np.zeros((len(delta_rs), len(times)))
+    if which == 'S':
+        index = 0
+    if which == 'L':
+        index = graph.num_independent_sets-1
+
+    optimal_energy = graph.independent_sets[index][1]
+    degeneracy = 0
+    bad = []
+    for IS in graph.independent_sets:
+        if graph.independent_sets[IS][1] == optimal_energy:
+            degeneracy += 1
+        else:
+            bad.append(IS)
+    if degeneracy == 1:
+        bad = 'other'
+    # Good is a list of good eigenvalues
+    # Bad is a list of bad eigenvalues. If 'other', defaults to all remaining eigenvalues outside of 'good'
+    def schedule_hybrid(t, tf):
+        phi = (tf - t) / tf * np.pi / 2
+        laser.omega_g = np.cos(phi)
+        laser.omega_r = np.sin(phi)
+        dissipation.omega_g = np.cos(phi)
+        dissipation.omega_r = np.sin(phi)
+
+    def schedule_adiabatic(t, tf):
+        phi = (tf - t) / tf * np.pi / 2
+        laser.omega_g = np.sqrt(np.abs(np.sin(phi) * np.cos(phi)))
+        laser.omega_r = np.sqrt(np.abs(np.sin(phi) * np.cos(phi)))
+        dissipation.omega_g = np.sqrt(np.abs(np.sin(phi) * np.cos(phi)))
+        dissipation.omega_r = np.sqrt(np.abs(np.sin(phi) * np.cos(phi)))
+
+    laser = EffectiveOperatorHamiltonian(graph=graph, IS_subspace=True,
+                                         energies=(1,),
+                                         omega_g=np.cos(np.pi / 4),
+                                         omega_r=np.sin(np.pi / 4))
+    energy_shift = hamiltonian.HamiltonianEnergyShift(IS_subspace=True, graph=graph,
+                                                      energies=(2.5,), index=0)
+    dissipation = EffectiveOperatorDissipation(graph=graph, omega_r=1, omega_g=1,
+                                               rates=(1,))
+    if mode == 'hybrid':
+        schedule = schedule_hybrid
+    elif mode == 'adiabatic':
+        schedule = schedule_adiabatic
+    eq = SchrodingerEquation(hamiltonians=[laser, energy_shift])
+
+    def compute_rate(delta_r):
+        energy_shift.energies = (delta_r,)
+        if bad == 'other' and which == 'S':
+            ground_energy, ground_state = eq.ground_state()
+            overlap = 0
+            for op in dissipation.jump_operators:
+                overlap = overlap - (np.abs(ground_state.conj().T @ op @ ground_state) ** 2)[0, 0] + \
+                          (ground_state.conj().T @ op.conj().T @ op @ ground_state)[0, 0]
+            return overlap.real
+        else:
+            # Construct the first order transition matrix
+            energies, states = eq.eig(k='all')
+            states = states.T
+            rates = np.zeros(energies.shape[0] ** 2)
+            for op in dissipation.jump_operators:
+                rates = rates + (np.abs(states.conj().T @ op @ states) ** 2).flatten()
+            # Select the relevant rates from 'good' to 'bad'
+            rates = np.reshape(rates.real, (int(np.sqrt(rates.shape[0])), int(np.sqrt(rates.shape[0]))))
+            rate = 0
+            for i in bad:
+                rate += rates[i, index]
+            return rate
+
+    for i in range(len(times)):
+        print(times[i])
+        schedule(times[i], 1)
+        for j in range(len(delta_rs)):
+            rates[j, i] = compute_rate(delta_rs[j])
+
+    return rates
+
+
+def leakage_vs_final_eigenenergy(times, graph=line_graph(n=2), mode='hybrid', angle=np.pi / 4, which='S'):
+    """For REIT, compute the total leakage from the ground state to a given state. Plot the total leakage versus
+    the final eigenenergy"""
+    if which == 'S':
+        index = 0
+    elif which == 'L':
+        index = -1
+    else:
+        index = which
+
+    optimal_energy = graph.independent_sets[index][1]
+    degeneracy = 0
+    bad = []
+    for IS in graph.independent_sets:
+        if graph.independent_sets[IS][1] == optimal_energy:
+            degeneracy += 1
+        else:
+            bad.append(IS)
+    if degeneracy == 1:
+        bad = 'other'
+    full_rates = np.zeros(graph.num_independent_sets-degeneracy)
+
+    # Good is a list of good eigenvalues
+    # Bad is a list of bad eigenvalues. If 'other', defaults to all remaining eigenvalues outside of 'good'
+    def schedule_hybrid(t, tf):
+        phi = (tf - t) / tf * np.pi / 2
+        energy_shift.energies = (np.sin(2 * ((tf - t) / tf - 1 / 2) * np.pi),)
+        laser.omega_g = np.cos(phi)
+        laser.omega_r = np.sin(phi)
+        dissipation.omega_g = np.cos(phi)
+        dissipation.omega_r = np.sin(phi)
+
+    def schedule_reit(t, tf):
+        phi = (tf - t) / tf * np.pi / 2
+        laser.omega_g = np.cos(phi)
+        laser.omega_r = np.sin(phi)
+        dissipation.omega_g = np.cos(phi)
+        dissipation.omega_r = np.sin(phi)
+
+    def schedule_adiabatic(t, tf):
+        phi = (tf - t) / tf * np.pi / 2
+        energy_shift.energies = (np.sin(2 * ((tf - t) / tf - 1 / 2) * np.pi),)
+        laser.omega_g = np.cos(angle) * np.sin(phi) * np.cos(phi)
+        laser.omega_r = np.sin(angle) * np.sin(phi) * np.cos(phi)
+        dissipation.omega_g = np.cos(angle) * np.cos(phi) * np.sin(phi)
+        dissipation.omega_r = np.sin(angle) * np.cos(phi) * np.sin(phi)
+
+    laser = EffectiveOperatorHamiltonian(graph=graph, IS_subspace=True,
+                                         energies=(1,),
+                                         omega_g=np.cos(np.pi / 4),
+                                         omega_r=np.sin(np.pi / 4))
+    energy_shift = hamiltonian.HamiltonianEnergyShift(IS_subspace=True, graph=graph,
+                                                      energies=(2.5,), index=0)
+    dissipation = EffectiveOperatorDissipation(graph=graph, omega_r=1, omega_g=1,
+                                               rates=(1,))
+    if mode == 'hybrid':
+        schedule = schedule_hybrid
+    elif mode == 'adiabatic':
+        schedule = schedule_adiabatic
+    elif mode == 'reit':
+        schedule = schedule_reit
+    if mode != 'reit':
+        eq = LindbladMasterEquation(hamiltonians=[laser, energy_shift], jump_operators=[dissipation])
+    else:
+        eq = LindbladMasterEquation(hamiltonians=[laser], jump_operators=[dissipation])
+
+    def compute_rate():
+        if bad == 'other' and which == 'S':
+            ground_energy, ground_state = eq.ground_state()
+            overlap = 0
+            for op in dissipation.jump_operators:
+                overlap = overlap - (np.abs(ground_state.conj().T @ op @ ground_state) ** 2)[0, 0] + \
+                          (ground_state.conj().T @ op.conj().T @ op @ ground_state)[0, 0]
+            return overlap.real
+        else:
+            # Construct the first order transition matrix
+            energies, states = eq.eig(k='all')
+            states = states.T
+            rates = np.zeros(energies.shape[0] ** 2)
+            for op in dissipation.jump_operators:
+                rates = rates + (np.abs(states.conj().T @ op @ states) ** 2).flatten()
+            # Select the relevant rates from 'good' to 'bad'
+            rates = np.reshape(rates.real, (int(np.sqrt(rates.shape[0])), int(np.sqrt(rates.shape[0]))))
+            rate = 0
+            for i in bad:
+                rate += rates[i, index]
+            return rate
+    return compute_first_alpha_order(eq, schedule, degeneracy, full_output=True)
+
+
+
+def rate_vs_eigenenergy(times, graph=line_graph(n=2), mode='hybrid', which='S'):
+    """For REIT, compute the total leakage from the ground state to a given state. Plot the total leakage versus
+    the final eigenenergy"""
+    if which == 'S':
+        index = 0
+    elif which == 'L':
+        index = -1
+    else:
+        index = which
+
+    # Good is a list of good eigenvalues
+    # Bad is a list of bad eigenvalues. If 'other', defaults to all remaining eigenvalues outside of 'good'
+    def schedule_hybrid(t, tf):
+        phi = (tf - t) / tf * np.pi / 2
+        energy_shift.energies = (np.sin(2 * ((tf - t) / tf - 1 / 2) * np.pi),)
+        laser.omega_g = np.cos(phi)
+        laser.omega_r = np.sin(phi)
+        dissipation.omega_g = np.cos(phi)
+        dissipation.omega_r = np.sin(phi)
+
+    def schedule_reit(t, tf):
+        phi = (tf - t) / tf * np.pi / 2
+        laser.omega_g = np.cos(phi)
+        laser.omega_r = np.sin(phi)
+        dissipation.omega_g = np.cos(phi)
+        dissipation.omega_r = np.sin(phi)
+
+    def schedule_adiabatic(t, tf):
+        phi = (tf - t) / tf * np.pi / 2
+        energy_shift.energies = (np.sin(2 * ((tf - t) / tf - 1 / 2) * np.pi),)
+        laser.omega_g = np.sqrt(np.abs(np.sin(phi) * np.cos(phi)))
+        laser.omega_r = np.sqrt(np.abs(np.sin(phi) * np.cos(phi)))
+        dissipation.omega_g = np.sqrt(np.abs(np.sin(phi) * np.cos(phi)))
+        dissipation.omega_r = np.sqrt(np.abs(np.sin(phi) * np.cos(phi)))
+
+    laser = EffectiveOperatorHamiltonian(graph=graph, IS_subspace=True,
+                                         energies=(1,),
+                                         omega_g=np.cos(np.pi / 4),
+                                         omega_r=np.sin(np.pi / 4))
+    energy_shift = hamiltonian.HamiltonianEnergyShift(IS_subspace=True, graph=graph,
+                                                      energies=(2.5,), index=0)
+    dissipation = EffectiveOperatorDissipation(graph=graph, omega_r=1, omega_g=1,
+                                               rates=(1,))
+    if mode == 'hybrid':
+        schedule = schedule_hybrid
+    elif mode == 'adiabatic':
+        schedule = schedule_adiabatic
+    elif mode == 'reit':
+        schedule = schedule_reit
+    if mode != 'reit':
+        eq = SchrodingerEquation(hamiltonians=[laser, energy_shift])
+    else:
+        eq = SchrodingerEquation(hamiltonians=[laser])
+
+    def compute_rate():
+        # Construct the first order transition matrix
+        global full_rates
+        energies, states = eq.eig(k='all')
+        states = states.T
+        rates = np.zeros(energies.shape[0] ** 2)
+        for op in dissipation.jump_operators:
+            rates = rates + (np.abs(states.conj().T @ op @ states) ** 2).flatten()
+        # Select the relevant rates from 'good' to 'bad'
+
+        rates = np.reshape(rates.real, (graph.num_independent_sets, graph.num_independent_sets))
+        return rates[:, index].flatten()
+    for i in range(len(times)):
+        print(times[i])
+        schedule(times[i], 1)
+        full_rates = compute_rate()
+        eigval, eigvec = eq.eig(k='all')
+    return full_rates, eigval
+
+
+def rates_even_lines():
+    import matplotlib.cm as cm
+    maxi = 18
+    rates = [[0.1576937, 0.0592839], [0.20043044, 0.0739042,  0.03933661], [0.23887139, 0.09930278, 0.04874768,
+                                                                            0.02859556],
+             [0.2745281,  0.12417343, 0.06681694, 0.03712631, 0.01815997], [0.30396985, 0.14271762, 0.08654232,
+                                                                            0.04987546, 0.02616696, 0.01921191],
+             [0.33154139, 0.16477527, 0.10182909, 0.06276206, 0.03618001, 0.02586129, 0.01521278],
+             [0.35970866, 0.18080407, 0.11627611, 0.0732,     0.04802308, 0.03471581, 0.02006693, 0.01597016]]
+    for i in range(len(rates)):
+        #rates = expansion(graph=line_graph(i), mode='adiabatic')[:, 0].flatten()
+        #rates = rates[1:]
+        total = 0
+        #print(rates)
+        k = 0
+        for j in range(len(rates[i])):
+            # bottom=total,
+            plt.scatter((j+1)/(2*i+4), rates[i][j], color=cm.get_cmap('Blues')(k/maxi*2), edgecolor='black')
+            total += rates[i][j]
+            k += 1
+    plt.xlabel(r'$n$')
+    plt.loglog()
+    plt.ylabel(r'$\sum_i \int_0^1 ds |\langle j |c_i|0\rangle|^2$ ordered by $E_j$, $E_j(s=1) = E_0(s=1)$')
+
+    plt.show()
+
+
+
+
+
+
+
+"""odd_rates = [0.01885195077253434, 0.02927606703168038, .03588440678455766, 0.04056175101661809, 0.0440182976521066, 0.04671109220510976]
+even_rates = [0.005499572794943576, 0.005870499486106632, 0.00613223651331744, 0.007199171064989809, 0.0074339667580066125, 0.008037112891670875]
+odd = [3, 5, 7, 9, 11, 13]
+
+even = [4, 6, 8, 10, 12]
+plt.plot(odd, odd_rates)
+plt.scatter(odd, odd_rates)
+
+plt.plot(even, even_rates)
+plt.scatter(even, even_rates)
+plt.semilogx()
+plt.show()"""
+
+
+num = 500
+n = 17
+# graph = nx.erdos_renyi_graph(n, .2)
+# nx.draw(graph)
+# plt.show()
+# graph = Graph(graph)
+"""graph = line_graph(n)
+eigvals = []
+
+bad = list(range(1, graph.num_independent_sets))
+times = np.linspace(1e-5, .999, 100)
+# print(graph.num_independent_sets)
+rates, eigvals = rate_vs_eigenenergy([.5], graph=graph, mode='reit', which='S')
+"""
+"""rates = rates[:, 0].flatten()
+rates = rates[1:]
+eigvals = []
+for IS in graph.independent_sets:
+    if graph.independent_sets[IS][1] != graph.independent_sets[0][1]:
+        eigvals.append(graph.independent_sets[IS][1])
+eigvals = -np.array(eigvals)+graph.independent_sets[0][1]
+#energies = energies[1:]-energies[0]
+res = np.polyfit(eigvals, np.log(rates), 1)
+print(res)"""
+"""plt.scatter(eigvals, np.cumsum(rates), s=4, color='blue')
+#plt.semilogy()
+#print(np.polyfit(np.log(eigvals), np.log(rates), 1))
+# What is the energy spacing
+# print(res[0]*np.mean(np.diff(eigvals)[0:6]))
+#plt.plot(eigvals, np.e ** (res[0] * eigvals + res[1]))
+#plt.semilogy()
+plt.ylabel(r'$\sum_i \int_0^1 ds |\langle j |c_i| 0 \rangle|^2$')
+plt.xlabel('final independendent set size')
+# plt.ylabel(r'$\sum_i|\langle j |c_i| 0 \rangle|^2$ at $\frac{t}{T}=.5$')
+# plt.xlabel(r'$|E_j-E_0|$')
+plt.show()"""
+num = 50
+n = 9
+times = np.linspace(0.01, .99, num)
+delta_rs = np.linspace(-1, 5, 5*num)
+from qsim.graph_algorithms.graph import unit_disk_graph
+arr = np.array([[1, 1, 1, 1], [1, 1, 1, 0], [1, 1, 1, 1], [0, 1, 1, 0]])
+graph = unit_disk_graph(arr)
+rates = dissipation_over_time(times, delta_rs, graph=graph, mode='hybrid', which='S')
+plt.imshow(np.log10(rates), interpolation=None, extent=[0, 1, -1, 5], origin='lower', aspect='auto', vmin=-9, vmax=0)
+plt.colorbar()
+plt.xlabel('time')
+plt.ylabel(r'$\delta_r$')
+plt.show()
+
+"""graph = Graph(nx.star_graph(2))
+num = 500
+times = np.linspace(0.01, .99, num)
+delta_rs = [0]
+rates = dissipation_over_time(times, delta_rs, graph=graph)
+rates = rates[0]
+plt.scatter(np.cos(times*np.pi/2), rates)
+#plt.loglog()
+plt.legend()
+plt.show()
+print(np.polyfit(np.log(np.cos(times*np.pi/2))[450:], np.log(rates)[450:], 1))"""
 
 
 """Implementation: 

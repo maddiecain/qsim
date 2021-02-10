@@ -137,14 +137,18 @@ def trace(a, ind=None, d=2):
     # Partial trace
     for k in ind:
         N = int(np.log2(a.shape[-1]))
+        a = np.reshape(a, (2 ** k, 2, 2 ** (N - k - 1), 2 ** k, 2, 2 ** (N - k - 1)), order='F')
+        a = a[:, 0, :, :, 0, :] + a[:, 1, :, :, 1, :]
+        a = np.reshape(a, (2 ** (N - 1), 2 ** (N - 1)), order='F')
+        """N = int(np.log2(a.shape[-1]))
         a = np.reshape(a, [d ** (N - k - 1), d ** (k + 1), d ** N], order='C')
         a[:, d ** k:d ** (k + 1), :] = np.roll(a[:, d ** k:d ** (k + 1), :], shift=-2 ** k, axis=2)
         a = np.reshape(a, [d ** (2 * N - k - 1), d, d ** k], order='C')
         a = np.delete(a, obj=1, axis=1)
         a = np.reshape(a, [d ** (2 * N - 2 - 2 * k), d, d ** (2 * k)], order='C')
         a = np.sum(a, axis=1)
-        a = np.reshape(a, [d ** (N - 1), d ** (N - 1)], order='C')
-    return np.trace(a)
+        a = np.reshape(a, [d ** (N - 1), d ** (N - 1)], order='C')"""
+    return a
 
 
 def is_orthonormal(B):

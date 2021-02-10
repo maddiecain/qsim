@@ -173,31 +173,32 @@ xis_hybrid_7 = np.arange(250, 5000, 100)
 xis_adiabatic_7 = np.arange(250, 5000, 100)
 xis_adiabatic_5 = np.concatenate([np.arange(40, 200, 5), np.arange(250, 5000, 50)])
 print(len(xis_reit), len(reit))
-fit_exp([xis_hybrid_3[-30:], fidelities_hybrid_3[-30:]])
+"""fit_exp([xis_hybrid_3[-30:], fidelities_hybrid_3[-30:]])
 fit_exp([xis_adiabatic[-30:], fidelities_adiabatic[-30:]])
 
 k_adiabatic_3, error_adiabatic_3 = fit_sqrt_exp([xis_adiabatic[-30:], fidelities_adiabatic[-30:]])
 k_adiabatic_5, error_adiabatic_5 = fit_sqrt_exp([xis_adiabatic_5[-30:], fidelities_adiabatic_5[-30:]])
 k_adiabatic_7, error_adiabatic_7 = fit_sqrt_exp([xis_adiabatic_7[-20:], fidelities_adiabatic_7[-20:]])
-k_adiabatic_9, error_adiabatic_9 = fit_sqrt_exp([xis_adiabatic_7[-20:], fidelities_adiabatic_9[-20:]])
+k_adiabatic_9, error_adiabatic_9 = fit_sqrt_exp([xis_adiabatic_7[-20:], fidelities_adiabatic_9[-20:]])"""
 
 #fit_exp([xis_hybrid_3, fidelities_hybrid_3])
-k_hybrid_3, error_hybrid_3 = fit_sqrt_exp([xis_hybrid_3[-30:], fidelities_hybrid_3[-30:]])
+"""k_hybrid_3, error_hybrid_3 = fit_sqrt_exp([xis_hybrid_3[-30:], fidelities_hybrid_3[-30:]])
 #fit_exp([xis_hybrid_5, fidelities_hybrid_5])
 k_hybrid_5, error_hybrid_5 = fit_sqrt_exp([xis_hybrid_5, fidelities_hybrid_5])
 k_hybrid_7, error_hybrid_7 = fit_sqrt_exp([xis_hybrid_7, fidelities_hybrid_7])
-k_hybrid_9, error_hybrid_9 = fit_sqrt_exp([xis_hybrid_7, fidelities_hybrid_9])
+k_hybrid_9, error_hybrid_9 = fit_sqrt_exp([xis_hybrid_7, fidelities_hybrid_9])"""
 
 #fit_exp([xis_reit, reit])
 #fit_sqrt_exp([xis_reit, reit])
 #plt.scatter(xis_ss, fidelities_ss, color='green')
-#plt.scatter(xis_reit, reit, color='purple', label='reit 3')
+plt.scatter(xis_reit, reit, color='purple', label=r'STIRAP $n=3$')
+plt.scatter(xis_hybrid_3, fidelities_hybrid_3, color='blue', label=r'unoptimized hybrid $n=3$')
 
-#plt.scatter(xis_hybrid_3, fidelities_hybrid_3, color='blue', label=r'$n=3$')
-plt.scatter(xis_adiabatic, fidelities_adiabatic, color='green', label=r'$n=3$')
-plt.scatter(xis_adiabatic_5[20:], fidelities_adiabatic_5[20:], color='lightgreen', label=r'$n=5$')
-plt.scatter(xis_adiabatic_7, fidelities_adiabatic_7, color='lime', label=r'$n=7$')
-plt.scatter(xis_adiabatic_7, fidelities_adiabatic_9, color='springgreen', label=r'$n=9$')
+#
+plt.scatter(xis_adiabatic, fidelities_adiabatic, color='green', label=r'experiment $n=3$')
+#plt.scatter(xis_adiabatic_5[20:], fidelities_adiabatic_5[20:], color='lightgreen', label=r'$n=5$')
+#plt.scatter(xis_adiabatic_7, fidelities_adiabatic_7, color='lime', label=r'$n=7$')
+#plt.scatter(xis_adiabatic_7, fidelities_adiabatic_9, color='springgreen', label=r'$n=9$')
 """
 plt.scatter(xis_hybrid_5, fidelities_hybrid_5, color='lightblue', label=r'$n=5$')
 plt.scatter(xis_hybrid_7, fidelities_hybrid_7, color='teal', label=r'$n=7$')

@@ -16,7 +16,8 @@ class SchrodingerEquation(object):
         self.hamiltonians = hamiltonians
 
     def evolution_generator(self, state: State):
-        res = State(np.zeros(state.shape), is_ket=state.is_ket, code=state.code, IS_subspace=state.IS_subspace, graph=state.graph)
+        res = State(np.zeros(state.shape), is_ket=state.is_ket, code=state.code, IS_subspace=state.IS_subspace,
+                    graph=state.graph)
         for i in range(len(self.hamiltonians)):
             res = res - 1j * self.hamiltonians[i].left_multiply(state)
         return res
@@ -82,7 +83,7 @@ class SchrodingerEquation(object):
                     print('Fraction of integrator results normalized:',
                           len(np.argwhere(np.isclose(norms, np.ones(norms.shape)) == 1)) / len(norms))
                     print('Final state norm - 1:', norms[-1] - 1)
-                s = np.array([s/norms[-1]])
+                s = np.array([s / norms[-1]])
                 return s, infodict
         else:
             # You need to flatten the array
@@ -123,7 +124,7 @@ class SchrodingerEquation(object):
             if t == times[0] and full_output:
                 z[i, ...] = state
             else:
-                dt = times[i]-times[i-1]
+                dt = times[i] - times[i - 1]
                 for hamiltonian in self.hamiltonians:
                     s = hamiltonian.evolve(s, dt)
             if full_output:
@@ -152,33 +153,51 @@ class SchrodingerEquation(object):
                 else:
                     ham = ham + h.hamiltonian
         if not linear_operator:
-            if isinstance(ham, np.ndarray) or k == 'all':
+            if k == 'all':
                 try:
                     eigvals, eigvecs = np.linalg.eigh(ham.todense())
+                    if isinstance(eigvecs, np.matrix):
+                        eigvecs = np.squeeze(np.asarray(eigvecs))
                 except:
                     eigvals, eigvecs = np.linalg.eigh(np.asarray(ham))
 
             else:
                 # Hamiltonian is a sparse matrix
-                if return_eigenvectors:
-                    if which == 'S':
-                        eigvals, eigvecs = eigsh(ham, k=k, which='SA')
+                try:
+                    if return_eigenvectors:
+                        if which == 'S':
+                            eigvals, eigvecs = eigsh(ham, k=k, which='SA')
+                        else:
+                            eigvals, eigvecs = eigsh(ham, k=k, which='LA')
                     else:
-                        eigvals, eigvecs = eigsh(ham, k=k, which='LA')
-                else:
-                    if which == 'S':
-                        eigvals = eigsh(ham, k=k, which='SA', return_eigenvectors=return_eigenvectors)
-                    else:
-                        eigvals = eigsh(ham, k=k, which='LA', return_eigenvectors=return_eigenvectors)
+                        if which == 'S':
+                            eigvals = eigsh(ham, k=k, which='SA', return_eigenvectors=return_eigenvectors)
+                        else:
+                            eigvals = eigsh(ham, k=k, which='LA', return_eigenvectors=return_eigenvectors)
+                except TypeError:
+                    try:
+                        eigvals, eigvecs = np.linalg.eigh(ham.todense())
+                        if isinstance(eigvecs, np.matrix):
+                            eigvecs = np.squeeze(np.asarray(eigvecs))
+                    except:
+                        eigvals, eigvecs = np.linalg.eigh(np.asarray(ham))
             if return_eigenvectors:
                 eigvecs = np.moveaxis(eigvecs, -1, 0)
         else:
             # Construct a LinearOperator from the Hamiltonians
             raise NotImplementedError
         if return_eigenvectors:
+            # First, order the eigenvalues and eigenvectors
+            eigvecs = eigvecs[eigvals.argsort()]
+            eigvals = np.sort(eigvals)
+            # Enforce orthogonality in the case of degenerate eigenvalues
+            where_degenerate = np.argwhere(np.isclose(np.diff(eigvals), 0))
+            if len(where_degenerate)>0:
+                eigvecs, r = np.linalg.qr(eigvecs.T)
+                eigvecs = eigvecs.T
             return eigvals, eigvecs
         else:
-            return eigvals
+            return np.sort(eigvals)
 
     def ground_state(self, which='S'):
         """Returns the ground state and ground state energy"""
@@ -199,8 +218,17 @@ class SchrodingerEquation(object):
                 w = 'SA'
             else:
                 w = 'LA'
-            eigvals, eigvecs = scipy.sparse.linalg.eigsh(ham, k=1, which=w)
-            eigvecs = eigvecs.T
+            try:
+                eigvals, eigvecs = scipy.sparse.linalg.eigsh(ham, k=1, which=w)
+                eigvecs = eigvecs.T
+            except TypeError:
+                try:
+                    eigvals, eigvecs = np.linalg.eigh(ham.todense())
+                    if isinstance(eigvecs, np.matrix):
+                        eigvecs = np.squeeze(np.asarray(eigvecs))
+                except:
+                    eigvals, eigvecs = np.linalg.eigh(np.asarray(ham))
+
             # Reorder eigenvalues and eigenvectors
         else:
             # Construct a LinearOperator from the Hamiltonians
@@ -209,4 +237,3 @@ class SchrodingerEquation(object):
             return eigvals[0], State(eigvecs[0, np.newaxis].T, is_ket=True)
         elif which == 'L':
             return eigvals[-1], State(eigvecs[-1, np.newaxis].T, is_ket=True)
-

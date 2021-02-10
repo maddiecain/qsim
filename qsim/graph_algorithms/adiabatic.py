@@ -468,3 +468,125 @@ class SimulateAdiabatic(object):
             plt.ylabel(r'Approximation ratio')
             plt.show()
         return performance
+
+    def eigenstate_ordering_vs_time(self, time, schedule, which='S', verbose=False):
+        """In a typical adiabatic algorithm, the ground state will not have a level crossing. However, in graphs
+        with degenerate ground states, it is possible that energy levels that adiabatically lead into the ground
+        state have level crossings. Given a list of times, returns the eigenstates that will adiabatically lead
+        into the ground state and their eigenenergies at each time."""
+        # Start at later times
+        eigvals = np.zeros((len(time), self.graph.degeneracy))
+        eigvecs = np.zeros((len(time), self.graph.degeneracy, self.cost_hamiltonian.hamiltonian.shape[0]),
+                           dtype=np.complex128)
+        indices = np.arange(self.graph.degeneracy)
+        full_indices = np.zeros((len(time), self.graph.degeneracy))
+        schrodinger_equation = SchrodingerEquation(hamiltonians=self.hamiltonian)
+        threshold = .01
+        def normalize_phase(eig):
+            """Take in an array of eigenvectors, and normalize the phase such that the first element is positive
+            and real"""
+            where_nonzero = np.argwhere(np.absolute(eig) > 1e-9)[0,0]
+            eig = np.e ** (-1j * np.angle(eig[where_nonzero])) * eig
+            # We can take the eigenvalues to be real for this Hamiltonian
+            return eig / np.linalg.norm(eig)
+        i = 0
+        for t in np.flip(time):
+            schedule(t, 1)
+            if i == 0:
+                eigval, eigvec = schrodinger_equation.eig(which=which, k=np.max(indices) + 1)
+                for j in range(eigvec.shape[0]):
+                    eigvec[j] = normalize_phase(eigvec[j])
+                old_eigvec = eigvec
+                eigvals[i, :] = eigval
+                eigvecs[i, :] = eigvec
+            else:
+                eigval, eigvec = schrodinger_equation.eig(which=which, k=np.max(indices)+1)
+                # Now, check that the eigenvectors are macroscopically similar
+                # First, you need to normalize the phase on the eigenvectors
+                for j in range(eigvec.shape[0]):
+                    eigvec[j] = normalize_phase(eigvec[j])
+                # Now compute deviations in the dot product
+                deviation = []
+                for e in range(len(eigval)):
+                    deviation.append(np.abs(np.dot(eigvec[e], old_eigvec[e])))
+                deviation = 1 - np.array(deviation)
+                where_different = np.argwhere(deviation>threshold).flatten()
+                original_different = where_different.copy()
+                if len(where_different)>0:
+                    if verbose:
+                        print(where_different, indices, t)
+                for j in range(len(where_different)):
+                    # We need to check in nearby locations
+                    # For now, assume that we have only jumped one location
+                    if j != len(where_different)-1 and where_different[j] != 0:
+                        adjacent = True
+                        # Check everything after it
+                        check = where_different[j+1:]
+                        last = where_different[j]
+                        for c in check:
+                            if c != last + 1:
+                                adjacent = False
+                            last = c
+                            dev = 1 - np.abs(np.dot(eigvec[where_different[j]], old_eigvec[c]))
+                            if deviation[where_different[j]]-dev >.1 or dev < threshold:
+                                if verbose:
+                                    print('swapping', where_different[j], c, dev, deviation[where_different[j]])
+                                # We now know that c should replace where_different[j]
+                                """temp = indices.copy()
+                                for k in np.argwhere(indices == where_different[j]):
+                                    temp[k] = c
+                                for k in np.argwhere(indices == c):
+                                    temp[k] = where_different[j]
+
+                                indices = temp.copy()"""
+                                temp = where_different.copy()
+                                temp[j] = c
+                                for k in np.argwhere(where_different == c):
+                                    temp[k] = where_different[j]
+                                where_different = temp.copy()
+                                if verbose:
+                                    print(indices, where_different)
+
+                                break
+                            else:
+                                if verbose:
+                                    print('decided against swapping', dev, deviation[where_different[j]], where_different[j], c)
+                                    if adjacent and c ==np.max(indices):
+                                        print('all eigenstates are adjacent, consider looking at more spectrum', where_different[j], c)
+
+                    else:
+                        # Check if the last index is good or not, now that previous indices have been resolved
+                        dev_new = 1-np.abs(np.dot(old_eigvec[np.max(where_different)], eigvec[where_different[j]]))
+                        if dev_new > threshold:
+                            if verbose:
+                                print('problems, need to look at more spectrum', where_different[j], dev_new, np.max(where_different))
+                            if where_different[j] != 0:
+                                for k in np.argwhere(indices == where_different[j]):
+                                    if where_different[j] == np.max(indices):#np.allclose(np.argwhere(indices == where_different[j]), np.array([[len(indices)-1]])):
+                                        for l in [1, 2, 3]:
+                                            new_eigval, new_eigvec = schrodinger_equation.eig(which=which, k=np.max(indices) + 1+l)
+                                            dev = 1-np.abs(np.dot(new_eigvec[where_different[j]+l], old_eigvec[where_different[j]]))
+                                            if verbose:
+                                                print('should we swap higher?', where_different[j], l, dev, deviation[where_different[j]])
+                                            if deviation[where_different[j]]-dev > .1:
+                                                indices[k] = where_different[j]+l
+                                                eigvec = new_eigvec
+                                                break
+                        else:
+                            if verbose:
+                                print('happy times', dev_new)
+                temp = indices.copy()
+                for j in range(len(where_different)):
+                    for k in np.argwhere(where_different[j]==indices):
+                        # Swap that shit
+                        temp[k] = original_different[j]
+                indices = temp
+                old_eigvec = eigvec
+                # If they are not, solve for one more eigenvector
+                # If the eigenvector is still not macroscopically similar to any eigenvector, lower the threshold for
+                # comparison
+                # Now populate eigvecs
+            full_indices[i, :] = indices
+            eigvecs[i, :] = eigvec[indices, :]
+            i += 1
+        return np.flip(eigvecs, axis=0), np.flip(full_indices, axis=0)

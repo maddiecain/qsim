@@ -315,8 +315,16 @@ def imperfect_blockade_performance():
                 pass
 
 
-imperfect_blockade_performance()
+#imperfect_blockade_performance()
 
+
+graph = line_graph(n=3, return_mis=False)
+phi = np.pi/2
+laser = EffectiveOperatorHamiltonian(omega_g=np.cos(phi), omega_r=np.sin(phi), graph=graph)
+eq = SchrodingerEquation(hamiltonians=[laser])
+
+state = State(np.ones((5, 1), dtype=np.complex128)/np.sqrt(5))
+print(np.round(eq.eig(k='all')[1], decimals=3))
 
 def performance_vs_alpha():
     # alpha = gamma * omega^2/(delta^2 T)

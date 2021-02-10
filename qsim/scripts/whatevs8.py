@@ -2,27 +2,135 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import scipy.stats
+from qsim.graph_algorithms.graph import ring_graph, line_graph
 
-n = [2, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21]
-reit = [-0.00473168,-0.03639462+0.j, -0.08484101277447886+0j, -0.13868272915102697+0j, -0.1955501446428799+0j, -0.2543476347619724+0j,
-        -0.31447721049371347+0j, -0.37557923456633385, -0.4374203630362864, -0.4998406947299532, -0.5627261695801125]
-ad = [-0.07511105,-0.19392685+0.j, -0.32423511678256456+0j, -0.46019132123765516+0j, -0.5992231418366185+0j, -0.74018775581,
+
+ring_odd = [0.010731486819620769, 0.01313224478485521, 0.017118713707233217, 0.02158762971392806, 0.02754774984778865,
+            0.03325256957453278, 0.040864182131257754, 0.048092636480067126, 0.05579763588231229, 0.06556633230178542]
+ring_even = [0.012950893624301345, 0.05115426937604342, 0.1005415949400835, 0.15522033155622325, 0.21288972878345247,
+             0.27244730709453113, 0.33180328100193807, 0.3929663689410151,  0.4667286148763289, 0.5201480279829628]
+line_even = [0.010662442042852313, 0.016957472702683322, 0.02374938250983679, 0.03498899357236483, 0.043702391822540175,
+             0.054663814324193705, 0.06593339301684226, 0.0750676714021293, 0.08894679704585753, 0.09750844885297337]
+line_odd = [0.03639462, 0.08484101277447886, 0.13868272915102697, 0.1955501446428799, 0.2543476347619724,
+            0.31447721049371347, 0.37557923456633385, 0.4374203630362864, 0.4998406947299532, 0.5627261695801125]
+ring_n_odd = np.arange(3, 2*len(ring_odd)+3, 2)
+ring_n_even = np.arange(4, 2*len(ring_even)+4, 2)
+line_n_odd = np.arange(3, 2*len(line_odd)+3, 2)
+line_n_even = np.arange(4, 2*len(line_even)+4, 2)
+slope_ring_odd, int_ring_odd = np.polyfit(ring_n_odd, ring_odd, 1)
+slope_ring_even, int_ring_even = np.polyfit(ring_n_even, ring_even, 1)
+slope_line_odd, int_line_odd = np.polyfit(line_n_odd, line_odd, 1)
+slope_line_even, int_line_even = np.polyfit(line_n_even, line_even, 1)
+
+plt.scatter(ring_n_odd, ring_odd, label='odd ring (deg $n$, slope '+str(np.round(slope_ring_odd, 5))+')')
+plt.scatter(ring_n_even, ring_even, label='even ring (deg 2, slope '+str(np.round(slope_ring_even, 5))+')')
+plt.scatter(line_n_even, line_even, label=r'even line (deg $\frac{n}{2}+1$, slope '+str(np.round(slope_line_even, 5))+')')
+plt.scatter(line_n_odd, line_odd, label='odd line (deg 1, slope '+str(np.round(slope_line_odd, 5))+')')
+plt.ylabel('dissipative correction')
+plt.xlabel(r'$n$')
+plt.legend()
+plt.show()
+
+
+print(np.sum([4.24338406e-01, 3.21500841e-01, 3.14014855e-01,
+ 3.31627666e-02, 1.79732096e-01, 2.89387654e-02, 2.70738238e-02,
+ 8.55305488e-02, 6.49241178e-03, 1.98258228e-03]))
+# What is going on here?
+n_odd_torus = [6, 10, 14]
+rates_odd_torus = [0.016271061859353512, 0.025270595180493512, 0.045396454248493326]
+n_even_torus = [8, 12, 16, 20, 24]
+rates_even_torus = [0.03641161509422947, 0.08381781086704676, 0.15316328607899515, 0.19485277599154976, 0.2910744122739734]
+plt.scatter(n_odd_torus, rates_odd_torus)
+plt.scatter(n_even_torus, rates_even_torus)
+plt.show()
+
+
+n=np.arange(3, 21, 2)
+corr_hybrid = np.array([0.4689649753297138, 0.8050347793424018, 1.1294307138331496, 1.4573466729315718,
+                        1.7875857961759019, 2.1194682311689546, 2.452570983712753, 2.7866134155996547,
+                        3.1214001544576235])
+corr_adiabatic = np.array([0.561569079499595, 0.8924593683713418, 1.227015532135043, 1.5637305502683205,
+                           1.9018843015636409, 2.241064353541479, 2.5810110340276338, 2.921550395866910,
+                           3.26256048552805])
+plt.scatter(n, corr_adiabatic)
+plt.scatter(n, corr_hybrid)
+slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(np.log(n), np.log(corr_adiabatic))
+print(slope, intercept)
+slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(np.log(n), np.log(corr_hybrid))
+print(slope, intercept)
+print(corr_hybrid- corr_adiabatic)
+#plt.loglog()
+plt.show()
+
+
+
+n = np.array([5, 7, 9, 11, 13, 15, 17])
+m = np.array([ 2.90757773, 4.1770385, 5.21697679, 6.0971909, 6.8658034, 7.53113982, 8.12875574])
+b = np.array([-10.83804585, -17.43937025, -25.52863279, -34.72000245, -44.8200431, -55.62969905])
+b_shifted = np.array([-2.11531266, -0.73121624, 0.55625116, 1.86314295, 3.24058072, 4.61941954, 6.03945816])
+"""plt.scatter(np.log(n), m)
+res = np.polyfit(np.log(n), m, 1)
+plt.plot(np.log(n), np.log(n)*res[0]+res[1])
+plt.show()"""
+"""print(np.diff(b_shifted))
+plt.scatter(n, b_shifted)
+plt.show()
+res = np.polyfit(n, b_shifted, 1)
+print(res)
+plt.plot()"""
+#plt.loglog()
+#plt.scatter(n, m)
+#plt.scatter(n, b)
+#plt.show()
+
+
+n_odd = np.arange(3, 23, 2)
+n_even = np.arange(2, 22, 2)
+reit_even = [0.00473168, 0.010662442042852313, 0.016957472702683322, 0.02374938250983679, 0.03498899357236483,
+             0.043702391822540175, 0.054663814324193705, 0.06593339301684226, 0.0750676714021293, 0.08894679704585753]
+ad_even = [0.07511105, 0.10954203450982979, 0.1644751755518889, 0.21920854799094225, 0.2764753155737447,
+           0.3319969967490054, 0.38900249145598326, 0.44476043515277974, 0.5022977527828284, .56]
+hybrid_even=[0, 0.006262531818490569, 0.0030127868957918655, 0.009845582637052938, 0.0176493922164758,
+             0.02287351950202856, 0.030598243345535073, 0.03609680951698951]
+
+hybrid = [0.03635259323994149, 0.08330018896954504, 0.12834430570068409, 0.17091713508988504, 0.2142658402270388,
+          0.2581563204648457, 0.30244525320333504, 0.3470386280613774, 0.3918715594625951, 0.4368974642771301]
+reit = [-0.03639462, -0.08484101277447886, -0.13868272915102697, -0.1955501446428799, -0.2543476347619724,
+        -0.31447721049371347, -0.37557923456633385, -0.4374203630362864, -0.4998406947299532, -0.5627261695801125]
+reit = -np.array(reit)
+ad = [-0.19392685, -0.32423511678256456, -0.46019132123765516, -0.5992231418366185, -0.74018775581,
       -0.8824810126722228, -1.0257427690715848, -1.1697409098327542, -1.3143167939305687, -1.4593572148575429]
-reit = np.array(reit)
-ad = np.array(ad)
-n = np.array(n)
-print(np.diff(reit), np.diff(ad))
-plt.scatter(n[1:], -1*reit[1:], color='green', label='reit')
-slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(n[1:], -1*reit[1:])
-print(slope, intercept)
+ad = -np.array(ad)
 
-plt.plot(n[1:], n[1:]*slope+intercept, color='green', label='slope= '+str(np.around(slope.real, decimals=4)))
-plt.scatter(n[1:], -1*ad[1:], color='red', label='adiabatic')
-slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(n[1:], -1*ad[1:])
-print(slope, intercept)
+slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(n_odd, ad)
+plt.plot(n_odd, n_odd*slope+intercept, color='red', label='odd experiment, slope = '+str(np.round(slope.real, decimals=4)))
+plt.scatter(n_odd, ad, color='red')
+
+slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(n_even, ad_even)
+plt.plot(n_even, n_even*slope+intercept, color='salmon', label='even experiment, slope = '+str(np.around(slope.real, decimals=4)))
+plt.scatter(n_even, ad_even, color='salmon')
+
+slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(n_odd, reit)
+plt.plot(n_odd, n_odd*slope+intercept, color='green', label='odd STIRAP, slope = '+str(np.around(slope.real, decimals=4)))
+plt.scatter(n_odd, reit, color='green')
+
+slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(n_even, reit_even)
+plt.plot(n_even, n_even*slope+intercept, color='lightgreen', label='even STIRAP, slope = '+str(np.around(slope.real, decimals=4)))
+plt.scatter(n_even, reit_even, color='lightgreen')
+
+
+slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(n_odd[:len(hybrid)], hybrid)
+plt.plot(n_odd, n_odd*slope+intercept, color='blue', label='odd hybrid, slope = '+str(np.around(slope.real, decimals=4)))
+plt.scatter(n_odd[:len(hybrid)], hybrid, color='blue')
+
+slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(n_even[:len(hybrid_even)], hybrid_even)
+plt.plot(n_even, n_even*slope+intercept, color='lightblue', label='even hybrid, slope = '+str(np.around(slope.real, decimals=4)))
+plt.scatter(n_even[:len(hybrid_even)], hybrid_even, color='lightblue')
+
+
+plt.xticks(np.arange(2, 22))
 plt.xlabel(r'$n$')
 plt.ylabel(r'constant prefactor on order $\alpha$ reduction in fidelity')
-plt.plot(n[1:], n[1:]*slope+intercept, color='red', label='slope= '+str(np.round(slope.real, decimals=4)))
 plt.legend()
 plt.show()
 ratios = np.array(ad).real/np.array(reit).real#np.diff(ad)/np.diff(reit)[:len(np.diff(ad))]#

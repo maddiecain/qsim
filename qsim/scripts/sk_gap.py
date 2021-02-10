@@ -21,7 +21,7 @@ def sk_integer(n, verbose=False):
     return Graph(graph)
 
 
-def sk_hamiltonian(n, p=3, use_Z2_symmetry=False, use_degenerate=True):
+def sk_hamiltonian(n, p=3, use_Z2_symmetry=False, use_degenerate=True, verbose=False):
     w = []
 
     if use_Z2_symmetry:
@@ -78,7 +78,9 @@ def sk_hamiltonian(n, p=3, use_Z2_symmetry=False, use_degenerate=True):
         if len(ground_states(c)) == 1:
             return c
         else:
-            return sk_hamiltonian(n, p=p, use_Z2_symmetry=use_Z2_symmetry, use_degenerate=use_degenerate)
+            if verbose:
+                print('degeneracy', len(ground_states(c)))
+            return sk_hamiltonian(n, p=p, use_Z2_symmetry=use_Z2_symmetry, use_degenerate=use_degenerate, verbose=verbose)
 
 
 def sk_p3_instance():
@@ -173,6 +175,7 @@ def find_gap(graph, use_Z2_symmetry=True):
             min_gap = eigvals[-1] - eigvals[0]
     return min_gap, n_ground
 
+
 def find_gap_fixed_n(n, use_degenerate=True, use_Z2_symmetry=True, verbose=False, p=2):
     # Compute the number of ground states and first excited states
     n_ground = np.inf
@@ -236,7 +239,7 @@ def find_gap_fixed_n(n, use_degenerate=True, use_Z2_symmetry=True, verbose=False
         driver = HamiltonianDriver(graph=Graph(nx.complete_graph(graph.n)))
 
     def schedule(t):
-        cost.energies = (1/np.sqrt(np.math.factorial(p)/2 * graph.n**(p-1)) * t,)
+        cost.energies = (np.sqrt(np.math.factorial(p)/(2 * graph.n**(p-1))) * t,)
         driver.energies = (1-t,)
 
     def gap(t):
@@ -253,6 +256,7 @@ def find_gap_fixed_n(n, use_degenerate=True, use_Z2_symmetry=True, verbose=False
     # Now minimize the gap
     min_gap = scipy.optimize.minimize(gap, .85, bounds=[(0, 1)])
     return min_gap.fun
+
 
 def gap_over_time(graph, verbose=False, use_Z2_symmetry=True):
     # Compute the number of ground states and first excited states
@@ -336,6 +340,7 @@ def low_energy_subspace_at_fixed_time(graph, s,  use_Z2_symmetry=True, n_ground=
         if n_ground is None:
             n_ground = len(ground_states(cost.hamiltonian))
         k=n_ground+1
+
     def schedule(t):
         cost.energies = (np.sqrt(np.math.factorial(p)/(2 * graph.n**(p-1))) * t,)
         driver.energies = (1 - t,)
@@ -343,10 +348,6 @@ def low_energy_subspace_at_fixed_time(graph, s,  use_Z2_symmetry=True, n_ground=
     eigvals = SchrodingerEquation(hamiltonians=[cost, driver]).eig(k=k, return_eigenvectors=False)
     eigvals = np.flip(eigvals)
     return s, eigvals
-
-#graph = sk_integer(10)
-#print(repr(nx.to_numpy_array(graph.graph)))
-
 
 
 def collect_min_gap_statistics(n, iter=50, verbose=False):
@@ -375,6 +376,7 @@ def min_gap_vs_n(ns, iters=None, verbose=False):
         plt.scatter(ns[i], np.mean(gaps), color='blue')
     plt.show()
 
+
 """gaps = []
 n = 17
 for i in range(100):
@@ -386,51 +388,7 @@ print(gaps)
 print(np.median(gaps))
 print(np.std(gaps))"""
 
-"""graph = np.array([[0., -1., -1., -1., -1., -1., -1., 1., -1., 1., 1., 1., -1.,
-                       1., 1., -1., -1., 1., -1., 1., 1., -1.],
-                      [-1., 0., 1., -1., 1., -1., 1., 1., -1., 1., 1., 1., -1.,
-                       -1., 1., -1., -1., 1., -1., 1., -1., -1.],
-                      [-1., 1., 0., 1., 1., -1., 1., 1., -1., -1., 1., -1., -1.,
-                       1., -1., -1., 1., 1., -1., 1., 1., 1.],
-                      [-1., -1., 1., 0., 1., 1., -1., -1., 1., 1., 1., 1., -1.,
-                       -1., 1., -1., 1., 1., 1., 1., 1., -1.],
-                      [-1., 1., 1., 1., 0., -1., -1., 1., 1., -1., 1., -1., 1.,
-                       1., 1., -1., 1., -1., -1., -1., -1., 1.],
-                      [-1., -1., -1., 1., -1., 0., -1., 1., 1., -1., 1., -1., 1.,
-                       1., 1., 1., 1., -1., 1., -1., 1., -1.],
-                      [-1., 1., 1., -1., -1., -1., 0., 1., 1., -1., -1., -1., -1.,
-                       1., -1., -1., -1., 1., 1., -1., 1., -1.],
-                      [1., 1., 1., -1., 1., 1., 1., 0., -1., 1., 1., -1., -1.,
-                       -1., 1., 1., -1., -1., -1., -1., 1., 1.],
-                      [-1., -1., -1., 1., 1., 1., 1., -1., 0., -1., -1., 1., 1.,
-                       1., 1., -1., -1., 1., 1., -1., -1., 1.],
-                      [1., 1., -1., 1., -1., -1., -1., 1., -1., 0., 1., 1., 1.,
-                       -1., 1., -1., -1., -1., -1., -1., -1., -1.],
-                      [1., 1., 1., 1., 1., 1., -1., 1., -1., 1., 0., -1., 1.,
-                       -1., 1., -1., -1., 1., -1., 1., 1., 1.],
-                      [1., 1., -1., 1., -1., -1., -1., -1., 1., 1., -1., 0., 1.,
-                       -1., -1., 1., -1., 1., -1., -1., -1., 1.],
-                      [-1., -1., -1., -1., 1., 1., -1., -1., 1., 1., 1., 1., 0.,
-                       1., 1., 1., -1., 1., -1., -1., 1., 1.],
-                      [1., -1., 1., -1., 1., 1., 1., -1., 1., -1., -1., -1., 1.,
-                       0., -1., -1., -1., 1., -1., -1., 1., 1.],
-                      [1., 1., -1., 1., 1., 1., -1., 1., 1., 1., 1., -1., 1.,
-                       -1., 0., 1., 1., 1., -1., 1., -1., -1.],
-                      [-1., -1., -1., -1., -1., 1., -1., 1., -1., -1., -1., 1., 1.,
-                       -1., 1., 0., 1., -1., -1., 1., -1., -1.],
-                      [-1., -1., 1., 1., 1., 1., -1., -1., -1., -1., -1., -1., -1.,
-                       -1., 1., 1., 0., 1., -1., 1., 1., 1.],
-                      [1., 1., 1., 1., -1., -1., 1., -1., 1., -1., 1., 1., 1.,
-                       1., 1., -1., 1., 0., -1., -1., -1., -1.],
-                      [-1., -1., -1., 1., -1., 1., 1., -1., 1., -1., -1., -1., -1.,
-                       -1., -1., -1., -1., -1., 0., -1., 1., 1.],
-                      [1., 1., 1., 1., -1., -1., -1., -1., -1., -1., 1., -1., -1.,
-                       -1., 1., 1., 1., -1., -1., 0., 1., -1.],
-                      [1., -1., 1., 1., -1., 1., 1., 1., -1., -1., 1., -1., 1.,
-                       1., -1., -1., 1., -1., 1., 1., 0., -1.],
-                      [-1., -1., 1., -1., 1., -1., -1., 1., 1., -1., 1., 1., 1.,
-                       1., -1., -1., 1., -1., 1., -1., -1., 0.]])
-"""
+
 #graph = sk_integer(5)
 #times = np.arange(0, 1, .01)
 #s, eigvals = low_energy_subspace_at_fixed_time(graph, times[0], use_Z2_symmetry=True, k=5)g
@@ -442,13 +400,13 @@ for i in range(400):
     gaps.append(gap)
 print(gaps)"""
 #print(s, eigvals, flush=True)
-n = 11
+n = 15
 times = np.arange(0, 1.0, .01)
-k = 20
+k = 2
 use_Z2_symmetry=False
 eigvals = np.zeros((len(times), k))
-graph = sk_hamiltonian(n, use_degenerate=False)
-p = 3
+p = 7
+graph = sk_hamiltonian(n, use_degenerate=False, p=p, verbose=True)
 #graph = sk_p3_instance()
 for i in range(len(times)):
     print(i)

@@ -31,6 +31,7 @@ class Graph(object):
         self.independent_sets = None
         self.binary_to_index = None
         self.mis_size = None
+        self.degeneracy = None
         # Populate initialized attributes
         self.generate_independent_sets()
 
@@ -50,12 +51,18 @@ class Graph(object):
         IS = dict.fromkeys(np.arange(self.num_independent_sets))
         # All spins down should be at the end
         IS[self.num_independent_sets - 1] = (2 ** self.n - 1, 0, np.ones(self.n, dtype=int))
+        degeneracy = 0
         for i in independent_sets:
             indices[k] = 2 ** self.n - sum(2 ** j for j in i) - 1
             IS[k] = (indices[k], len(i), tools.int_to_nary(indices[k], size=self.n))
             if len(i) > self.mis_size:
                 self.mis_size = len(i)
             k -= 1
+
+        for i in IS:
+            if IS[i][1] == IS[0][1]:
+                degeneracy += 1
+        self.degeneracy = degeneracy
         binary_to_index = dict.fromkeys(indices)
         for j in range(self.num_independent_sets):
             binary_to_index[indices[j]] = j
@@ -106,8 +113,12 @@ class Graph(object):
         # Get the sorted order for the indices
         order = np.argsort(indices)
         # Finally, populate the dictionary
+        degeneracy = 0
         for i in IS:
+            if IS_sizes[order[i]] == IS_sizes[0]:
+                degeneracy += 1
             IS[i] = (indices[order[i]], IS_sizes[order[i]], nary_reprs[order[i]])
+        self.degeneracy = degeneracy
         # Generate conversion dictionary
         indices = indices[order]
         nary_to_index = dict.fromkeys(indices)
@@ -295,7 +306,7 @@ def line_graph(n, return_mis=False):
             return Graph(g)
     else:
         for i in range(n - 1):
-            g.add_edge(i, i + 1, weight=-1)
+            g.add_edge(i, i + 1, weight=1)
     if return_mis:
         return Graph(g), np.ceil(n / 2)
     return Graph(g)
@@ -357,3 +368,51 @@ def IS_projector(graph, code):
                  tools.identity(n - j - 1, d=code.d)])
             proj = proj @ (np.identity(code.d ** n) - temp)
         return np.array([np.diagonal(proj)]).T
+
+
+def grid_graph(n, m, periodic=False, return_mis=False):
+    graph = nx.grid_2d_graph(n, m, periodic=periodic)
+    nodes = graph.nodes
+    # Remove 3 of four corners
+    new_nodes = list(range(len(nodes)))
+    mapping = dict(zip(nodes, new_nodes))
+    nx.relabel_nodes(graph, mapping, copy=False)
+    nx.draw(graph)
+    plt.show()
+    if return_mis:
+        return Graph(graph), n * m / 2 - 1
+    else:
+        return Graph(graph)
+
+
+def unit_disk_graph(grid, radius=np.sqrt(2)+1e-5):
+    x = grid.shape[1]
+    y = grid.shape[0]
+
+    def neighbors_from_geometry(n):
+        """Identify the neighbors within a unit distance of the atom at index (i, j) (zero-indexed).
+        Returns a numpy array listing both the geometric graph of the neighbors, and the indices of the
+        neighbors of the form [[first indices], [second indices]]"""
+        # Assert that we actually have an atom at this location
+        assert grid[n[0], n[1]] != 0
+        grid_x, grid_y = np.meshgrid(np.arange(x), np.arange(y))
+        # a is 1 if the location is within a unit distance of (i, j), and zero otherwise
+        a = np.sqrt((grid_x - n[1]) ** 2 + (grid_y - n[0]) ** 2) <= radius
+        # Remove the node itself
+        a[n[0], n[1]] = 0
+        # a is 1 if  within a unit distance of (i, j) and a node is at that location, and zero otherwise
+        a = a * grid
+        return np.argwhere(a != 0)
+
+    nodes_geometric = np.argwhere(grid != 0)
+    nodes = list(range(len(nodes_geometric)))
+    g = nx.Graph()
+    g.add_nodes_from(nodes)
+    j = 0
+    for node in nodes_geometric:
+        neighbors = neighbors_from_geometry(node)
+        neighbors = [np.argwhere(np.all(nodes_geometric == i, axis=1))[0, 0] for i in neighbors]
+        for neighbor in neighbors:
+            g.add_edge(j, neighbor)
+        j += 1
+    return Graph(g)

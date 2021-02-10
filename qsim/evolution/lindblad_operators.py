@@ -310,8 +310,16 @@ class LindbladPauliOperator(LindbladJumpOperator):
         self.transition = transition
         self.IS_subspace = IS_subspace
         if not self.IS_subspace:
-            jump_operator = np.zeros((self.code.d, self.code.d))
-            jump_operator[self.transition[1], self.transition[0]] = 1
+            jump_operator = np.zeros((self.code.d, self.code.d), dtype=np.complex128)
+            if pauli == 'X':
+                jump_operator[self.transition[1], self.transition[0]] = 1
+                jump_operator[self.transition[0], self.transition[1]] = 1
+            elif pauli == 'Y':
+                jump_operator[self.transition[1], self.transition[0]] = 1j
+                jump_operator[self.transition[0], self.transition[1]] = -1j
+            elif pauli == 'Z':
+                jump_operator[self.transition[1], self.transition[1]] = -1
+                jump_operator[self.transition[0], self.transition[0]] = 1
             self._jump_operators = [jump_operator]
         if code is None:
             code = qubit
