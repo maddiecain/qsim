@@ -181,6 +181,13 @@ class SchrodingerEquation(object):
                             eigvecs = np.squeeze(np.asarray(eigvecs))
                     except:
                         eigvals, eigvecs = np.linalg.eigh(np.asarray(ham))
+                    # Return the correct array
+                    if which == 'S':
+                        eigvals = eigvals[0:k]
+                        eigvecs = eigvecs[:, 0:k]
+                    else:
+                        eigvals = eigvals[-k:]
+                        eigvecs = eigvecs[:, -k:]
             if return_eigenvectors:
                 eigvecs = np.moveaxis(eigvecs, -1, 0)
         else:
@@ -192,7 +199,7 @@ class SchrodingerEquation(object):
             eigvals = np.sort(eigvals)
             # Enforce orthogonality in the case of degenerate eigenvalues
             where_degenerate = np.argwhere(np.isclose(np.diff(eigvals), 0))
-            if len(where_degenerate)>0:
+            if len(where_degenerate) > 0:
                 eigvecs, r = np.linalg.qr(eigvecs.T)
                 eigvecs = eigvecs.T
             return eigvals, eigvecs

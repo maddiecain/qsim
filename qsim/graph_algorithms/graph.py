@@ -34,6 +34,11 @@ class Graph(object):
         self.degeneracy = None
         # Populate initialized attributes
         self.generate_independent_sets()
+        self.neighbors = {i:[] for i in range(self.n)}
+        for i in range(self.n):
+            for j in range(self.n):
+                if (i, j) in self.edges or (j, i) in self.edges:
+                    self.neighbors[i].append(j)
 
     def generate_independent_sets(self):
         # Construct generator containing independent sets
@@ -373,12 +378,9 @@ def IS_projector(graph, code):
 def grid_graph(n, m, periodic=False, return_mis=False):
     graph = nx.grid_2d_graph(n, m, periodic=periodic)
     nodes = graph.nodes
-    # Remove 3 of four corners
     new_nodes = list(range(len(nodes)))
     mapping = dict(zip(nodes, new_nodes))
     nx.relabel_nodes(graph, mapping, copy=False)
-    nx.draw(graph)
-    plt.show()
     if return_mis:
         return Graph(graph), n * m / 2 - 1
     else:

@@ -494,6 +494,7 @@ class SimulateAdiabatic(object):
             schedule(t, 1)
             if i == 0:
                 eigval, eigvec = schrodinger_equation.eig(which=which, k=np.max(indices) + 1)
+                #print(eigval, eigvec)
                 for j in range(eigvec.shape[0]):
                     eigvec[j] = normalize_phase(eigvec[j])
                 old_eigvec = eigvec
