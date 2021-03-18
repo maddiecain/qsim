@@ -24,6 +24,13 @@ class LindbladMasterEquation(object):
         self.hamiltonians = hamiltonians
         self.jump_operators = jump_operators
 
+    @property
+    def hamiltonian(self):
+        ham = self.hamiltonians[0].hamiltonian
+        for i in range(1, len(self.hamiltonians)):
+            ham = ham + self.hamiltonians[i].hamiltonian
+        return ham
+
     def evolution_generator(self, s: State):
         res = State(np.zeros(s.shape), is_ket=s.is_ket, code=s.code, IS_subspace=s.IS_subspace, graph=s.graph)
         for i in range(len(self.hamiltonians)):
@@ -33,7 +40,7 @@ class LindbladMasterEquation(object):
         return res
 
     def run_ode_solver(self, state: State, t0, tf, num=50, schedule=lambda t: None, times=None, method='RK45',
-                       full_output=True, verbose=False):
+                       full_output=True, verbose=False, make_valid_state=False):
         """
 
         :param verbose:
@@ -115,9 +122,9 @@ class LindbladMasterEquation(object):
                 print('Fraction of integrator results normalized:',
                       len(np.argwhere(np.isclose(norms, np.ones(norms.shape)) == 1)) / len(norms))
                 print('Final state norm - 1:', norms[-1] - 1)
-
-            for i in range(res.y.shape[0]):
-                res.y[i, ...] = tools.make_valid_state(res.y[i, ...], is_ket=False)
+            if make_valid_state:
+                for i in range(res.y.shape[0]):
+                    res.y[i, ...] = tools.make_valid_state(res.y[i, ...], is_ket=False)
             return res.y, res
 
     def run_trotterized_solver(self, state: State, t0, tf, num=50, schedule=lambda t: None, times=None,

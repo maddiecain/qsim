@@ -215,13 +215,13 @@ def rate_vs_eigenenergy(time, graph=line_graph(n=2), mode='hybrid', visualize=Fa
 
     # Good is a list of good eigenvalues
     # Bad is a list of bad eigenvalues. If 'other', defaults to all remaining eigenvalues outside of 'good'
-    max_omega_g = 1
-    max_omega_r = 1
+    max_omega_g = 1/np.sqrt(2)
+    max_omega_r = 1/np.sqrt(2)
     k = 14
     a = .2
     b = .35
 
-    def schedule_STIRAP(t, tf):
+    def schedule_exp_STIRAP(t, tf):
         x = t / tf
         amplitude = max_omega_g * max_omega_r * (
                 -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (tf - a)))) ** b + 1) / \
@@ -242,7 +242,7 @@ def rate_vs_eigenenergy(time, graph=line_graph(n=2), mode='hybrid', visualize=Fa
         dissipation.omega_g = omega_g
         dissipation.omega_r = omega_r
 
-    def schedule_opposite_energy_shift(t, tf):
+    def schedule_opp_exp_STIRAP(t, tf):
         x = t / tf
         amplitude = max_omega_g * max_omega_r * (
                     -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (tf - a)))) ** b + 1) / \
@@ -272,20 +272,50 @@ def rate_vs_eigenenergy(time, graph=line_graph(n=2), mode='hybrid', visualize=Fa
         dissipation.omega_g = np.cos(phi)
         dissipation.omega_r = np.sin(phi)
 
-    def schedule_reit(t, tf):
+    def schedule_STIRAP(t, tf):
         phi = (tf - t) / tf * np.pi / 2
         laser.omega_g = np.cos(phi)
         laser.omega_r = np.sin(phi)
         dissipation.omega_g = np.cos(phi)
         dissipation.omega_r = np.sin(phi)
 
+    def schedule_opp_reit(t, tf):
+        phi = (tf - t) / tf * np.pi / 2
+        laser.omega_g = np.cos(phi)
+        laser.omega_r = np.sin(phi)
+        dissipation.omega_g = np.cos(phi)
+        dissipation.omega_r = np.sin(phi)
+        energy_shift.energies=(-2*(np.sin(phi)**2-np.cos(phi)**2),)
+
     def schedule_adiabatic(t, tf):
         phi = (tf - t) / tf * np.pi / 2
         energy_shift.energies = (2 * ((tf - t) / tf - 1 / 2),)
         laser.omega_g = np.sqrt(np.abs(np.sin(phi) * np.cos(phi)))
         laser.omega_r = np.sqrt(np.abs(np.sin(phi) * np.cos(phi)))
-        dissipation.omega_g = np.sqrt(np.abs(np.sin(phi) * np.cos(phi)))
-        dissipation.omega_r = np.sqrt(np.abs(np.sin(phi) * np.cos(phi)))
+        dissipation.omega_g = 1#np.sqrt(np.abs(np.sin(phi) * np.cos(phi)))
+        dissipation.omega_r = 0#np.sqrt(np.abs(np.sin(phi) * np.cos(phi)))
+
+    def schedule_exp_fixed(t, tf):
+        x = t / tf
+        amplitude = max_omega_g * max_omega_r * (
+                -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (tf - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                            (1 + np.e ** (-k * (1 / 2 - (tf - a)))) ** b) + 1)
+        # Now we need to figure out what the driver strengths should be for STIRAP
+        if x < 1 / 2:
+            # Pick omega_g to be small
+            omega_g = amplitude / max_omega_r
+            omega_r = max_omega_r
+        else:
+            omega_r = amplitude / max_omega_g
+            omega_g = max_omega_g
+        offset = omega_r ** 2 - omega_g ** 2
+        # Now, choose the opposite of the STIRAP sequence
+        energy_shift.energies = (-offset,)
+        laser.omega_g = np.sqrt(amplitude)
+        laser.omega_r = np.sqrt(amplitude)
+        dissipation.omega_g = np.sqrt(amplitude)
+        dissipation.omega_r = np.sqrt(amplitude)
 
     laser = EffectiveOperatorHamiltonian(graph=graph, IS_subspace=True,
                                          energies=(1,),
@@ -301,11 +331,15 @@ def rate_vs_eigenenergy(time, graph=line_graph(n=2), mode='hybrid', visualize=Fa
     elif mode == 'adiabatic':
         schedule = schedule_adiabatic
     elif mode == 'exp reit':
-        schedule = schedule_STIRAP
+        schedule = schedule_exp_STIRAP
     elif mode == 'exp opp reit':
-        schedule = schedule_opposite_energy_shift
+        schedule = schedule_opp_exp_STIRAP
+    elif mode == 'exp fixed':
+        schedule = schedule_exp_fixed
+    elif mode == 'opp reit':
+        schedule = schedule_opp_reit
     else:
-        schedule = schedule_reit
+        schedule = schedule_STIRAP
     if mode != 'reit':
         eq = SchrodingerEquation(hamiltonians=[laser, energy_shift])
     else:
@@ -316,6 +350,8 @@ def rate_vs_eigenenergy(time, graph=line_graph(n=2), mode='hybrid', visualize=Fa
 
         energies, states = eq.eig(k='all')
         states = states.T
+        #print(energies)
+        #print(states)
         rates = np.zeros(energies.shape[0] ** 2)
         nh_rates =  np.zeros(energies.shape[0] ** 2)
         for op in dissipation.jump_operators:
@@ -324,7 +360,28 @@ def rate_vs_eigenenergy(time, graph=line_graph(n=2), mode='hybrid', visualize=Fa
         # Select the relevant rates from 'good' to 'bad'
         rates = np.reshape(rates.real, (graph.num_independent_sets, graph.num_independent_sets))
         nh_rates = np.reshape(nh_rates.real, (graph.num_independent_sets, graph.num_independent_sets))
+        from matplotlib.cm import get_cmap
+        cmap = get_cmap('viridis')
+        minout = 0
+
         if visualize:
+            for i in range(rates.shape[0]):
+                #for j in range(0, i):
+                for j in range(i+1, rates.shape[0]):
+                    if i == 0:#rates.shape[0]-1:
+                        if rates[j, i]< minout:
+                            rates[j, i] = minout
+                        elif rates[i, j]<minout:
+                            rates[i, j] = minout
+                        plt.scatter(rates[j, i], rates[i, j], color=cmap(1-nh_rates[j,j]/np.max(nh_rates)), zorder=100)
+                    #else:
+                    #    plt.scatter(nh_rates[j, j]-nh_rates[i, i], (rates[i, j]-rates[j, i])/(rates[i, j]+rates[j, i]), color=cmap(nh_rates[i, i]/np.max(nh_rates)))
+            plt.loglog()
+            plt.plot(np.linspace(minout, 1, 10), np.linspace(minout, 1, 10), color='k')
+            plt.xlabel('rate out')
+            plt.ylabel('rate in')
+            plt.show()
+
             #plt.imshow(np.log(rates))
             #plt.colorbar()
             #plt.show()
@@ -335,7 +392,6 @@ def rate_vs_eigenenergy(time, graph=line_graph(n=2), mode='hybrid', visualize=Fa
                     if graph.independent_sets[IS][2][l] == 1:
                         counts[l] += 1
             counts = 1-counts/graph.num_independent_sets
-            print(counts)
             counts = counts - 1/2*counts**2
             print(counts)
             #plt.hlines(np.sum(counts), 0, np.max(energies), colors='black', label='zeroth order leakage rate')
@@ -343,8 +399,8 @@ def rate_vs_eigenenergy(time, graph=line_graph(n=2), mode='hybrid', visualize=Fa
             plt.scatter(energies,np.diag(nh_rates), label =r'$\sum_u\langle j |c_u^\dagger c_u |j\rangle$')
             #plt.scatter(range(nh_rates.shape[0]),(np.diag(nh_rates)-np.diag(rates)), label = r'$\frac{1}{n}\sum_u\left(\langle j |c_u^\dagger c_u |j\rangle-|\langle j |c_u |j\rangle|^2\right)$')
             plt.scatter(energies,(np.diag(nh_rates)-np.diag(rates)), label = r'$\sum_u\left(\langle j |c_u^\dagger c_u |j\rangle-|\langle j |c_u |j\rangle|^2\right)$')
-            plt.scatter(energies,np.diag(rates)/(np.diag(nh_rates)))
-
+            #plt.scatter(energies,np.diag(rates)/(np.diag(nh_rates)))
+            #print(np.diag(nh_rates)[0]-np.diag(rates)[0], np.diag(nh_rates)[-1]-np.diag(rates)[-1], (np.diag(nh_rates)[-1]-np.diag(rates)[-1])/(np.diag(nh_rates)[0]-np.diag(rates)[0]))
             plt.xlabel(r'$E_j$')
             plt.legend()
             #plt.show()
@@ -353,8 +409,12 @@ def rate_vs_eigenenergy(time, graph=line_graph(n=2), mode='hybrid', visualize=Fa
     schedule(time, 1)
     rates, energies = compute_rate()
     return rates, energies
+graph = nx.erdos_renyi_graph(13, .37)
+nx.draw(graph)
+plt.show()
+graph = Graph(graph)
 
-#rate_vs_eigenenergy(.4, graph=line_graph(n=15), mode='reit', visualize=True)
+rate_vs_eigenenergy(.5, graph=graph, mode='reit', visualize=True)
 
 def compute_rate_from_spectrum(energies, bins=20):
     assert bins % 2 == 0
@@ -421,7 +481,7 @@ def scaling(time, graph=line_graph(n=2), mode='hybrid', visualize=False, thresho
     # Compute the eigenenergy where 99% of the total rate has been reached
     rates, energies = rate_vs_eigenenergy(time, graph=graph, mode=mode)
     energies = energies - energies[0]
-    print(rates[0])
+    print(energies)
     cumulative_rates = np.cumsum(rates)
     total_rate = np.max(cumulative_rates)
     cutoff_rates = cumulative_rates[np.argwhere(cumulative_rates < threshold*total_rate)].flatten()
@@ -433,8 +493,6 @@ def scaling(time, graph=line_graph(n=2), mode='hybrid', visualize=False, thresho
 
 
 from qsim.graph_algorithms.graph import unit_disk_graph
-graph = nx.erdos_renyi_graph(15, .4)
-graph = Graph(graph)
 
 
 def dissipation_by_node(t, graph: Graph, visualize=False):
@@ -605,10 +663,13 @@ while degeneracy != 1:
 #print(arr)
 m = 4
 n = 6
-plt.clf()
-rates, energies = rate_vs_eigenenergy(.5, graph=graphasz, mode='reit', visualize=True)
+#plt.clf()
+#rates, energies = rate_vs_eigenenergy(.5, graph=graph, mode='reit', visualize=True)
 print('hi')
-#rates, energies = rate_vs_eigenenergy(.5, graph=line_graph(2), mode='exp opp reit', visualize=True)
+from qsim.graph_algorithms.graph import grid_graph
+rates, energies = rate_vs_eigenenergy(.5, graph=grid_graph(5, 5, nn=True, periodic=True), mode='adiabatic', visualize=True)
+#rates, energies = rate_vs_eigenenergy(.65, graph=line_graph(2), mode='opp reit', visualize=True)
+
 plt.show()
 from qsim.graph_algorithms.graph import grid_graph
 graph = grid_graph(m, n)
@@ -624,9 +685,9 @@ plt.imshow(counts-1/2*counts**2, vmin=0, vmax=.3)
 plt.xticks(np.arange(n))
 plt.yticks(np.arange(m))
 plt.colorbar()
-plt.show()
+#plt.show()
 plt.clf()
-dissipation_by_node(.5, graph, visualize=True)
+#dissipation_by_node(.5, graph, visualize=True)
 #rates, energies = rate_vs_eigenenergy(.5, graph=graph, mode='exp reit', visualize=True)
 plt.show()
 seen_n = []
@@ -735,7 +796,7 @@ def reduced_density_matrix(time, graph=line_graph(3), mode='hybrid'):
             ind = list(range(graph.n))
             ind.remove(index)
             rho = tools.trace(rho1, ind=ind)
-
+            print(rho)
             dark = np.array([[-omega_g], [omega_r]])
             bright = np.array([[omega_r], [omega_g]])
             ground = np.array([[0], [1]])
@@ -764,7 +825,8 @@ def reduced_density_matrix(time, graph=line_graph(3), mode='hybrid'):
     #schedule(time, 1)
     return compute_reduced_density_matrix()
 
-reduced_density_matrix(.5, graph=ring_graph(9))
+print('hey')
+reduced_density_matrix(.5, graph=ring_graph(5))
 
 def plot_gd_overlap():
     graph = nx.Graph()

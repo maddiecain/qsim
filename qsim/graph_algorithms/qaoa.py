@@ -62,10 +62,15 @@ class SimulateQAOA(object):
         # Preallocate space for storing copies of wavefunction - necessary for efficient computation of analytic
         # gradient
         if self.code.logical_code and initial_state is None:
-            initial_state = State(tensor_product([self.code.logical_basis[1]] * self.N), code=self.code)
+            if isinstance(self.cost_hamiltonian, HamiltonianMIS):
+                initial_state = State(tensor_product([self.code.logical_basis[1]] * self.N), code=self.code)
         elif initial_state is None:
-            initial_state = State(np.zeros((self.cost_hamiltonian.hamiltonian.shape[0], 1)), code=self.code)
-            initial_state[-1, -1] = 1
+            if isinstance(self.cost_hamiltonian, HamiltonianMIS):
+                initial_state = State(np.zeros((self.cost_hamiltonian.hamiltonian.shape[0], 1)), code=self.code)
+                initial_state[-1, -1] = 1
+            else:
+                initial_state = State(np.ones((self.cost_hamiltonian.hamiltonian.shape[0], 1))/
+                                      np.sqrt(self.cost_hamiltonian.hamiltonian.shape[0]), code=self.code)
         if not (self.noise_model is None or self.noise_model == 'monte_carlo'):
             # Initial s should be a density matrix
             initial_state = State(outer_product(initial_state, initial_state), code=self.code)
@@ -141,8 +146,12 @@ class SimulateQAOA(object):
         if self.code.logical_code and initial_state is None:
             initial_state = State(tensor_product([self.code.logical_basis[1]] * self.N), code=self.code)
         elif initial_state is None:
-            initial_state = State(np.zeros((self.cost_hamiltonian.hamiltonian.shape[0], 1)), code=self.code)
-            initial_state[-1, -1] = 1
+            if isinstance(self.cost_hamiltonian, HamiltonianMIS):
+                initial_state = State(np.zeros((self.cost_hamiltonian.hamiltonian.shape[0], 1)), code=self.code)
+                initial_state[-1, -1] = 1
+            else:
+                initial_state = State(np.ones((self.cost_hamiltonian.hamiltonian.shape[0], 1)) /
+                                      np.sqrt(self.cost_hamiltonian.hamiltonian.shape[0]), code=self.code)
         if not (self.noise_model is None or self.noise_model == 'monte_carlo'):
             # Initial s should be a density matrix
             initial_state = State(outer_product(initial_state, initial_state), code=self.code)
@@ -361,7 +370,7 @@ class SimulateQAOA(object):
         """
         # Start the optimization process incrementally from p = 1 to p_max
         if init_param_guess is None:
-            init_param_guess = np.ones(self.depth) * np.pi / 4
+            init_param_guess = np.random.uniform(0, 1, self.depth) * 2*np.pi
         # Identify bounds
         if ranges is None:
             ranges = [(0, 2 * np.pi)] * self.depth
@@ -420,7 +429,7 @@ class SimulateQAOA(object):
             ranges = [(0, 2 * np.pi)] * self.depth
         # Set a reasonable grid size
         if init_param_guess is None:
-            init_param_guess = np.random.uniform(0, 1, self.depth) * np.pi
+            init_param_guess = np.random.uniform(0, 1, self.depth) * 2*np.pi
 
         if self.cost_hamiltonian.optimization == 'max':
             opt_c = -1 * self.cost_hamiltonian.optimum

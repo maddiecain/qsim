@@ -971,7 +971,7 @@ class HamiltonianHeisenberg(object):
 
 
 class HamiltonianEnergyShift(object):
-    def __init__(self, index: int = 1, energies=(1,), code=qubit, IS_subspace=False, graph=None):
+    def __init__(self, index: int = 0, energies=(1,), code=qubit, IS_subspace=False, graph=None):
         """Default is that the first element in transition is the higher energy s."""
         self.index = index
         self.graph = graph

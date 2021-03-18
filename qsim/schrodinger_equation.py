@@ -15,6 +15,13 @@ class SchrodingerEquation(object):
             hamiltonians = []
         self.hamiltonians = hamiltonians
 
+    @property
+    def hamiltonian(self):
+        ham = self.hamiltonians[0].hamiltonian
+        for i in range(1, len(self.hamiltonians)):
+            ham = ham + self.hamiltonians[i].hamiltonian
+        return ham
+
     def evolution_generator(self, state: State):
         res = State(np.zeros(state.shape), is_ket=state.is_ket, code=state.code, IS_subspace=state.IS_subspace,
                     graph=state.graph)
@@ -210,6 +217,7 @@ class SchrodingerEquation(object):
         """Returns the ground state and ground state energy"""
         # Construct a LinearOperator for the Hamiltonians
         linear_operator = False
+
         ham = None
         for h in self.hamiltonians:
             if not hasattr(h, 'hamiltonian'):
@@ -231,6 +239,7 @@ class SchrodingerEquation(object):
             except TypeError:
                 try:
                     eigvals, eigvecs = np.linalg.eigh(ham.todense())
+                    eigvecs = eigvecs.T
                     if isinstance(eigvecs, np.matrix):
                         eigvecs = np.squeeze(np.asarray(eigvecs))
                 except:

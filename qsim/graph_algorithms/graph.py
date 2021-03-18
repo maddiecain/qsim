@@ -375,9 +375,20 @@ def IS_projector(graph, code):
         return np.array([np.diagonal(proj)]).T
 
 
-def grid_graph(n, m, periodic=False, return_mis=False):
+def grid_graph(n, m, periodic=False, return_mis=False, nn=False):
     graph = nx.grid_2d_graph(n, m, periodic=periodic)
     nodes = graph.nodes
+    if nn:
+        if not periodic:
+            for i in range(n - 1):
+                for j in range(m - 1):
+                    graph.add_edge((i, j), (i + 1, j + 1), weight=1)
+                    graph.add_edge((i + 1, j), (i, j + 1), weight=1)
+        else:
+            for i in range(n):
+                for j in range(m):
+                    graph.add_edge((i, j), ((i + 1)%n, (j + 1)%m), weight=1)
+                    graph.add_edge(((i + 1)%n, j), (i, (j + 1)%m), weight=1)
     new_nodes = list(range(len(nodes)))
     mapping = dict(zip(nodes, new_nodes))
     nx.relabel_nodes(graph, mapping, copy=False)
@@ -387,7 +398,7 @@ def grid_graph(n, m, periodic=False, return_mis=False):
         return Graph(graph)
 
 
-def unit_disk_graph(grid, radius=np.sqrt(2)+1e-5):
+def unit_disk_graph(grid, radius=np.sqrt(2)+1e-5, visualize=False):
     x = grid.shape[1]
     y = grid.shape[0]
 
@@ -400,6 +411,7 @@ def unit_disk_graph(grid, radius=np.sqrt(2)+1e-5):
         grid_x, grid_y = np.meshgrid(np.arange(x), np.arange(y))
         # a is 1 if the location is within a unit distance of (i, j), and zero otherwise
         a = np.sqrt((grid_x - n[1]) ** 2 + (grid_y - n[0]) ** 2) <= radius
+        # TODO: add an option for periodic boundary conditions
         # Remove the node itself
         a[n[0], n[1]] = 0
         # a is 1 if  within a unit distance of (i, j) and a node is at that location, and zero otherwise
@@ -417,4 +429,10 @@ def unit_disk_graph(grid, radius=np.sqrt(2)+1e-5):
         for neighbor in neighbors:
             g.add_edge(j, neighbor)
         j += 1
+
+    if visualize:
+        pos = {nodes[i]: nodes_geometric[i] for i in range(len(nodes))}
+        nx.draw(g, pos=pos)
+        plt.show()
     return Graph(g)
+

@@ -408,6 +408,28 @@ def dissipation_angle_comparison(graph: Graph, visualize=False):
         dissipation.omega_g = omega_g
         dissipation.omega_r = omega_r
 
+    def schedule_exp_fixed(t, tf):
+        x = t / tf
+        amplitude = max_omega_g * max_omega_r * (
+                -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (tf - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                            (1 + np.e ** (-k * (1 / 2 - (tf - a)))) ** b) + 1)
+        # Now we need to figure out what the driver strengths should be for STIRAP
+        if x < 1 / 2:
+            # Pick omega_g to be small
+            omega_g = amplitude / max_omega_r
+            omega_r = max_omega_r
+        else:
+            omega_r = amplitude / max_omega_g
+            omega_g = max_omega_g
+        offset = omega_r ** 2 - omega_g ** 2
+        # Now, choose the opposite of the STIRAP sequence
+        energy_shift.energies = (-offset,)
+        laser.omega_g = np.sqrt(amplitude)
+        laser.omega_r = np.sqrt(amplitude)
+        dissipation.omega_g = np.sqrt(amplitude)
+        dissipation.omega_r = np.sqrt(amplitude)
+
 
     laser = EffectiveOperatorHamiltonian(graph=graph, IS_subspace=True, energies=(1,), omega_g=1, omega_r=1)
     energy_shift = hamiltonian.HamiltonianEnergyShift(IS_subspace=True, graph=graph, index=0)
@@ -446,7 +468,7 @@ def dissipation_angle_comparison(graph: Graph, visualize=False):
 
     labels = ['Option 1', 'Option 2', 'Option 3']
     l = 0
-    for schedule in [schedule_STIRAP, schedule_fixed_angle, schedule_opposite_energy_shift]:
+    for schedule in [schedule_exp_fixed]:
         if True:
             if not visualize:
                 print(scipy.integrate.quad(k_alpha_rate, .001, .999)[0])
@@ -500,25 +522,1049 @@ def dissipation_angle_comparison(graph: Graph, visualize=False):
         plt.show()
 
 
+def leakage_rate_plot(graph: Graph):
+    max_omega_g = np.sqrt(80 ** 2 / (80 ** 2 + 25 ** 2))
+    max_omega_r = np.sqrt(25 ** 2 / (80 ** 2 + 25 ** 2))
+    """max_omega_g = 1 / np.sqrt(2)
+    max_omega_r = 1 / np.sqrt(2)"""
+    k = 14
+    a = .2
+    b = .35
+
+    def schedule_STIRAP(t, tf):
+        x = t / tf
+        amplitude = max_omega_g * max_omega_r * (
+                -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (tf - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                            (1 + np.e ** (-k * (1 / 2 - (tf - a)))) ** b) + 1)
+        # Now we need to figure out what the driver strengths should be
+        if x < 1 / 2:
+            # Pick omega_g to be small
+            omega_g = amplitude / max_omega_r
+            omega_r = max_omega_r
+        else:
+            omega_r = amplitude / max_omega_g
+            omega_g = max_omega_g
+        energy_shift.energies = (0,)
+
+        laser.omega_g = omega_g
+        laser.omega_r = omega_r
+        dissipation.omega_g = omega_g
+        dissipation.omega_r = omega_r
+
+    def schedule_fixed_angle(t, tf):
+        x = t / tf
+        amplitude = max_omega_g * max_omega_r * (
+                -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (tf - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                            (1 + np.e ** (-k * (1 / 2 - (tf - a)))) ** b) + 1)
+        # Now we need to figure out what the driver strengths should be for STIRAP
+        if x < 1 / 2:
+            # Pick omega_g to be small
+            omega_g = amplitude / max_omega_r
+            omega_r = max_omega_r
+        else:
+            omega_r = amplitude / max_omega_g
+            omega_g = max_omega_g
+        offset = omega_r ** 2 - omega_g ** 2
+        energy_shift.energies = (offset,)
+        laser.omega_g = np.sqrt(amplitude)
+        laser.omega_r = np.sqrt(amplitude)
+        dissipation.omega_g = np.sqrt(amplitude)
+        dissipation.omega_r = np.sqrt(amplitude)
+
+    def schedule_opposite_STIRAP(t, tf):
+        x = t / tf
+        amplitude = max_omega_g * max_omega_r * (
+                -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (tf - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                            (1 + np.e ** (-k * (1 / 2 - (tf - a)))) ** b) + 1)
+        # Now we need to figure out what the driver strengths should be for STIRAP
+        if x < 1 / 2:
+            # Pick omega_g to be small
+            omega_g = amplitude / max_omega_r
+            omega_r = max_omega_r
+        else:
+            omega_r = amplitude / max_omega_g
+            omega_g = max_omega_g
+        offset = omega_r ** 2 - omega_g ** 2
+        # Now, choose the opposite of the STIRAP sequence
+        if x < 1 / 2:
+            # Pick omega_g to be small
+            omega_r = amplitude / max_omega_g
+            omega_g = max_omega_g
+        else:
+            omega_g = amplitude / max_omega_r
+            omega_r = max_omega_r
+        energy_shift.energies = (offset - (omega_r ** 2 - omega_g ** 2),)
+
+        laser.omega_g = omega_g
+        laser.omega_r = omega_r
+        dissipation.omega_g = omega_g
+        dissipation.omega_r = omega_r
+
+    def schedule_opposite_energy_shift(t, tf):
+        x = t / tf
+        amplitude = max_omega_g * max_omega_r * (
+                -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (tf - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                            (1 + np.e ** (-k * (1 / 2 - (tf - a)))) ** b) + 1)
+        # Now we need to figure out what the driver strengths should be for STIRAP
+        if x < 1 / 2:
+            # Pick omega_g to be small
+            omega_g = amplitude / max_omega_r
+            omega_r = max_omega_r
+        else:
+            omega_r = amplitude / max_omega_g
+            omega_g = max_omega_g
+        offset = omega_r ** 2 - omega_g ** 2
+        # Now, choose the opposite of the STIRAP sequence
+        energy_shift.energies = (-2 * offset,)
+        laser.omega_g = omega_g
+        laser.omega_r = omega_r
+        dissipation.omega_g = omega_g
+        dissipation.omega_r = omega_r
+
+    def schedule_exp_fixed(t, tf):
+        x = t / tf
+        amplitude = max_omega_g * max_omega_r * (
+                -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (tf - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                            (1 + np.e ** (-k * (1 / 2 - (tf - a)))) ** b) + 1)
+        # Now we need to figure out what the driver strengths should be for STIRAP
+        if x < 1 / 2:
+            # Pick omega_g to be small
+            omega_g = amplitude / max_omega_r
+            omega_r = max_omega_r
+        else:
+            omega_r = amplitude / max_omega_g
+            omega_g = max_omega_g
+        offset = omega_r ** 2 - omega_g ** 2
+        # Now, choose the opposite of the STIRAP sequence
+        energy_shift.energies = (-offset,)
+        laser.omega_g = np.sqrt(amplitude)
+        laser.omega_r = np.sqrt(amplitude)
+        dissipation.omega_g = np.sqrt(amplitude)
+        dissipation.omega_r = np.sqrt(amplitude)
+
+    def schedule_exp_opp_fixed(t, tf):
+        x = t / tf
+        amplitude = max_omega_g * max_omega_r * (
+                -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (tf - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                            (1 + np.e ** (-k * (1 / 2 - (tf - a)))) ** b) + 1)
+        # Now we need to figure out what the driver strengths should be for STIRAP
+        if x < 1 / 2:
+            # Pick omega_g to be small
+            omega_g = amplitude / max_omega_r
+            omega_r = max_omega_r
+        else:
+            omega_r = amplitude / max_omega_g
+            omega_g = max_omega_g
+        offset = omega_r ** 2 - omega_g ** 2
+        # Now, choose the opposite of the STIRAP sequence
+        energy_shift.energies = (-offset,)
+        laser.omega_g = np.sqrt(amplitude)
+        laser.omega_r = np.sqrt(amplitude)
+        dissipation.omega_g = np.sqrt(amplitude)
+        dissipation.omega_r = np.sqrt(amplitude)
+
+
+    laser = EffectiveOperatorHamiltonian(graph=graph, IS_subspace=True, energies=(1,), omega_g=1, omega_r=1)
+    energy_shift = hamiltonian.HamiltonianEnergyShift(IS_subspace=True, graph=graph, index=0)
+    dissipation = EffectiveOperatorDissipation(graph=graph, omega_r=1, omega_g=1, rates=(1,))
+    eq = LindbladMasterEquation(hamiltonians=[laser, energy_shift], jump_operators=[dissipation])
+
+    def k_alpha_rate(t):
+        # Construct the first order transition matrix
+        schedule(t, 1)
+        if schedule == schedule_opposite_energy_shift or schedule == schedule_exp_opp_fixed:
+            which = 'L'
+        else:
+            which = 'S'
+
+        ground_energy, ground_state = SchrodingerEquation(hamiltonians=eq.hamiltonians).ground_state(which=which)
+        #print(t, SchrodingerEquation(hamiltonians=eq.hamiltonians).hamiltonian)
+        nh_energy = 0
+        overlap = 0
+        for op in eq.jump_operators[0].jump_operators:
+            nh_energy += (ground_state.conj().T @ op.conj().T @ op @ ground_state)[0, 0]
+            overlap = overlap + (np.abs(ground_state.conj().T @ op @ ground_state) ** 2)[0, 0]
+
+        if graph.degeneracy > 1:
+            # Solve for the k lowest eigenvalues, where k=degeneracy
+            energies, states = SchrodingerEquation(hamiltonians=eq.hamiltonians).eig(k=graph.degeneracy + 1,
+                                                                                     which=which)
+            states = states.T
+            rates_into_degenerate = np.zeros(energies.shape[0] ** 2)
+            for op in eq.jump_operators[0].jump_operators:
+                rates_into_degenerate = rates_into_degenerate + (
+                        np.abs(states.conj().T @ op @ states) ** 2).flatten()
+            rates_into_degenerate = np.reshape(rates_into_degenerate, (energies.shape[0], energies.shape[0]))
+            rates_into_degenerate = rates_into_degenerate[:, 0].flatten().real
+
+            rates_into_degenerate = rates_into_degenerate[1:graph.degeneracy]
+            rates_into_degenerate = np.sum(rates_into_degenerate)
+
+            overlap = overlap.real + rates_into_degenerate
+        return overlap.real, nh_energy.real
+
+    l = 0
+    colors = ['limegreen', 'navy']
+    labels = ['STIRAP', r'fixed bright state $|B\rangle \propto |g\rangle +|r\rangle $']
+    labels_jump = ['ground state algorithm jump prob.', 'highest excited state algorithm jump prob.']
+    labels_leakage = ['ground state algorithm leakage prob.', 'highest excited state algorithm leakage prob.']
+
+    def schedule_exp_fixed_new(t, tf=1):
+        x = t / tf*np.pi/2
+        amplitude = np.abs(np.cos(x)*np.sin(x))
+        # Now we need to figure out what the driver strengths should be for STIRAP
+        omega_g = np.sin(x)
+        omega_r = np.cos(x)
+        offset = omega_r ** 2 - omega_g ** 2
+        # Now, choose the opposite of the STIRAP sequence
+        energy_shift.energies = (offset,)
+        laser.omega_g = np.sqrt(amplitude)
+        laser.omega_r = np.sqrt(amplitude)
+        dissipation.omega_g = np.sqrt(amplitude)
+        dissipation.omega_r = np.sqrt(amplitude)
+
+    def schedule_reit_new(t, tf=1):
+        x = t / tf*np.pi/2
+        amplitude = np.abs(np.cos(x)*np.sin(x))
+        # Now we need to figure out what the driver strengths should be for STIRAP
+        omega_g = np.sin(x)
+        omega_r = np.cos(x)
+        offset = omega_r ** 2 - omega_g ** 2
+        # Now, choose the opposite of the STIRAP sequence
+        energy_shift.energies = (0,)
+        laser.omega_g = omega_g
+        laser.omega_r = omega_r
+        dissipation.omega_g = omega_g
+        dissipation.omega_r = omega_r
+
+    math_labels = []
+    for schedule in [schedule_exp_fixed_new, schedule_reit_new]:
+        if True:
+            times = np.linspace(.001, .999, 100)
+            nh_energies = []
+            overlaps = []
+            for i in range(len(times)):
+                res = k_alpha_rate(times[i])
+                overlaps.append(res[0])
+                nh_energies.append(res[1])
+            nh_energies = np.array(nh_energies)
+            overlaps = np.array(overlaps)
+            #plt.plot(times, nh_energies/graph.n, label=r'jump prob. per atom', color='navy')
+            #plt.plot(times, overlaps/graph.n, label=r'self jump prob. per atom', color='green')
+            #plt.fill_between(times, nh_energies/graph.n, overlaps/graph.n, color='palegreen', label='leakage prob. per atom')
+            #plt.plot(times, (nh_energies-overlaps)/graph.n, label=r'leakage rate per atom', color='cornflowerblue')
+            plt.plot(times, nh_energies/graph.n, label=labels_jump[l], color=colors[l])
+            plt.plot(times, (nh_energies-overlaps)/graph.n, color=colors[l], label=labels_leakage[l], linestyle=':')
+            #print((np.sum(nh_energies-overlaps)/len(times)))
+            print((np.sum((nh_energies-overlaps)))/len(times))
+            #print(overlaps[len(times)//2]/nh_energies[len(times)//2])
+            #print(np.max(nh_energies)/graph.n)
+            #print(np.max(nh_energies-overlaps) / graph.n)
+        if False:
+            times = np.linspace(.001, .999, 800)
+            rates = []
+            ad = SimulateAdiabatic(graph, noise_model='continuous', hamiltonian=[laser, energy_shift],
+                                   noise=[dissipation], cost_hamiltonian=energy_shift)
+            all_states, all_indices = ad.eigenstate_ordering_vs_time(times, schedule=schedule)
+            for i in range(len(times)):
+                overlap = 0
+                ground_state = all_states[i, 0, :, np.newaxis]
+                for op in eq.jump_operators[0].jump_operators:
+                    if i == 0:
+                        print((np.abs(ground_state.conj().T @ op @ ground_state) ** 2)[0, 0],
+                              (ground_state.conj().T @ op.conj().T @ op @ ground_state)[0, 0])
+                    overlap = overlap - (np.abs(ground_state.conj().T @ op @ ground_state) ** 2)[0, 0] + \
+                              (ground_state.conj().T @ op.conj().T @ op @ ground_state)[0, 0]
+                if graph.degeneracy > 1:
+                    # Solve for the k lowest eigenvalues, where k=degeneracy
+                    states = all_states[i].T
+                    rates_into_degenerate = np.zeros(graph.degeneracy ** 2)
+                    for op in eq.jump_operators[0].jump_operators:
+                        rates_into_degenerate = rates_into_degenerate + (
+                                np.abs(states.conj().T @ op @ states) ** 2).flatten()
+                    rates_into_degenerate = np.reshape(rates_into_degenerate, (graph.degeneracy, graph.degeneracy))
+                    rates_into_degenerate = rates_into_degenerate[:, 0].flatten().real
+
+                    rates_into_degenerate = rates_into_degenerate[1:graph.degeneracy]
+                    rates_into_degenerate = np.sum(rates_into_degenerate)
+
+                    overlap = overlap.real - rates_into_degenerate
+                    if i == 0:
+                        print(rates_into_degenerate, overlap)
+                rates.append(overlap)
+            print(np.sum(rates) / len(times))
+            plt.scatter(times, rates, label=labels[l] + ' new')
+        l += 1
+    times = np.linspace(.001, .999, 100)
+    omegas = []
+    #plt.plot([], [], linestyle=':', color='black', label='leakage rate per atom')
+    #plt.plot([], [], color='black', label='jump rate per atom')
+
+    #plt.plot(times, omegas, color='black', label=r'$\frac{\gamma\Omega^2(t)}{\delta_e^2}\cdot T\cdot |V|$')
+    plt.legend(loc='upper left')
+    plt.xlabel(r'$t/T$')
+    plt.ylabel(r'probability')
+
+    plt.show()
+
+leakage_rate_plot(line_graph(1))
+def STIRAP_vs_fixed(graph: Graph):
+    max_omega_g = np.sqrt(80**2/(80**2+25**2))
+    max_omega_r = np.sqrt(25**2/(80**2+25**2))
+    k = 14
+    a = .2
+    b = .35
+
+    def schedule_STIRAP(t, tf):
+        x = t / tf
+        amplitude = max_omega_g * max_omega_r * (
+                -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (tf - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                            (1 + np.e ** (-k * (1 / 2 - (tf - a)))) ** b) + 1)
+        # Now we need to figure out what the driver strengths should be
+        if x < 1 / 2:
+            # Pick omega_g to be small
+            omega_g = amplitude / max_omega_r
+            omega_r = max_omega_r
+        else:
+            omega_r = amplitude / max_omega_g
+            omega_g = max_omega_g
+        energy_shift.energies = (0,)
+
+        laser.omega_g = omega_g
+        laser.omega_r = omega_r
+        dissipation.omega_g = omega_g
+        dissipation.omega_r = omega_r
+
+    def schedule_fixed_angle(t, tf):
+        x = t / tf
+        amplitude = max_omega_g * max_omega_r * (
+                -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (tf - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                            (1 + np.e ** (-k * (1 / 2 - (tf - a)))) ** b) + 1)
+        # Now we need to figure out what the driver strengths should be for STIRAP
+        if x < 1 / 2:
+            # Pick omega_g to be small
+            omega_g = amplitude / max_omega_r
+            omega_r = max_omega_r
+        else:
+            omega_r = amplitude / max_omega_g
+            omega_g = max_omega_g
+        offset = omega_r ** 2 - omega_g ** 2
+        energy_shift.energies = (offset,)
+        laser.omega_g = np.sqrt(amplitude)
+        laser.omega_r = np.sqrt(amplitude)
+        dissipation.omega_g = np.sqrt(amplitude)
+        dissipation.omega_r = np.sqrt(amplitude)
+
+    def schedule_opposite_STIRAP(t, tf):
+        x = t / tf
+        amplitude = max_omega_g * max_omega_r * (
+                -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (tf - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                            (1 + np.e ** (-k * (1 / 2 - (tf - a)))) ** b) + 1)
+        # Now we need to figure out what the driver strengths should be for STIRAP
+        if x < 1 / 2:
+            # Pick omega_g to be small
+            omega_g = amplitude / max_omega_r
+            omega_r = max_omega_r
+        else:
+            omega_r = amplitude / max_omega_g
+            omega_g = max_omega_g
+        offset = omega_r ** 2 - omega_g ** 2
+        # Now, choose the opposite of the STIRAP sequence
+        if x < 1 / 2:
+            # Pick omega_g to be small
+            omega_r = amplitude / max_omega_g
+            omega_g = max_omega_g
+        else:
+            omega_g = amplitude / max_omega_r
+            omega_r = max_omega_r
+        energy_shift.energies = (offset - (omega_r ** 2 - omega_g ** 2),)
+
+        laser.omega_g = omega_g
+        laser.omega_r = omega_r
+        dissipation.omega_g = omega_g
+        dissipation.omega_r = omega_r
+
+    def schedule_opposite_energy_shift(t, tf):
+        x = t / tf
+        amplitude = max_omega_g * max_omega_r * (
+                -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (tf - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                            (1 + np.e ** (-k * (1 / 2 - (tf - a)))) ** b) + 1)
+        # Now we need to figure out what the driver strengths should be for STIRAP
+        if x < 1 / 2:
+            # Pick omega_g to be small
+            omega_g = amplitude / max_omega_r
+            omega_r = max_omega_r
+        else:
+            omega_r = amplitude / max_omega_g
+            omega_g = max_omega_g
+        offset = omega_r ** 2 - omega_g ** 2
+        # Now, choose the opposite of the STIRAP sequence
+        energy_shift.energies = (-2 * offset,)
+        laser.omega_g = omega_g
+        laser.omega_r = omega_r
+        dissipation.omega_g = omega_g
+        dissipation.omega_r = omega_r
+
+    def schedule_exp_fixed(t, tf):
+        x = t / tf
+        amplitude = max_omega_g * max_omega_r * (
+                -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (tf - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                            (1 + np.e ** (-k * (1 / 2 - (tf - a)))) ** b) + 1)
+        # Now we need to figure out what the driver strengths should be for STIRAP
+        if x < 1 / 2:
+            # Pick omega_g to be small
+            omega_g = amplitude / max_omega_r
+            omega_r = max_omega_r
+        else:
+            omega_r = amplitude / max_omega_g
+            omega_g = max_omega_g
+        offset = omega_r ** 2 - omega_g ** 2
+        # Now, choose the opposite of the STIRAP sequence
+        energy_shift.energies = (offset,)
+        laser.omega_g = np.sqrt(amplitude)
+        laser.omega_r = np.sqrt(amplitude)
+        dissipation.omega_g = np.sqrt(amplitude)
+        dissipation.omega_r = np.sqrt(amplitude)
+
+    def schedule_exp_opp_fixed(t, tf):
+        x = t / tf
+        amplitude = max_omega_g * max_omega_r * (
+                -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (tf - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                            (1 + np.e ** (-k * (1 / 2 - (tf - a)))) ** b) + 1)
+        # Now we need to figure out what the driver strengths should be for STIRAP
+        if x < 1 / 2:
+            # Pick omega_g to be small
+            omega_g = amplitude / max_omega_r
+            omega_r = max_omega_r
+        else:
+            omega_r = amplitude / max_omega_g
+            omega_g = max_omega_g
+        offset = omega_r ** 2 - omega_g ** 2
+        # Now, choose the opposite of the STIRAP sequence
+        energy_shift.energies = (-offset,)
+        laser.omega_g = np.sqrt(amplitude)
+        laser.omega_r = np.sqrt(amplitude)
+        dissipation.omega_g = np.sqrt(amplitude)
+        dissipation.omega_r = np.sqrt(amplitude)
+
+    laser = EffectiveOperatorHamiltonian(graph=graph, IS_subspace=True, energies=(1,), omega_g=1, omega_r=1)
+    energy_shift = hamiltonian.HamiltonianEnergyShift(IS_subspace=True, graph=graph, index=0)
+    dissipation = EffectiveOperatorDissipation(graph=graph, omega_r=1, omega_g=1, rates=(1,))
+    eq = LindbladMasterEquation(hamiltonians=[laser, energy_shift], jump_operators=[dissipation])
+
+    def k_alpha_rate(t):
+        # Construct the first order transition matrix
+        schedule(t, 1)
+        if schedule == schedule_opposite_energy_shift or schedule == schedule_exp_opp_fixed:
+            which = 'L'
+        else:
+            which = 'S'
+
+        ground_energy, ground_state = SchrodingerEquation(hamiltonians=eq.hamiltonians).ground_state(which=which)
+        nh_energy = 0
+        overlap = 0
+        for op in eq.jump_operators[0].jump_operators:
+            nh_energy += (ground_state.conj().T @ op.conj().T @ op @ ground_state)[0, 0]
+            overlap = overlap + (np.abs(ground_state.conj().T @ op @ ground_state) ** 2)[0, 0]
+
+        if graph.degeneracy > 1:
+            # Solve for the k lowest eigenvalues, where k=degeneracy
+            energies, states = SchrodingerEquation(hamiltonians=eq.hamiltonians).eig(k=graph.degeneracy + 1,
+                                                                                     which=which)
+            states = states.T
+            rates_into_degenerate = np.zeros(energies.shape[0] ** 2)
+            for op in eq.jump_operators[0].jump_operators:
+                rates_into_degenerate = rates_into_degenerate + (
+                        np.abs(states.conj().T @ op @ states) ** 2).flatten()
+            rates_into_degenerate = np.reshape(rates_into_degenerate, (energies.shape[0], energies.shape[0]))
+            rates_into_degenerate = rates_into_degenerate[:, 0].flatten().real
+
+            rates_into_degenerate = rates_into_degenerate[1:graph.degeneracy]
+            rates_into_degenerate = np.sum(rates_into_degenerate)
+
+            overlap = overlap.real + rates_into_degenerate
+        return overlap.real, nh_energy.real
+
+    l = 0
+    colors = ['limegreen', 'navy']
+    labels = ['STIRAP jump operator', r'fixed jump operator $\propto |g\rangle (\langle g| +\langle r|)$']
+    labels_leakage = ['ground state, leakage rate', 'highest excited, leakage rate']
+
+    math_labels = []
+    for schedule in [schedule_STIRAP, schedule_exp_fixed]:
+        if True:
+            times = np.linspace(.001, .999, 100)
+            nh_energies = []
+            overlaps = []
+            for i in range(len(times)):
+                res = k_alpha_rate(times[i])
+                overlaps.append(res[0])
+                nh_energies.append(res[1])
+            nh_energies = np.array(nh_energies)
+            overlaps = np.array(overlaps)
+            #plt.plot(times, nh_energies/graph.n, label=r'jump rate per atom', color='navy')
+            #plt.plot(times, overlaps/graph.n, label=r'self jump per atom', color='limegreen')
+            #plt.plot(times, (nh_energies-overlaps)/graph.n, label=r'leakage rate per atom', color='cornflowerblue')
+            #plt.plot(times, nh_energies/graph.n, label=labels[l], color=colors[l])
+            plt.plot(times, (nh_energies-overlaps)/graph.n, color=colors[l], label=labels[l])
+            print(np.sum(nh_energies-overlaps)/len(times))
+        if False:
+            times = np.linspace(.001, .999, 800)
+            rates = []
+            ad = SimulateAdiabatic(graph, noise_model='continuous', hamiltonian=[laser, energy_shift],
+                                   noise=[dissipation], cost_hamiltonian=energy_shift)
+            all_states, all_indices = ad.eigenstate_ordering_vs_time(times, schedule=schedule)
+            for i in range(len(times)):
+                overlap = 0
+                ground_state = all_states[i, 0, :, np.newaxis]
+                for op in eq.jump_operators[0].jump_operators:
+                    if i == 0:
+                        print((np.abs(ground_state.conj().T @ op @ ground_state) ** 2)[0, 0],
+                              (ground_state.conj().T @ op.conj().T @ op @ ground_state)[0, 0])
+                    overlap = overlap - (np.abs(ground_state.conj().T @ op @ ground_state) ** 2)[0, 0] + \
+                              (ground_state.conj().T @ op.conj().T @ op @ ground_state)[0, 0]
+                if graph.degeneracy > 1:
+                    # Solve for the k lowest eigenvalues, where k=degeneracy
+                    states = all_states[i].T
+                    rates_into_degenerate = np.zeros(graph.degeneracy ** 2)
+                    for op in eq.jump_operators[0].jump_operators:
+                        rates_into_degenerate = rates_into_degenerate + (
+                                np.abs(states.conj().T @ op @ states) ** 2).flatten()
+                    rates_into_degenerate = np.reshape(rates_into_degenerate, (graph.degeneracy, graph.degeneracy))
+                    rates_into_degenerate = rates_into_degenerate[:, 0].flatten().real
+
+                    rates_into_degenerate = rates_into_degenerate[1:graph.degeneracy]
+                    rates_into_degenerate = np.sum(rates_into_degenerate)
+
+                    overlap = overlap.real - rates_into_degenerate
+                    if i == 0:
+                        print(rates_into_degenerate, overlap)
+                rates.append(overlap)
+            print(np.sum(rates) / len(times))
+            plt.scatter(times, rates, label=labels[l] + ' new')
+        l += 1
+    times = np.linspace(.001, .999, 100)
+    omegas = []
+    #plt.plot([], [], linestyle=':', color='black', label='leakage rate per atom')
+    #plt.plot([], [], color='black', label='jump rate per atom')
+
+    #plt.plot(times, omegas, color='black', label=r'$\frac{\gamma\Omega^2(t)}{\delta_e^2}\cdot T\cdot |V|$')
+    plt.legend(loc='upper left')
+    plt.xlabel(r'$t/T$')
+    plt.ylabel(r'leakage probability per atom')
+
+    plt.show()
+
+
+def low_spectrum(graph: Graph):
+    max_omega_g = 1 / np.sqrt(2)
+    max_omega_r = 1 / np.sqrt(2)
+    k = 14
+    a = .2
+    b = .35
+
+    def schedule_STIRAP(t, tf):
+        x = t / tf
+        amplitude = max_omega_g * max_omega_r * (
+                -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (tf - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                            (1 + np.e ** (-k * (1 / 2 - (tf - a)))) ** b) + 1)
+        # Now we need to figure out what the driver strengths should be
+        if x < 1 / 2:
+            # Pick omega_g to be small
+            omega_g = amplitude / max_omega_r
+            omega_r = max_omega_r
+        else:
+            omega_r = amplitude / max_omega_g
+            omega_g = max_omega_g
+        energy_shift.energies = (0,)
+
+        laser.omega_g = omega_g
+        laser.omega_r = omega_r
+        dissipation.omega_g = omega_g
+        dissipation.omega_r = omega_r
+
+    def schedule_fixed_angle(t, tf):
+        x = t / tf
+        amplitude = max_omega_g * max_omega_r * (
+                -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (tf - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                            (1 + np.e ** (-k * (1 / 2 - (tf - a)))) ** b) + 1)
+        # Now we need to figure out what the driver strengths should be for STIRAP
+        if x < 1 / 2:
+            # Pick omega_g to be small
+            omega_g = amplitude / max_omega_r
+            omega_r = max_omega_r
+        else:
+            omega_r = amplitude / max_omega_g
+            omega_g = max_omega_g
+        offset = omega_r ** 2 - omega_g ** 2
+        energy_shift.energies = (offset,)
+        laser.omega_g = np.sqrt(amplitude)
+        laser.omega_r = np.sqrt(amplitude)
+        dissipation.omega_g = np.sqrt(amplitude)
+        dissipation.omega_r = np.sqrt(amplitude)
+
+    def schedule_opposite_STIRAP(t, tf):
+        x = t / tf
+        amplitude = max_omega_g * max_omega_r * (
+                -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (tf - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                            (1 + np.e ** (-k * (1 / 2 - (tf - a)))) ** b) + 1)
+        # Now we need to figure out what the driver strengths should be for STIRAP
+        if x < 1 / 2:
+            # Pick omega_g to be small
+            omega_g = amplitude / max_omega_r
+            omega_r = max_omega_r
+        else:
+            omega_r = amplitude / max_omega_g
+            omega_g = max_omega_g
+        offset = omega_r ** 2 - omega_g ** 2
+        # Now, choose the opposite of the STIRAP sequence
+        if x < 1 / 2:
+            # Pick omega_g to be small
+            omega_r = amplitude / max_omega_g
+            omega_g = max_omega_g
+        else:
+            omega_g = amplitude / max_omega_r
+            omega_r = max_omega_r
+        energy_shift.energies = (offset - (omega_r ** 2 - omega_g ** 2),)
+
+        laser.omega_g = omega_g
+        laser.omega_r = omega_r
+        dissipation.omega_g = omega_g
+        dissipation.omega_r = omega_r
+
+    def schedule_opposite_energy_shift(t, tf):
+        x = t / tf
+        amplitude = max_omega_g * max_omega_r * (
+                -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (tf - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                            (1 + np.e ** (-k * (1 / 2 - (tf - a)))) ** b) + 1)
+        # Now we need to figure out what the driver strengths should be for STIRAP
+        if x < 1 / 2:
+            # Pick omega_g to be small
+            omega_g = amplitude / max_omega_r
+            omega_r = max_omega_r
+        else:
+            omega_r = amplitude / max_omega_g
+            omega_g = max_omega_g
+        offset = omega_r ** 2 - omega_g ** 2
+        # Now, choose the opposite of the STIRAP sequence
+        energy_shift.energies = (-2 * offset,)
+        laser.omega_g = omega_g
+        laser.omega_r = omega_r
+        dissipation.omega_g = omega_g
+        dissipation.omega_r = omega_r
+
+    def schedule_exp_fixed(t, tf):
+        x = t / tf
+        amplitude = max_omega_g * max_omega_r * (
+                -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (tf - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                            (1 + np.e ** (-k * (1 / 2 - (tf - a)))) ** b) + 1)
+        # Now we need to figure out what the driver strengths should be for STIRAP
+        if x < 1 / 2:
+            # Pick omega_g to be small
+            omega_g = amplitude / max_omega_r
+            omega_r = max_omega_r
+        else:
+            omega_r = amplitude / max_omega_g
+            omega_g = max_omega_g
+        offset = omega_r ** 2 - omega_g ** 2
+        # Now, choose the opposite of the STIRAP sequence
+        energy_shift.energies = (offset,)
+        laser.omega_g = np.sqrt(amplitude)
+        laser.omega_r = np.sqrt(amplitude)
+        dissipation.omega_g = np.sqrt(amplitude)
+        dissipation.omega_r = np.sqrt(amplitude)
+
+    def schedule_exp_opp_fixed(t, tf):
+        x = t / tf
+        amplitude = max_omega_g * max_omega_r * (
+                -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (tf - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                            (1 + np.e ** (-k * (1 / 2 - (tf - a)))) ** b) + 1)
+        # Now we need to figure out what the driver strengths should be for STIRAP
+        if x < 1 / 2:
+            # Pick omega_g to be small
+            omega_g = amplitude / max_omega_r
+            omega_r = max_omega_r
+        else:
+            omega_r = amplitude / max_omega_g
+            omega_g = max_omega_g
+        offset = omega_r ** 2 - omega_g ** 2
+        # Now, choose the opposite of the STIRAP sequence
+        energy_shift.energies = (-offset,)
+        laser.omega_g = np.sqrt(amplitude)
+        laser.omega_r = np.sqrt(amplitude)
+        dissipation.omega_g = np.sqrt(amplitude)
+        dissipation.omega_r = np.sqrt(amplitude)
+
+    def schedule_hybrid(t, tf):
+        phi = (tf - t) / tf * np.pi / 2
+        energy_shift.energies = (1/2*np.sin(phi)**2,)
+        laser.omega_g = np.cos(phi)
+        laser.omega_r = np.sin(phi)
+        dissipation.omega_g = np.cos(phi)
+        dissipation.omega_r = np.sin(phi)
+
+    laser = EffectiveOperatorHamiltonian(graph=graph, IS_subspace=True, energies=(1,), omega_g=1, omega_r=1)
+    energy_shift = hamiltonian.HamiltonianEnergyShift(IS_subspace=True, graph=graph, index=0)
+    dissipation = EffectiveOperatorDissipation(graph=graph, omega_r=1, omega_g=1, rates=(1,))
+    eq = LindbladMasterEquation(hamiltonians=[laser, energy_shift], jump_operators=[dissipation])
+
+    def jump_rate(states, energies, t):
+        # Construct the first order transition matrix
+        schedule(t, 1)
+        states = states.T
+        rates_into_degenerate = np.zeros(energies.shape[0] ** 2)
+        for op in eq.jump_operators[0].jump_operators:
+            rates_into_degenerate = rates_into_degenerate + (
+                    np.abs(states.conj().T @ op @ states) ** 2).flatten()
+        rates_into_degenerate = np.reshape(rates_into_degenerate, (energies.shape[0], energies.shape[0]))
+        rates_into_degenerate = rates_into_degenerate[:, 0].flatten().real
+
+        return rates_into_degenerate
+    from matplotlib.cm import get_cmap
+    for schedule in [schedule_hybrid]:
+        times = np.linspace(.001, .999, 100)
+        ad = SimulateAdiabatic(graph, hamiltonian=[laser, energy_shift], noise=[dissipation], cost_hamiltonian=energy_shift)
+        all_states, all_indices = ad.eigenstate_ordering_vs_time(times, schedule=schedule)
+        res = ad.spectrum_vs_time(1, schedule, k=5, num=100)
+        for k in range(res.shape[-1]):
+            if k == 0:
+                plt.plot(np.linspace(0, 1, res.shape[0]), res[:,k].flatten(), color='cornflowerblue')
+            elif k < 2:
+                plt.plot(np.linspace(0, 1, res.shape[0]), res[:,k].flatten(), color='cornflowerblue')
+            else:
+                plt.plot(np.linspace(0, 1, res.shape[0]), res[:, k].flatten(), color='black')
+        plt.xlabel(r'$t/T$')
+        plt.yticks(range(0, 4))
+        plt.ylabel(r'energy')
+        plt.show()
+        ad = SchrodingerEquation(hamiltonians=[laser, energy_shift])
+        max_index = int(np.max(all_indices))+0
+        all_rates = []
+        all_energies = []
+        times = np.linspace(.1, .999, 100)
+        for i in range(len(times)):
+            schedule(times[i], 1)
+            energies, states = ad.eig(k=max_index+1)
+            rates = jump_rate(states, energies, times[i])
+            all_rates.append(rates)
+            all_energies.append(energies)
+    all_rates = np.log10(np.array(all_rates))
+    all_energies = np.array(all_energies).T
+    from matplotlib.collections import LineCollection
+    fig, ax = plt.subplots()
+    norm = plt.Normalize(all_rates.min(), all_rates.max())
+    for i in range(max_index+1):
+        if True:
+            time_segments = np.concatenate([times[:-1], times[1:]]).reshape((2, len(times)-1))
+            time_segments = time_segments.flatten(order='F')
+            energies = all_energies[i,:]
+            energies = np.concatenate([energies[:-1], energies[1:]]).reshape((2, len(energies) - 1))
+            energies = energies.flatten(order='F')
+            segments = np.reshape(np.concatenate([time_segments, energies]), (2, len(time_segments))).T
+            segments = np.reshape(segments, (int(len(time_segments)/2), 2, 2))
+        else:
+            energies = all_energies[i,:]
+            segments = np.reshape(np.concatenate([times, energies]), (2, len(times))).T
+            segments = np.reshape(segments, (int(len(times) / 2), 2, 2))
+        lc = LineCollection(segments, cmap='viridis', norm=norm)
+        lc.set_array(all_rates[:-1, i])
+        lc.set_linewidth(2)
+
+        line = ax.add_collection(lc)
+    #cbar = fig.colorbar(line, ax=ax)
+    #cbar.set_label(r'$\log_{10}$(jump probability)')
+    plt.ylim(np.min(all_energies), np.max(all_energies))
+    #plt.legend(loc='upper left')
+    plt.xlabel(r'$t/T$')
+    plt.ylabel(r'eigenenergies')
+    #plt.plot([], [], color='navy', label='optimal solution')
+    #plt.plot([], [], linestyle='dashed', color='navy', label='non-optimal solution')
+    plt.legend(loc='upper right')
+    plt.show()
+
+
+def leakage_rate_degenerate(graph: Graph):
+    max_omega_g = 1 / np.sqrt(2)
+    max_omega_r = 1 / np.sqrt(2)
+    k = 14
+    a = .2
+    b = .35
+
+    def schedule_STIRAP(t, tf):
+        x = t / tf
+        amplitude = max_omega_g * max_omega_r * (
+                -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (tf - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                            (1 + np.e ** (-k * (1 / 2 - (tf - a)))) ** b) + 1)
+        # Now we need to figure out what the driver strengths should be
+        if x < 1 / 2:
+            # Pick omega_g to be small
+            omega_g = amplitude / max_omega_r
+            omega_r = max_omega_r
+        else:
+            omega_r = amplitude / max_omega_g
+            omega_g = max_omega_g
+        energy_shift.energies = (0,)
+
+        laser.omega_g = omega_g
+        laser.omega_r = omega_r
+        dissipation.omega_g = omega_g
+        dissipation.omega_r = omega_r
+
+    def schedule_fixed_angle(t, tf):
+        x = t / tf
+        amplitude = max_omega_g * max_omega_r * (
+                -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (tf - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                            (1 + np.e ** (-k * (1 / 2 - (tf - a)))) ** b) + 1)
+        # Now we need to figure out what the driver strengths should be for STIRAP
+        if x < 1 / 2:
+            # Pick omega_g to be small
+            omega_g = amplitude / max_omega_r
+            omega_r = max_omega_r
+        else:
+            omega_r = amplitude / max_omega_g
+            omega_g = max_omega_g
+        offset = omega_r ** 2 - omega_g ** 2
+        energy_shift.energies = (offset,)
+        laser.omega_g = np.sqrt(amplitude)
+        laser.omega_r = np.sqrt(amplitude)
+        dissipation.omega_g = np.sqrt(amplitude)
+        dissipation.omega_r = np.sqrt(amplitude)
+
+    def schedule_opposite_STIRAP(t, tf):
+        x = t / tf
+        amplitude = max_omega_g * max_omega_r * (
+                -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (tf - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                            (1 + np.e ** (-k * (1 / 2 - (tf - a)))) ** b) + 1)
+        # Now we need to figure out what the driver strengths should be for STIRAP
+        if x < 1 / 2:
+            # Pick omega_g to be small
+            omega_g = amplitude / max_omega_r
+            omega_r = max_omega_r
+        else:
+            omega_r = amplitude / max_omega_g
+            omega_g = max_omega_g
+        offset = omega_r ** 2 - omega_g ** 2
+        # Now, choose the opposite of the STIRAP sequence
+        if x < 1 / 2:
+            # Pick omega_g to be small
+            omega_r = amplitude / max_omega_g
+            omega_g = max_omega_g
+        else:
+            omega_g = amplitude / max_omega_r
+            omega_r = max_omega_r
+        energy_shift.energies = (offset - (omega_r ** 2 - omega_g ** 2),)
+
+        laser.omega_g = omega_g
+        laser.omega_r = omega_r
+        dissipation.omega_g = omega_g
+        dissipation.omega_r = omega_r
+
+    def schedule_opposite_energy_shift(t, tf):
+        x = t / tf
+        amplitude = max_omega_g * max_omega_r * (
+                -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (tf - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                            (1 + np.e ** (-k * (1 / 2 - (tf - a)))) ** b) + 1)
+        # Now we need to figure out what the driver strengths should be for STIRAP
+        if x < 1 / 2:
+            # Pick omega_g to be small
+            omega_g = amplitude / max_omega_r
+            omega_r = max_omega_r
+        else:
+            omega_r = amplitude / max_omega_g
+            omega_g = max_omega_g
+        offset = omega_r ** 2 - omega_g ** 2
+        # Now, choose the opposite of the STIRAP sequence
+        energy_shift.energies = (-2 * offset,)
+        laser.omega_g = omega_g
+        laser.omega_r = omega_r
+        dissipation.omega_g = omega_g
+        dissipation.omega_r = omega_r
+
+    def schedule_exp_fixed(t, tf):
+        x = t / tf
+        amplitude = max_omega_g * max_omega_r * (
+                -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (tf - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                            (1 + np.e ** (-k * (1 / 2 - (tf - a)))) ** b) + 1)
+        # Now we need to figure out what the driver strengths should be for STIRAP
+        if x < 1 / 2:
+            # Pick omega_g to be small
+            omega_g = amplitude / max_omega_r
+            omega_r = max_omega_r
+        else:
+            omega_r = amplitude / max_omega_g
+            omega_g = max_omega_g
+        offset = omega_r ** 2 - omega_g ** 2
+        # Now, choose the opposite of the STIRAP sequence
+        energy_shift.energies = (offset,)
+        laser.omega_g = np.sqrt(amplitude)
+        laser.omega_r = np.sqrt(amplitude)
+        dissipation.omega_g = np.sqrt(amplitude)
+        dissipation.omega_r = np.sqrt(amplitude)
+
+    def schedule_exp_opp_fixed(t, tf):
+        x = t / tf
+        amplitude = max_omega_g * max_omega_r * (
+                -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (tf - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                            (1 + np.e ** (-k * (1 / 2 - (tf - a)))) ** b) + 1)
+        # Now we need to figure out what the driver strengths should be for STIRAP
+        if x < 1 / 2:
+            # Pick omega_g to be small
+            omega_g = amplitude / max_omega_r
+            omega_r = max_omega_r
+        else:
+            omega_r = amplitude / max_omega_g
+            omega_g = max_omega_g
+        offset = omega_r ** 2 - omega_g ** 2
+        # Now, choose the opposite of the STIRAP sequence
+        energy_shift.energies = (-offset,)
+        laser.omega_g = np.sqrt(amplitude)
+        laser.omega_r = np.sqrt(amplitude)
+        dissipation.omega_g = np.sqrt(amplitude)
+        dissipation.omega_r = np.sqrt(amplitude)
+
+    laser = EffectiveOperatorHamiltonian(graph=graph, IS_subspace=True, energies=(1,), omega_g=1, omega_r=1)
+    energy_shift = hamiltonian.HamiltonianEnergyShift(IS_subspace=True, graph=graph, index=0)
+    dissipation = EffectiveOperatorDissipation(graph=graph, omega_r=1, omega_g=1, rates=(1,))
+    eq = LindbladMasterEquation(hamiltonians=[laser, energy_shift], jump_operators=[dissipation])
+
+    def jump_rate(states, t):
+        # Construct the first order transition matrix
+        schedule(t, 1)
+        size = states.shape[0]
+        states = states.T
+        leakage = 0
+        for op in eq.jump_operators[0].jump_operators:
+            leakage = leakage + (np.abs(states.conj().T @ op.conj().T @ op @ states)).flatten()[0]
+        rates_into_degenerate = np.zeros(size ** 2)
+        for op in eq.jump_operators[0].jump_operators:
+            rates_into_degenerate = rates_into_degenerate + (
+                    np.abs(states.conj().T @ op @ states) ** 2).flatten()
+        rates_into_degenerate = np.reshape(rates_into_degenerate, (size, size))
+        rates_into_degenerate = rates_into_degenerate[:, 0].flatten().real
+
+        return leakage-np.sum(rates_into_degenerate)
+
+    for schedule in [schedule_exp_fixed]:
+        times = np.linspace(.75, .999, 300)
+        if not isinstance(graph, Graph):
+            ad = SimulateAdiabatic(graph, hamiltonian=[laser, energy_shift], noise=[dissipation],
+                                   cost_hamiltonian=energy_shift)
+            all_states, all_indices = ad.eigenstate_ordering_vs_time(times, schedule=schedule)
+            all_rates = []
+            for i in range(len(times)):
+                states = all_states[i]
+                schedule(times[i], 1)
+                rates = jump_rate(states, times[i])
+                all_rates.append(rates)
+        else:
+            ad = SchrodingerEquation(hamiltonians=[laser, energy_shift])
+            all_rates = []
+            for i in range(len(times)):
+                schedule(times[i], 1)
+                energies, states = ad.eig(k=graph.degeneracy)
+                rates = jump_rate(states, times[i])
+                all_rates.append(rates)
+    return np.sum(all_rates)/len(times)
+
+
+from qsim.graph_algorithms.graph import unit_disk_graph, ring_graph
+
+"""
+Works: 
+[[0 1 1]
+ [0 1 1]
+ [1 0 1]]
+"""
+
+#arr = np.reshape(np.random.binomial(1, [.5]*9), (3, 3))
+#print(arr)
+#low_spectrum(unit_disk_graph(arr))
+
 """degeneracy = 2
 while degeneracy != 1:
-    graph = nx.erdos_renyi_graph(15, .4)
-    graph = Graph(graph)
-    degeneracy = graph.degeneracy"""
-from qsim.graph_algorithms.graph import unit_disk_graph
-degeneracy = 2
-while degeneracy != 1:
-    arr = np.reshape(np.random.binomial(1, [.7]*20), (4, 5))
+    arr = np.reshape(np.random.binomial(1, [.8]*30), (6, 5))
     graph = unit_disk_graph(arr)
     degeneracy = graph.degeneracy
-print(arr)
-"""arr = np.reshape(np.random.binomial(1, [.7]*20), (4, 5))
-print(arr, np.sum(arr))
-graph = unit_disk_graph(arr)
-degeneracy = graph.degeneracy
-print(degeneracy)"""
+print(repr(arr), np.sum(arr))"""
+"""arr = np.array([[1, 1, 0, 0, 1],
+ [1, 1, 1, 1, 0],
+ [1, 1, 1, 1, 0],
+ [1, 1, 1, 1, 1],
+ [1, 1, 0, 1, 1],
+ [0, 0, 1, 1, 1]])"""
+arr = np.reshape(np.random.binomial(1, [.8]*25), (5, 5))
+print(len(arr))
+leakage_rate_plot(unit_disk_graph(arr))
+data = np.array([0.1724948655910386, 0.3034094275495633, 0.4409289424024603, 0.5064584681298279, 0.5801610644825725])
+data_STIRAP = np.array([0.12888770689657505, 0.2420344464508475, 0.3624534403491076, 0.4202028578783863, 0.4849868979133825])
+# Last part of ramp
+data_STIRAP = np.array([0.0034982512792422816, 0.006810576042416697, 0.010375622892122944, 0.01405023978879786])
+data = np.array([0.14903346566668588, 0.22347824867186522, 0.2980234122539539, 0.3726195422204543])
+ns = np.array([9, 15, 21, 27])
+plt.scatter(ns, data_STIRAP, color='limegreen', label='STIRAP jump operators', zorder=100)
+plt.scatter(ns, data, color='navy', label=r'fixed jump operator $\propto |g\rangle (\langle g| +\langle r|)$', zorder=100)
+#plt.scatter([9, 15, 21, 27], data-data_STIRAP)
+plt.xlabel(r'system size')
+plt.xticks(ns)
+plt.legend()
+plt.ylabel(r'leakage probability in last quarter of ramp')
+m, b = np.polyfit(ns, data, deg=1)
+plt.plot(ns, m*ns+b, color='black')
+m, b = np.polyfit(ns, data_STIRAP, deg=1)
+plt.plot(ns, m*ns+b, color='black')
+plt.show()
+
+#leakage_rate_plot(unit_disk_graph(arr))
+rates = []
+for i in [(3, 3), (3, 5), (3, 7), (3, 9)]:
+    arr = np.ones(i)
+    rates.append(leakage_rate_degenerate(unit_disk_graph(arr)))
+    print(rates)
+#[0.1724948655910386, 0.08298716167325303] [(3, 3), (3, 4), (4, 4), (4, 5), (5, 5)]
+"""rates = []
+degeneracies = []
+ns = []
+while True:
+    try:
+        arr = np.reshape(np.random.binomial(1, [.8]*30), (6, 5))
+        graph = unit_disk_graph(arr)
+        degeneracy = graph.degeneracy
+        print(degeneracy, graph.n)
+        rate = leakage_rate_degenerate(graph)/graph.n
+        degeneracies.append(graph.degeneracy)
+        rates.append(rate)
+        ns.append(graph.n)
+        print(rates, degeneracies, ns)
+    except Exception as e:
+        print(e)"""
+
+#graph = unit_disk_graph(arr, visualize=False)
 #graph = Graph(nx.star_graph(5))
-rates = dissipation_angle_comparison(line_graph(17), visualize=True)
+graph = unit_disk_graph(np.ones((2,1)), visualize=False)
 """try:
     optimal_rates = np.nanargmin(rates, axis=0)
     worst_rates = np.nanargmax(rates, axis=0)
