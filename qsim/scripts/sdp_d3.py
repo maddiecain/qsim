@@ -16,10 +16,10 @@ def generate_SDP_graph(d, epsilon, visualize=False, le=False):
             binary_j = 2*(tools.int_to_nary(j, size=d)-1/2)/np.sqrt(d)
             if le:
                 if (1-np.dot(binary_i, binary_j))/2 > 1-epsilon+1e-5:
-                    graph.add_edge(i, j, weight=2)
+                    graph.add_edge(i, j, weight=1)
             else:
                 if np.isclose((1-np.dot(binary_i, binary_j))/2, 1-epsilon):
-                    graph.add_edge(i, j, weight=2)
+                    graph.add_edge(i, j, weight=1)
     if visualize:
         nx.draw(graph, with_labels=True)
         plt.show()
@@ -135,8 +135,18 @@ def generate_legal_SDP_output(d, num=100):
 #print(SDP_output2[np.nonzero(SDP_output2)])
 #np.save('d3_SDP_output', SDP_output)
 SDP_output=np.load('d3_SDP_output.npy')
-#SDP_output= SDP_output*np.random.uniform(.01, .99, size=len(SDP_output))
+#print(SDP_output)
+#SDP_output = SDP_output[0:len(SDP_output)//2]
+#SDP_output = np.concatenate([SDP_output, np.flip(SDP_output)])
 SDP_output = SDP_output/np.linalg.norm(SDP_output)
+where_nonzero = np.argwhere(SDP_output!=0)
+
+SDP_output = np.zeros(2**8)
+SDP_output[where_nonzero] = 1
+SDP_output = SDP_output*np.random.uniform(-100, 100, size=len(SDP_output))
+SDP_output = SDP_output/np.linalg.norm(SDP_output)
+
+#SDP_output[23] = 1
 np.set_printoptions(threshold=np.inf)
 print(SDP_output)
 #print(SDP_output)
@@ -145,51 +155,84 @@ print(SDP_output)
 #print(len(SDP_output[np.nonzero(SDP_output)]))
 #print(SDP_output[rows, cols])
 SDP_output = State(SDP_output[np.newaxis, :].T)
-graph = generate_SDP_graph(4, 1/4, visualize=False)
+graph = generate_SDP_graph(3, 1/3, visualize=False)
 cost = hamiltonian.HamiltonianMaxCut(graph, cost_function=True)
 driver = hamiltonian.HamiltonianDriver()
-qaoa = qaoa.SimulateQAOA(graph=graph, hamiltonian=[], cost_hamiltonian=cost)
+qa = qaoa.SimulateQAOA(graph=graph, hamiltonian=[], cost_hamiltonian=cost)
 
-#SDP_cf = cost.cost_function(SDP_output)
+SDP_cf = cost.cost_function(SDP_output)/8
+print(SDP_output)
+print(SDP_cf)
 #plt.scatter(-1, cost.cost_function(SDP_output))
 vanilla_cf = np.array([42.39230484541338, 48.26437904543421, 53.04760524625608, 58.034293475214454, 61.43733741238711, 62.1439072862153])/64
 plt.scatter(np.arange(len(vanilla_cf)), 1-vanilla_cf)
 #plt.semilogy()
-plt.show()
+#plt.show()
 count = 0
 max_result = 0
 print(max_result)
-for p in range(6, 13):
-    hamiltonian = [cost, driver]*p
-    qaoa.hamiltonian = hamiltonian
-    """params = [1.16874104, 2.90723173, 0.99061969, 3.2870658,  3.00033462, 3.77856328, 1.80869453, 5.2534133, 0.65767639,
-              3.65537877, 1.9589525,  1.39462391, 4.14548547, 5.1316928]#,  5.5824009,  2.22808344]
-    gammas = np.linspace(0, np.pi*2)
-    betas = np.linspace(0, np.pi*2)
-    results = np.zeros((len(gammas), len(betas)))
-    for g in range(len(gammas)):
-        for b in range(len(betas)):
-            print(g)
-            results[g, b] = qaoa.run(params+[gammas[g], betas[b]], SDP_output)
-    plt.imshow(results)
-    plt.show()"""
-    for i in range(100):
-        result = qaoa.find_parameters_minimize(verbose=False)
-        if result['f_val'] > max_result:
-            max_result = result['f_val']
-            print('better', max_result)
-        else:
-            print('not better', result['f_val'])
-        """result = qaoa.find_parameters_minimize(initial_state=SDP_output, verbose=False)
-        if np.isclose(SDP_cf, result['f_val']) or SDP_cf<result['f_val']:
-            if SDP_cf< result['f_val']:
-                print('found a winner', result)
-            count+=1
-            print(result['f_val']-SDP_cf)
-            print(result['params'])
-            print(count)
-        plt.scatter(i, result['f_val'])"""
-    print(p, max_result)
+for _ in range(10):
+    SDP_output = np.load('d3_SDP_output.npy')
+    # print(SDP_output)
+    # SDP_output = SDP_output[0:len(SDP_output)//2]
+    # SDP_output = np.concatenate([SDP_output, np.flip(SDP_output)])
+    SDP_output = SDP_output / np.linalg.norm(SDP_output)
+    where_nonzero = np.argwhere(SDP_output != 0)
+
+    SDP_output = np.zeros(2 ** 8)
+    SDP_output[where_nonzero] = 1
+    SDP_output = SDP_output[:len(SDP_output)//2]
+    SDP_output = SDP_output * np.random.uniform(-1, 1, size=len(SDP_output))
+    SDP_output = np.concatenate([SDP_output, np.flip(SDP_output)])
+    SDP_output = SDP_output / np.linalg.norm(SDP_output)
+
+    # SDP_output[23] = 1
+    np.set_printoptions(threshold=np.inf)
+    print(SDP_output)
+    # print(SDP_output)
+    # SDP_output1 = generate_SDP_output(4, 20)
+    # print(np.linalg.norm(SDP_output1-SDP_output2))
+    # print(len(SDP_output[np.nonzero(SDP_output)]))
+    # print(SDP_output[rows, cols])
+    SDP_output = State(SDP_output[np.newaxis, :].T)
+    graph = generate_SDP_graph(3, 1 / 3, visualize=False)
+    cost = hamiltonian.HamiltonianMaxCut(graph, cost_function=True)
+    driver = hamiltonian.HamiltonianDriver()
+    qa = qaoa.SimulateQAOA(graph=graph, hamiltonian=[], cost_hamiltonian=cost)
+
+    SDP_cf = cost.cost_function(SDP_output) / 8
+    print(SDP_output)
+    print(SDP_cf)
+    # plt.semilogy()
+    # plt.show()
+    count = 0
+    max_result = 0
+    for p in range(1, 11):
+        hamiltonians = [cost, driver]*p
+        qa.hamiltonian = hamiltonians
+        """params = [1.16874104, 2.90723173, 0.99061969, 3.2870658,  3.00033462, 3.77856328, 1.80869453, 5.2534133, 0.65767639,
+                  3.65537877, 1.9589525,  1.39462391, 4.14548547, 5.1316928]#,  5.5824009,  2.22808344]
+        gammas = np.linspace(0, np.pi*2)
+        betas = np.linspace(0, np.pi*2)
+        results = np.zeros((len(gammas), len(betas)))
+        for g in range(len(gammas)):
+            for b in range(len(betas)):
+                print(g)
+                results[g, b] = qaoa.run(params+[gammas[g], betas[b]], SDP_output)
+        plt.imshow(results)
+        plt.show()"""
+
+        print(qa.find_parameters_basinhopping(n=50, initial_state=SDP_output, verbose=False)['approximation_ratio'])
+        for i in range(100):
+            result = qa.find_parameters_minimize(verbose=False, initial_state=SDP_output)
+            if result['f_val'] > max_result:
+                max_result = result['f_val']
+                #print('better', max_result-SDP_cf)
+            else:
+                pass
+                #print('not better', result['f_val']-SDP_cf)
+
+        print(p, max_result/8)
 
 plt.show()
 ar_warm_start = np.array([0.76020043245, 0.8997364323093671, 0.9649373721434963, 0.9724929666329931, 0.972816710863865])

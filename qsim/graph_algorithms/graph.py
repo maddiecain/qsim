@@ -11,7 +11,7 @@ may subclass nx.Graph."""
 
 
 class Graph(object):
-    def __init__(self, graph: nx.Graph):
+    def __init__(self, graph: nx.Graph, IS=True):
         # Set default weights to one
         for edge in graph.edges:
             if not ('weight' in graph.edges[edge]):
@@ -27,13 +27,16 @@ class Graph(object):
         self.m = self.edges.size
         # TODO: figure out if you really want to store the binary data, or that of a designated code
         # Initialize attributes to be set in self.generate_independent_sets()
+
         self.num_independent_sets = None
         self.independent_sets = None
         self.binary_to_index = None
         self.mis_size = None
         self.degeneracy = None
+        if IS:
+            self.generate_independent_sets()
+
         # Populate initialized attributes
-        self.generate_independent_sets()
         self.neighbors = {i:[] for i in range(self.n)}
         for i in range(self.n):
             for j in range(self.n):

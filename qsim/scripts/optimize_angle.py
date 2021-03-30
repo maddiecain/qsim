@@ -745,6 +745,7 @@ def leakage_rate_plot(graph: Graph):
 
     math_labels = []
     for schedule in [schedule_exp_fixed_new, schedule_reit_new]:
+        laser.energies = (-1,)
         if True:
             times = np.linspace(.001, .999, 100)
             nh_energies = []

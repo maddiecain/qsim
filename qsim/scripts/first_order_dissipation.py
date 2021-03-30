@@ -311,7 +311,8 @@ def rate_vs_eigenenergy(time, graph=line_graph(n=2), mode='hybrid', visualize=Fa
             omega_g = max_omega_g
         offset = omega_r ** 2 - omega_g ** 2
         # Now, choose the opposite of the STIRAP sequence
-        energy_shift.energies = (-offset,)
+        print('hey')
+        energy_shift.energies = (offset,)
         laser.omega_g = np.sqrt(amplitude)
         laser.omega_r = np.sqrt(amplitude)
         dissipation.omega_g = np.sqrt(amplitude)
@@ -353,34 +354,39 @@ def rate_vs_eigenenergy(time, graph=line_graph(n=2), mode='hybrid', visualize=Fa
         #print(energies)
         #print(states)
         rates = np.zeros(energies.shape[0] ** 2)
-        nh_rates =  np.zeros(energies.shape[0] ** 2)
+        nh_rates = np.zeros(energies.shape[0] ** 2)
         for op in dissipation.jump_operators:
             rates = rates + (np.abs(states.conj().T @ op @ states) ** 2).flatten()
             nh_rates = nh_rates + (states.conj().T @ op.conj().T @ op @ states).flatten()
         # Select the relevant rates from 'good' to 'bad'
         rates = np.reshape(rates.real, (graph.num_independent_sets, graph.num_independent_sets))
+        #plt.clf()
+        #plt.imshow(np.log(rates-rates.T))
+        #plt.colorbar()
+        #plt.show()
         nh_rates = np.reshape(nh_rates.real, (graph.num_independent_sets, graph.num_independent_sets))
         from matplotlib.cm import get_cmap
         cmap = get_cmap('viridis')
         minout = 0
-
+        colors=['red', 'blue']
+        print(nh_rates[0,0]-rates[0,0], nh_rates[-1,-1]-rates[-1,-1])
         if visualize:
             for i in range(rates.shape[0]):
                 #for j in range(0, i):
-                for j in range(i+1, rates.shape[0]):
-                    if i == 0:#rates.shape[0]-1:
+                for j in range(rates.shape[0]):
+                    if _ == 0 and i == 0:#rates.shape[0]-1:
                         if rates[j, i]< minout:
                             rates[j, i] = minout
                         elif rates[i, j]<minout:
                             rates[i, j] = minout
-                        plt.scatter(rates[j, i], rates[i, j], color=cmap(1-nh_rates[j,j]/np.max(nh_rates)), zorder=100)
-                    #else:
-                    #    plt.scatter(nh_rates[j, j]-nh_rates[i, i], (rates[i, j]-rates[j, i])/(rates[i, j]+rates[j, i]), color=cmap(nh_rates[i, i]/np.max(nh_rates)))
+                        plt.scatter(rates[j, i], rates[i, j], zorder=100, color=colors[_])#cmap(1-nh_rates[j,j]/np.max(nh_rates)))
+                    elif _ == 1 and i == rates.shape[0]-1:
+                        plt.scatter(rates[j, i], rates[i, j], zorder=100, color=colors[_])#cmap(1-nh_rates[j,j]/np.max(nh_rates)))  #
+                        #plt.scatter(nh_rates[j, j]-nh_rates[i, i], (rates[i, j]-rates[j, i])/(rates[i, j]+rates[j, i]), color=cmap(nh_rates[i, i]/np.max(nh_rates)))
             plt.loglog()
             plt.plot(np.linspace(minout, 1, 10), np.linspace(minout, 1, 10), color='k')
             plt.xlabel('rate out')
             plt.ylabel('rate in')
-            plt.show()
 
             #plt.imshow(np.log(rates))
             #plt.colorbar()
@@ -393,28 +399,245 @@ def rate_vs_eigenenergy(time, graph=line_graph(n=2), mode='hybrid', visualize=Fa
                         counts[l] += 1
             counts = 1-counts/graph.num_independent_sets
             counts = counts - 1/2*counts**2
-            print(counts)
+            #print(counts)
             #plt.hlines(np.sum(counts), 0, np.max(energies), colors='black', label='zeroth order leakage rate')
-            plt.scatter(energies,np.diag(rates), label = r'$\sum_u|\langle j |c_u |j\rangle|^2$')
-            plt.scatter(energies,np.diag(nh_rates), label =r'$\sum_u\langle j |c_u^\dagger c_u |j\rangle$')
+            #plt.scatter(energies,np.diag(rates), label = r'$\sum_u|\langle j |c_u |j\rangle|^2$')
+            #plt.scatter(energies,np.diag(nh_rates), label =r'$\sum_u\langle j |c_u^\dagger c_u |j\rangle$')
             #plt.scatter(range(nh_rates.shape[0]),(np.diag(nh_rates)-np.diag(rates)), label = r'$\frac{1}{n}\sum_u\left(\langle j |c_u^\dagger c_u |j\rangle-|\langle j |c_u |j\rangle|^2\right)$')
-            plt.scatter(energies,(np.diag(nh_rates)-np.diag(rates)), label = r'$\sum_u\left(\langle j |c_u^\dagger c_u |j\rangle-|\langle j |c_u |j\rangle|^2\right)$')
+            #plt.scatter(energies,(np.diag(nh_rates)-np.diag(rates)), label = r'$\sum_u\left(\langle j |c_u^\dagger c_u |j\rangle-|\langle j |c_u |j\rangle|^2\right)$')
             #plt.scatter(energies,np.diag(rates)/(np.diag(nh_rates)))
             #print(np.diag(nh_rates)[0]-np.diag(rates)[0], np.diag(nh_rates)[-1]-np.diag(rates)[-1], (np.diag(nh_rates)[-1]-np.diag(rates)[-1])/(np.diag(nh_rates)[0]-np.diag(rates)[0]))
-            plt.xlabel(r'$E_j$')
-            plt.legend()
+            #plt.xlabel(r'$E_j$')
+            #plt.legend()
             #plt.show()
         rates = rates[:, 0].flatten()
         return rates, energies
     schedule(time, 1)
     rates, energies = compute_rate()
     return rates, energies
-graph = nx.erdos_renyi_graph(13, .37)
-nx.draw(graph)
-plt.show()
-graph = Graph(graph)
 
-rate_vs_eigenenergy(.5, graph=graph, mode='reit', visualize=True)
+
+def rate_vs_eigenenergy(time, graph=line_graph(n=2), mode='hybrid', visualize=False):
+    """For REIT, compute the total leakage from the ground state to a given state. Plot the total leakage versus
+    the final eigenenergy"""
+
+    # Good is a list of good eigenvalues
+    # Bad is a list of bad eigenvalues. If 'other', defaults to all remaining eigenvalues outside of 'good'
+    max_omega_g = 1/np.sqrt(2)
+    max_omega_r = 1/np.sqrt(2)
+    k = 14
+    a = .2
+    b = .35
+
+    def schedule_exp_STIRAP(t, tf):
+        x = t / tf
+        amplitude = max_omega_g * max_omega_r * (
+                -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (tf - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                            (1 + np.e ** (-k * (1 / 2 - (tf - a)))) ** b) + 1)
+        # Now we need to figure out what the driver strengths should be
+        if x < 1 / 2:
+            # Pick omega_g to be small
+            omega_g = amplitude / max_omega_r
+            omega_r = max_omega_r
+        else:
+            omega_r = amplitude / max_omega_g
+            omega_g = max_omega_g
+        energy_shift.energies = (0,)
+
+        laser.omega_g = omega_g
+        laser.omega_r = omega_r
+        dissipation.omega_g = omega_g
+        dissipation.omega_r = omega_r
+
+    def schedule_opp_exp_STIRAP(t, tf):
+        x = t / tf
+        amplitude = max_omega_g * max_omega_r * (
+                    -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (tf - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                                (1 + np.e ** (-k * (1 / 2 - (tf - a)))) ** b) + 1)
+        # Now we need to figure out what the driver strengths should be for STIRAP
+        if x < 1/2:
+            # Pick omega_g to be small
+            omega_g = amplitude / max_omega_r
+            omega_r = max_omega_r
+        else:
+            omega_r = amplitude / max_omega_g
+            omega_g = max_omega_g
+        offset = omega_r**2-omega_g**2
+        # Now, choose the opposite of the STIRAP sequence
+        energy_shift.energies = (-2*offset,)
+        laser.omega_g = omega_g
+        laser.omega_r = omega_r
+        dissipation.omega_g = omega_g
+        dissipation.omega_r = omega_r
+
+    def schedule_hybrid(t, tf):
+        phi = (tf - t) / tf * np.pi / 2
+        energy_shift.energies = (1*np.sin(phi)**2,)
+        laser.omega_g = np.cos(phi)
+        laser.omega_r = np.sin(phi)
+        dissipation.omega_g = np.cos(phi)
+        dissipation.omega_r = np.sin(phi)
+
+    def schedule_STIRAP(t, tf):
+        phi = (tf - t) / tf * np.pi / 2
+        laser.omega_g = np.cos(phi)
+        laser.omega_r = np.sin(phi)
+        dissipation.omega_g = np.cos(phi)
+        dissipation.omega_r = np.sin(phi)
+
+    def schedule_opp_reit(t, tf):
+        phi = (tf - t) / tf * np.pi / 2
+        laser.omega_g = np.cos(phi)
+        laser.omega_r = np.sin(phi)
+        dissipation.omega_g = np.cos(phi)
+        dissipation.omega_r = np.sin(phi)
+        energy_shift.energies=(-2*(np.sin(phi)**2-np.cos(phi)**2),)
+
+    def schedule_adiabatic(t, tf):
+        phi = (tf - t) / tf * np.pi / 2
+        energy_shift.energies = (2 * ((tf - t) / tf - 1 / 2),)
+        laser.omega_g = np.sqrt(np.abs(np.sin(phi) * np.cos(phi)))
+        laser.omega_r = np.sqrt(np.abs(np.sin(phi) * np.cos(phi)))
+        dissipation.omega_g = 1#np.sqrt(np.abs(np.sin(phi) * np.cos(phi)))
+        dissipation.omega_r = 0#np.sqrt(np.abs(np.sin(phi) * np.cos(phi)))
+
+    def schedule_exp_fixed(t, tf):
+        x = t / tf
+        amplitude = max_omega_g * max_omega_r * (
+                -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (tf - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                            (1 + np.e ** (-k * (1 / 2 - (tf - a)))) ** b) + 1)
+        # Now we need to figure out what the driver strengths should be for STIRAP
+        if x < 1 / 2:
+            # Pick omega_g to be small
+            omega_g = amplitude / max_omega_r
+            omega_r = max_omega_r
+        else:
+            omega_r = amplitude / max_omega_g
+            omega_g = max_omega_g
+        offset = omega_r ** 2 - omega_g ** 2
+        # Now, choose the opposite of the STIRAP sequence
+        print('hey')
+        energy_shift.energies = (offset,)
+        laser.omega_g = np.sqrt(amplitude)
+        laser.omega_r = np.sqrt(amplitude)
+        dissipation.omega_g = np.sqrt(amplitude)
+        dissipation.omega_r = np.sqrt(amplitude)
+
+    laser = EffectiveOperatorHamiltonian(graph=graph, IS_subspace=True,
+                                         energies=(1,),
+                                         omega_g=np.cos(np.pi / 4),
+                                         omega_r=np.sin(np.pi / 4))
+    energy_shift = hamiltonian.HamiltonianEnergyShift(IS_subspace=True, graph=graph,
+                                                      energies=(2.5,), index=0)
+    dissipation = EffectiveOperatorDissipation(graph=graph, omega_r=1, omega_g=1,
+                                               rates=(1,))
+
+    if mode == 'hybrid':
+        schedule = schedule_hybrid
+    elif mode == 'adiabatic':
+        schedule = schedule_adiabatic
+    elif mode == 'exp reit':
+        schedule = schedule_exp_STIRAP
+    elif mode == 'exp opp reit':
+        schedule = schedule_opp_exp_STIRAP
+    elif mode == 'exp fixed':
+        schedule = schedule_exp_fixed
+    elif mode == 'opp reit':
+        schedule = schedule_opp_reit
+    else:
+        schedule = schedule_STIRAP
+    if mode != 'reit':
+        eq = SchrodingerEquation(hamiltonians=[laser, energy_shift])
+    else:
+        eq = SchrodingerEquation(hamiltonians=[laser])
+
+    def compute_rate():
+        # Construct the first order transition matrix
+
+        energies, states = eq.eig(k='all')
+        states = states.T
+        #print(energies)
+        #print(states)
+        rates = np.zeros(energies.shape[0] ** 2)
+        nh_rates = np.zeros(energies.shape[0] ** 2)
+        for op in dissipation.jump_operators:
+            rates = rates + (np.abs(states.conj().T @ op @ states) ** 2).flatten()
+            nh_rates = nh_rates + (states.conj().T @ op.conj().T @ op @ states).flatten()
+        # Select the relevant rates from 'good' to 'bad'
+        rates = np.reshape(rates.real, (graph.num_independent_sets, graph.num_independent_sets))
+        #plt.clf()
+        #plt.imshow(np.log(rates-rates.T))
+        #plt.colorbar()
+        #plt.show()
+        nh_rates = np.reshape(nh_rates.real, (graph.num_independent_sets, graph.num_independent_sets))
+        from matplotlib.cm import get_cmap
+        cmap = get_cmap('viridis')
+        minout = 0
+        colors=['red', 'blue']
+        if visualize:
+            for i in range(rates.shape[0]):
+                #for j in range(0, i):
+                for j in range(rates.shape[0]):
+                    if _ == 0 and i == 0:#rates.shape[0]-1:
+                        if rates[j, i]< minout:
+                            rates[j, i] = minout
+                        elif rates[i, j]<minout:
+                            rates[i, j] = minout
+                        plt.scatter(rates[j, i], rates[i, j], zorder=100, color=colors[_])#cmap(1-nh_rates[j,j]/np.max(nh_rates)))
+                    elif _ == 1 and i == rates.shape[0]-1:
+                        plt.scatter(rates[j, i], rates[i, j], zorder=100, color=colors[_])#cmap(1-nh_rates[j,j]/np.max(nh_rates)))  #
+                        #plt.scatter(nh_rates[j, j]-nh_rates[i, i], (rates[i, j]-rates[j, i])/(rates[i, j]+rates[j, i]), color=cmap(nh_rates[i, i]/np.max(nh_rates)))
+            plt.loglog()
+            plt.plot(np.linspace(minout, 1, 10), np.linspace(minout, 1, 10), color='k')
+            plt.xlabel('rate out')
+            plt.ylabel('rate in')
+
+            #plt.imshow(np.log(rates))
+            #plt.colorbar()
+            #plt.show()
+            #plt.clf()
+            counts = np.zeros(graph.n)
+            for l in range(graph.n):
+                for IS in graph.independent_sets:
+                    if graph.independent_sets[IS][2][l] == 1:
+                        counts[l] += 1
+            counts = 1-counts/graph.num_independent_sets
+            counts = counts - 1/2*counts**2
+            #print(counts)
+            #plt.hlines(np.sum(counts), 0, np.max(energies), colors='black', label='zeroth order leakage rate')
+            #plt.scatter(energies,np.diag(rates), label = r'$\sum_u|\langle j |c_u |j\rangle|^2$')
+            #plt.scatter(energies,np.diag(nh_rates), label =r'$\sum_u\langle j |c_u^\dagger c_u |j\rangle$')
+            #plt.scatter(range(nh_rates.shape[0]),(np.diag(nh_rates)-np.diag(rates)), label = r'$\frac{1}{n}\sum_u\left(\langle j |c_u^\dagger c_u |j\rangle-|\langle j |c_u |j\rangle|^2\right)$')
+            #plt.scatter(energies,(np.diag(nh_rates)-np.diag(rates)), label = r'$\sum_u\left(\langle j |c_u^\dagger c_u |j\rangle-|\langle j |c_u |j\rangle|^2\right)$')
+            #plt.scatter(energies,np.diag(rates)/(np.diag(nh_rates)))
+            #print(np.diag(nh_rates)[0]-np.diag(rates)[0], np.diag(nh_rates)[-1]-np.diag(rates)[-1], (np.diag(nh_rates)[-1]-np.diag(rates)[-1])/(np.diag(nh_rates)[0]-np.diag(rates)[0]))
+            #plt.xlabel(r'$E_j$')
+            #plt.legend()
+            #plt.show()
+        rates = rates[:, 0].flatten()
+        return rates, energies
+    schedule(time, 1)
+    rates, energies = compute_rate()
+    return rates, energies
+
+
+graph = line_graph(13)
+_ = 0
+rate_vs_eigenenergy(.7, graph=graph, mode='exp reit', visualize=True)
+_ = 1
+rate_vs_eigenenergy(.7, graph=graph, mode='exp opp reit', visualize=True)
+plt.show()
+
+graph = line_graph(13)
+_ = 0
+rate_vs_eigenenergy(.7, graph=graph, mode='exp reit', visualize=True)
+_ = 1
+rate_vs_eigenenergy(.7, graph=graph, mode='exp opp reit', visualize=True)
+plt.show()
+
 
 def compute_rate_from_spectrum(energies, bins=20):
     assert bins % 2 == 0

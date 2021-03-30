@@ -232,11 +232,28 @@ def fidelity_vs_alpha():
         omega_r = np.cos(x) * omega
         offset = omega_r ** 2 - omega_g ** 2
         # Now, choose the opposite of the STIRAP sequence
+        energy_shift.energies = (offset / 1000,)
+        laser.omega_g = np.sqrt(amplitude) * omega
+        laser.omega_r = np.sqrt(amplitude) * omega
+        dissipation.omega_g = np.sqrt(amplitude) * omega
+        dissipation.omega_r = np.sqrt(amplitude) * omega
+
+    def schedule_exp_fixed_flip(t, tf=T):
+        """if np.abs(t/T-.5)<.055:
+            print(eq.hamiltonian)"""
+        x = t / tf * np.pi / 2
+        amplitude = np.abs(np.cos(x) * np.sin(x))
+        # Now we need to figure out what the driver strengths should be for STIRAP
+        omega_g = np.sin(x) * omega
+        omega_r = np.cos(x) * omega
+        offset = omega_r ** 2 - omega_g ** 2
+        # Now, choose the opposite of the STIRAP sequence
         energy_shift.energies = (offset / delta_e,)
         laser.omega_g = np.sqrt(amplitude) * omega
         laser.omega_r = np.sqrt(amplitude) * omega
         dissipation.omega_g = np.sqrt(amplitude) * omega
         dissipation.omega_r = np.sqrt(amplitude) * omega
+
 
     def schedule_reit_new(t, tf=T):
         x = t / tf * np.pi / 2
@@ -262,33 +279,45 @@ def fidelity_vs_alpha():
     #                       dtype=np.complex128), IS_subspace=True, graph=graph, is_ket=False)
     # nonoise_state = State(np.array([[0], [0], [1]], dtype=np.complex128), IS_subspace=True, graph=graph, is_ket=True)
     # print(np.abs(nonoise_eq.run_ode_solver(nonoise_state, 0, T, num=500, schedule=schedule_exp_fixed, method='odeint')[0][-1])**2)
-    fidelities = []
-    for i in range(len(gammas)):
-        dissipation.rates = (gammas[i] / delta_e ** 2,)
-        states = eq.run_ode_solver(state, 0, T, num=50, schedule=schedule_exp_fixed, make_valid_state=False,
-                                   method='odeint')
-        times = states[1]['t']
-        states = states[0]
-        """print(gammas[i], i)
-        for j in range(len(times)):
-            for op in dissipation.jump_operators:
-                print(np.trace(op.conj().T@op@states[j])-np.abs(np.trace(op@states[j]))**2)"""
-        final_state = states[-1]
-        print(final_state)
-        print(final_state[0, 0], np.trace(final_state))
-        fidelities.append(1-final_state[-1, -1])
-    fidelities = np.array(fidelities)
-    plt.loglog()
-    plt.ylabel(r'$1-$ fidelity')
-    plt.xlabel(r'$\frac{\gamma \Omega^2 T}{\delta_e^2}$')
-    plt.plot(gammas * omega ** 2 * T / delta_e ** 2, 1 - fidelities, label='data')
-    res = np.polyfit(np.log(gammas * omega ** 2 * T / delta_e ** 2), np.log(1 - fidelities), 1)
-    print(res)
-    plt.plot(gammas * omega ** 2 * T / delta_e ** 2,
-             1 - np.e ** (-gammas * omega ** 2 * T / delta_e ** 2 * 0.033875094811638556),
-             label='bound')
-    plt.plot(gammas * omega ** 2 * T / delta_e ** 2, 0.033875094811638556 * gammas * omega ** 2 * T / delta_e ** 2,
-             label='linear')
+    for a in [-1, 1]:
+        delta_e = a*1000
+        laser.energies = (1/delta_e,)
+        fidelities = []
+        for i in range(len(gammas)):
+            dissipation.rates = (gammas[i] / delta_e ** 2,)
+            states = eq.run_ode_solver(state, 0, T, num=50, schedule=schedule_exp_fixed, make_valid_state=False,
+                                       method='odeint')
+            times = states[1]['t']
+            states = states[0]
+            """print(gammas[i], i)
+            for j in range(len(times)):
+                for op in dissipation.jump_operators:
+                    print(np.trace(op.conj().T@op@states[j])-np.abs(np.trace(op@states[j]))**2)"""
+            final_state = states[-1]
+            print(final_state)
+            print(final_state[0, 0], np.trace(final_state))
+            fidelities.append(1-final_state[-1, -1])
+        fidelities = np.array(fidelities)
+        plt.loglog()
+        plt.ylabel(r'$1-$ fidelity')
+        plt.xlabel(r'$\frac{\gamma \Omega^2 T}{\delta_e^2}$')
+        plt.plot(gammas * omega ** 2 * T / delta_e ** 2, 1 - fidelities, label='data')
+        res = np.polyfit(np.log(gammas * omega ** 2 * T / delta_e ** 2), np.log(1 - fidelities), 1)
+        print(res)
+        #plt.plot(gammas * omega ** 2 * T / delta_e ** 2,
+        #         1 - np.e ** (-gammas * omega ** 2 * T / delta_e ** 2 * 0.033875094811638556),
+        #         label='bound')
+        if a == -1:
+
+            plt.plot(gammas * omega ** 2 * T / delta_e ** 2,
+                     0.28187096704733217 * gammas * omega ** 2 * T / delta_e ** 2,
+                     label='first order correction')
+        else:
+            plt.plot(gammas * omega ** 2 * T / delta_e ** 2,
+                     0.033875094811638556 * gammas * omega ** 2 * T / delta_e ** 2,
+                     label='first order correction')
+
+
     plt.legend()
     plt.tight_layout()
     plt.show()
@@ -300,8 +329,8 @@ energies = [1.2679491924311228,1.5505102572168215,1.9999999999999991,2.369723378
             7.928786237774574,8.325228630906286]
 plt.scatter(range(3, 22), energies)
 plt.show()
-#fidelity_vs_alpha()
-for i in range(22, 25):
+fidelity_vs_alpha()
+for i in range(0, 0):
 
     graph = ring_graph(i)
     laser = EffectiveOperatorHamiltonian(1, 1, energies=(1,), graph=graph, IS_subspace=True)
