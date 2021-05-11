@@ -65,7 +65,7 @@ class HamiltonianDriver(object):
                 # Over-allocate space
                 rows = np.zeros(graph.n * num_IS, dtype=int)
                 columns = np.zeros(graph.n * num_IS, dtype=int)
-                entries = np.zeros(graph.n * num_IS, dtype=float)
+                entries = np.zeros(graph.n * num_IS, dtype=int)
                 num_terms = 0
                 for i in range(num_IS):
                     for j in range(graph.n):
@@ -100,10 +100,6 @@ class HamiltonianDriver(object):
                 # Now, construct the Hamiltonian
                 self._csc_hamiltonian = sparse.csc_matrix((entries, (rows, columns)), shape=(num_IS, num_IS))
                 self._hamiltonian = self._csc_hamiltonian
-                # try:
-                #    self._hamiltonian = self._csc_hamiltonian.toarray()
-                # except MemoryError:
-                #    self._hamiltonian = self._csc_hamiltonian
             else:
                 raise Exception('self.pauli must be X, Y, or Z')
         else:
@@ -998,7 +994,7 @@ class HamiltonianEnergyShift(object):
             else:
                 # We have already solved for this information
                 IS, num_IS = graph.independent_sets, graph.num_independent_sets
-            self._diagonal_hamiltonian = np.zeros((num_IS, 1), dtype=np.complex128)
+            self._diagonal_hamiltonian = np.zeros((num_IS, 1), dtype=float)
             for k in range(num_IS):
                 self._diagonal_hamiltonian[k, 0] = np.sum(IS[k,...] == self.index)
             self._hamiltonian = sparse.csc_matrix((self._diagonal_hamiltonian.T[0], (np.arange(num_IS), np.arange(num_IS))),

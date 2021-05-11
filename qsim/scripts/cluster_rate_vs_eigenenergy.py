@@ -319,35 +319,32 @@ def low_energy_leakage(graph, t):
         dissipation.omega_g = np.sqrt(amplitude)
         dissipation.omega_r = np.sqrt(amplitude)
 
-    #laser = EffectiveOperatorHamiltonian(graph=graph, IS_subspace=True,
-    #                                     energies=(1,),
-    #                                     omega_g=np.cos(np.pi / 4),
-    #                                     omega_r=np.sin(np.pi / 4))
+    laser = EffectiveOperatorHamiltonian(graph=graph, IS_subspace=True,
+                                         energies=(1,),
+                                         omega_g=np.cos(np.pi / 4),
+                                         omega_r=np.sin(np.pi / 4))
     #laser = pickle.load(open('laser.pickle', 'rb'))
     #dill.dump(laser, open('laser.pickle', 'wb'))
-    laser = dill.load(open('laser.pickle', 'rb'))
-    #print('done bitches')
+    #laser = dill.load(open('laser.pickle', 'rb'))
     energy_shift = hamiltonian.HamiltonianEnergyShift(IS_subspace=True, graph=graph,
                                                       energies=(2.5,), index=0)
-    #dissipation = EffectiveOperatorDissipation(graph=graph, omega_r=1, omega_g=1,
-    #                                           rates=(1,))
+    dissipation = EffectiveOperatorDissipation(graph=graph, omega_r=1, omega_g=1,
+                                               rates=(1,))
     #dill.dump(dissipation, open('dissipation.pickle', 'wb'))
-    dissipation = dill.load(open('dissipation.pickle', 'rb'))
-    eq = LindbladMasterEquation(hamiltonians=[laser, energy_shift], jump_operators=[dissipation])
+    #dissipation = dill.load(open('dissipation.pickle', 'rb'))
 
     def k_alpha_rate():
         # Construct the first order transition matrix
-        which = 'S'
-        energies, states = SchrodingerEquation(hamiltonians=eq.hamiltonians).eig(k=graph.num_independent_sets,
-                                                                                 which=which)
-        states = states.T
+        eigvals, eigvecs = np.linalg.eigh((laser.hamiltonian + energy_shift.hamiltonian).todense())
+        eigvecs = eigvecs.T
         rates = np.zeros(graph.num_independent_sets)
-        for op in eq.jump_operators[0].jump_operators:
-            jump_rates = np.zeros(energies.shape[0] ** 2)
-            jump_rates = jump_rates + (np.abs(states.conj().T @ op @ states) ** 2).flatten()
-            jump_rates = np.reshape(jump_rates, (energies.shape[0], energies.shape[0]))
+        shape = eigvals.shape[0]
+        for op in dissipation.jump_operators:
+            jump_rates = np.zeros(shape ** 2)
+            jump_rates = jump_rates + (np.abs(eigvecs.conj().T @ op @ eigvecs) ** 2).flatten()
+            jump_rates = jump_rates.reshape(shape, shape)
             rates = rates + jump_rates[:, 0].flatten().real
-        return energies, rates
+        return eigvals, rates
 
     schedule_exp_fixed_true_bright(t, 1)
     energy, rate = k_alpha_rate()
@@ -372,7 +369,8 @@ from qsim.graph_algorithms.graph import unit_disk_grid_graph, unit_disk_graph
 #energy, rate = low_energy_leakage(graph, .7)
 
 #graph = pickle.load(open('graph.pickle', 'rb'))
-#low_energy_leakage(graph, .5)
+#print(graph.num_independent_sets)
+#low_energy_leakage(line_graph(7), .5)
 #print(graph.num_independent_sets, graph.n)
 """arr = np.reshape(np.random.binomial(1, [.8]*36), (6, 6))
 print(repr(arr), np.sum(arr))
@@ -385,7 +383,7 @@ if __name__ == "__main__":
     import sys
 
     index = int(sys.argv[1])
-    times = np.linspace(.1, .95, 1000)
+    times = np.linspace(.1, .95, 500)
     #pickle.dump(graph, open('graph.pickle', 'wb'))
     graph = pickle.load(open('graph.pickle', 'rb'))
     low_energy_leakage(graph, times[index])
