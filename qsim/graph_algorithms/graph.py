@@ -37,7 +37,7 @@ class Graph(object):
             self.generate_independent_sets()
 
         # Populate initialized attributes
-        self.neighbors = {i:[] for i in range(self.n)}
+        self.neighbors = {i: [] for i in range(self.n)}
         for i in range(self.n):
             for j in range(self.n):
                 if (i, j) in self.edges or (j, i) in self.edges:
@@ -52,89 +52,52 @@ class Graph(object):
         independent_sets, backup = tee(nx.algorithms.clique.enumerate_all_cliques(complement))
         self.num_independent_sets = sum(1 for _ in backup) + 1  # We add one to include the empty set
         # Generate a list of integers corresponding to the independent sets in binary
-        indices = np.zeros(self.num_independent_sets, dtype=int)
-        indices[-1] = 2 ** self.n - 1
+        indices = np.zeros((self.num_independent_sets, self.n), dtype=int)
+        # All ones
+        indices[-1, ...] = np.ones(self.n)
         k = self.num_independent_sets - 2
         self.mis_size = 0
-        IS = dict.fromkeys(np.arange(self.num_independent_sets))
         # All spins down should be at the end
-        IS[self.num_independent_sets - 1] = (2 ** self.n - 1, 0, np.ones(self.n, dtype=int))
-        degeneracy = 0
         for i in independent_sets:
-            indices[k] = 2 ** self.n - sum(2 ** j for j in i) - 1
-            IS[k] = (indices[k], len(i), tools.int_to_nary(indices[k], size=self.n))
+            nary = np.ones(self.n)
+            for node in i:
+                nary[node] = 0
+            indices[k, ...] = nary
             if len(i) > self.mis_size:
                 self.mis_size = len(i)
             k -= 1
+        self.degeneracy = len(np.argwhere(self.n-np.sum(indices, axis=1) == self.mis_size))
+        self.independent_sets = indices
+        return
 
-        for i in IS:
-            if IS[i][1] == IS[0][1]:
-                degeneracy += 1
-        self.degeneracy = degeneracy
-        binary_to_index = dict.fromkeys(indices)
-        for j in range(self.num_independent_sets):
-            binary_to_index[indices[j]] = j
-        self.binary_to_index = binary_to_index
-        self.independent_sets = IS
-        return IS, binary_to_index, self.num_independent_sets
-
-    def independent_sets_code(self, code):
-        assert not code is qubit
+    def independent_sets_qudit(self, code):
+        assert code is not qubit
         # You do NOT need to count the number in ground, this is just n-# excited
         # Count the number of elements in the ground space and map to their representation in ternary
         # Determine how large to make the array
-        num_IS = 0
-        for i in self.independent_sets:
-            # Count the number of ones
-            num_ground = self.n - self.independent_sets[i][1]
-            num_IS += (code.d - 1) ** num_ground
+        num_IS = np.sum((code.d-1)**np.sum(self.independent_sets, axis=1))
         # Now, we need to generate a way to map between the restricted indices and the original
         # indices
-        IS = dict.fromkeys(np.arange(num_IS))
-        indices = np.zeros(num_IS, dtype=int)
-        nary_reprs = np.zeros((num_IS, self.n))
-        IS_sizes = np.zeros(num_IS, dtype=int)
+        IS = np.zeros((num_IS, self.n))
+        IS[-1, ...] = np.ones(self.n)
         counter = 0
-        # TODO: deal with the all one's string
         for i in self.independent_sets:
             # Generate binary representation of IS
-            IS_index, IS_size, IS_binary = self.independent_sets[i]
             # Count the number of ones and generate all combinations of 1's and 2's
-            num_ground = self.n - IS_size
-            where_excited = np.where(IS_binary == 0)[0]
+            where_excited = np.where(i == 0)[0]
             # noinspection PyTypeChecker
-            states_generator = product(range(1, code.d), repeat=num_ground)
+            states_generator = product(range(1, code.d), repeat=np.sum(i))
             for j in states_generator:
                 ind = 0
                 bit_string = np.zeros(self.n)
                 # Construct the bit string itself
                 for k in range(self.n):
-                    if np.any(where_excited == k):
-                        pass
-                    else:
+                    if not np.any(where_excited == k):
                         bit_string[k] = j[ind]
                         ind += 1
-                nary_reprs[counter, :] = bit_string
-                IS_sizes[counter] = IS_size
-                indices[counter] = tools.nary_to_int(bit_string, base=code.d)
+                IS[counter, :] = bit_string
                 counter += 1
-        # Get the sorted order for the indices
-        order = np.argsort(indices)
-        # Finally, populate the dictionary
-        degeneracy = 0
-        for i in IS:
-            if IS_sizes[order[i]] == IS_sizes[0]:
-                degeneracy += 1
-            IS[i] = (indices[order[i]], IS_sizes[order[i]], nary_reprs[order[i]])
-        self.degeneracy = degeneracy
-        # Generate conversion dictionary
-        indices = indices[order]
-        nary_to_index = dict.fromkeys(indices)
-        counter = 0
-        for i in nary_to_index:
-            nary_to_index[i] = counter
-            counter += 1
-        return IS, nary_to_index, num_IS
+        return IS, num_IS
 
 
 class GraphMonteCarlo(object):
@@ -390,8 +353,8 @@ def grid_graph(n, m, periodic=False, return_mis=False, nn=False):
         else:
             for i in range(n):
                 for j in range(m):
-                    graph.add_edge((i, j), ((i + 1)%n, (j + 1)%m), weight=1)
-                    graph.add_edge(((i + 1)%n, j), (i, (j + 1)%m), weight=1)
+                    graph.add_edge((i, j), ((i + 1) % n, (j + 1) % m), weight=1)
+                    graph.add_edge(((i + 1) % n, j), (i, (j + 1) % m), weight=1)
     new_nodes = list(range(len(nodes)))
     mapping = dict(zip(nodes, new_nodes))
     nx.relabel_nodes(graph, mapping, copy=False)
@@ -401,7 +364,7 @@ def grid_graph(n, m, periodic=False, return_mis=False, nn=False):
         return Graph(graph)
 
 
-def unit_disk_graph(grid, radius=np.sqrt(2)+1e-5, visualize=False):
+def unit_disk_grid_graph(grid, radius=np.sqrt(2) + 1e-5, visualize=False):
     x = grid.shape[1]
     y = grid.shape[0]
 
@@ -435,7 +398,46 @@ def unit_disk_graph(grid, radius=np.sqrt(2)+1e-5, visualize=False):
 
     if visualize:
         pos = {nodes[i]: nodes_geometric[i] for i in range(len(nodes))}
-        nx.draw(g, pos=pos)
+        nx.draw_networkx_nodes(g, pos=pos, node_color='lightblue')  # edgecolors='black',
+        # nx.draw_networkx_edges(g, pos=pos, edge_color='black')
+        plt.axis('off')
         plt.show()
     return Graph(g)
+
+
+def unit_disk_graph(points, radius=1 + 1e-5, periodic=False, visualize=False):
+    nodes = np.arange(points.shape[0])
+    adjacency_matrix = np.zeros((points.shape[0], points.shape[0]))
+    for n1 in nodes:
+        for n2 in nodes:
+            if n2 > n1:
+                if np.sqrt((points[n1][0] - points[n2][0]) ** 2 + (points[n1][1] - points[n2][1]) ** 2) <= radius:
+                    adjacency_matrix[n1, n2] = 1
+                    adjacency_matrix[n2, n1] = 1
+    graph = nx.from_numpy_array(adjacency_matrix)
+    if visualize:
+        pos = {nodes[i]: points[i] for i in range(len(nodes))}
+        nx.draw(graph, pos=pos)
+        plt.show()
+    return Graph(graph)
+
+
+def branching_tree_from_edge(n_branches, visualize=True):
+    graph = nx.Graph()
+    graph.add_edge(0, 1)
+    last_layer = [0, 1]
+    count = 2
+    for i in range(len(n_branches)):
+        added = []
+        for k in range(len(last_layer)):
+            for j in range(n_branches[i]):
+                graph.add_edge(last_layer[k], count)
+                added.append(count)
+                count += 1
+        last_layer = added
+    if visualize:
+        nx.draw(graph, with_labels=True)
+        plt.show()
+    return Graph(graph)
+
 

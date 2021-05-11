@@ -142,7 +142,7 @@ class LindbladJumpOperator(object):
 
 
 class SpontaneousEmission(LindbladJumpOperator):
-    def __init__(self, transition: tuple = (0, 1), rates=None, code=qubit, IS_subspace=False,
+    def __init__(self, transition: tuple = (0, 1), rates=(1,), code=qubit, IS_subspace=False,
                  graph=None):
         # jump_operators and weights are numpy arrays
         self.code = code
@@ -155,15 +155,13 @@ class SpontaneousEmission(LindbladJumpOperator):
             self._jump_operators = [jump_operator]
         if code is None:
             code = qubit
-        if rates is None:
-            rates = [1]
         self._evolution_operator = None
         if self.IS_subspace:
             # Generate sparse mixing Hamiltonian
             assert graph is not None
             assert isinstance(graph, Graph)
             if code is not qubit:
-                IS, nary_to_index, num_IS = graph.independent_sets_code(self.code)
+                IS, nary_to_index, num_IS = graph.independent_sets_qudit(self.code)
             else:
                 # We have already solved for this information
                 IS, nary_to_index, num_IS = graph.independent_sets, graph.binary_to_index, graph.num_independent_sets
@@ -331,7 +329,7 @@ class LindbladPauliOperator(LindbladJumpOperator):
             assert graph is not None
             assert isinstance(graph, Graph)
             if code is not qubit:
-                IS, nary_to_index, num_IS = graph.independent_sets_code(self.code)
+                IS, nary_to_index, num_IS = graph.independent_sets_qudit(self.code)
             else:
                 # We have already solved for this information
                 IS, nary_to_index, num_IS = graph.independent_sets, graph.binary_to_index, graph.num_independent_sets

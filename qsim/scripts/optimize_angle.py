@@ -132,7 +132,7 @@ class EffectiveOperatorDissipation(lindblad_operators.LindbladJumpOperator):
             assert graph is not None
             assert isinstance(graph, Graph)
             if code is not qubit:
-                IS, nary_to_index, num_IS = graph.independent_sets_code(self.code)
+                IS, nary_to_index, num_IS = graph.independent_sets_qudit(self.code)
             else:
                 # We have already solved for this information
                 IS, nary_to_index, num_IS = graph.independent_sets, graph.binary_to_index, graph.num_independent_sets
@@ -484,7 +484,7 @@ def dissipation_angle_comparison(graph: Graph, visualize=False):
             rates = []
             ad = SimulateAdiabatic(graph, noise_model='continuous', hamiltonian=[laser, energy_shift],
                                    noise=[dissipation], cost_hamiltonian=energy_shift)
-            all_states, all_indices = ad.eigenstate_ordering_vs_time(times, schedule=schedule)
+            all_states, all_indices = ad.groundstate_ordering_vs_time(times, schedule=schedule)
             for i in range(len(times)):
                 overlap = 0
                 ground_state = all_states[i, 0, :, np.newaxis]
@@ -772,7 +772,7 @@ def leakage_rate_plot(graph: Graph):
             rates = []
             ad = SimulateAdiabatic(graph, noise_model='continuous', hamiltonian=[laser, energy_shift],
                                    noise=[dissipation], cost_hamiltonian=energy_shift)
-            all_states, all_indices = ad.eigenstate_ordering_vs_time(times, schedule=schedule)
+            all_states, all_indices = ad.groundstate_ordering_vs_time(times, schedule=schedule)
             for i in range(len(times)):
                 overlap = 0
                 ground_state = all_states[i, 0, :, np.newaxis]
@@ -814,7 +814,7 @@ def leakage_rate_plot(graph: Graph):
 
     plt.show()
 
-leakage_rate_plot(line_graph(1))
+#leakage_rate_plot(line_graph(1))
 def STIRAP_vs_fixed(graph: Graph):
     max_omega_g = np.sqrt(80**2/(80**2+25**2))
     max_omega_r = np.sqrt(25**2/(80**2+25**2))
@@ -1026,7 +1026,7 @@ def STIRAP_vs_fixed(graph: Graph):
             rates = []
             ad = SimulateAdiabatic(graph, noise_model='continuous', hamiltonian=[laser, energy_shift],
                                    noise=[dissipation], cost_hamiltonian=energy_shift)
-            all_states, all_indices = ad.eigenstate_ordering_vs_time(times, schedule=schedule)
+            all_states, all_indices = ad.groundstate_ordering_vs_time(times, schedule=schedule)
             for i in range(len(times)):
                 overlap = 0
                 ground_state = all_states[i, 0, :, np.newaxis]
@@ -1243,7 +1243,7 @@ def low_spectrum(graph: Graph):
     for schedule in [schedule_hybrid]:
         times = np.linspace(.001, .999, 100)
         ad = SimulateAdiabatic(graph, hamiltonian=[laser, energy_shift], noise=[dissipation], cost_hamiltonian=energy_shift)
-        all_states, all_indices = ad.eigenstate_ordering_vs_time(times, schedule=schedule)
+        all_states, all_indices = ad.groundstate_ordering_vs_time(times, schedule=schedule)
         res = ad.spectrum_vs_time(1, schedule, k=5, num=100)
         for k in range(res.shape[-1]):
             if k == 0:
@@ -1474,7 +1474,7 @@ def leakage_rate_degenerate(graph: Graph):
         if not isinstance(graph, Graph):
             ad = SimulateAdiabatic(graph, hamiltonian=[laser, energy_shift], noise=[dissipation],
                                    cost_hamiltonian=energy_shift)
-            all_states, all_indices = ad.eigenstate_ordering_vs_time(times, schedule=schedule)
+            all_states, all_indices = ad.groundstate_ordering_vs_time(times, schedule=schedule)
             all_rates = []
             for i in range(len(times)):
                 states = all_states[i]
@@ -1492,7 +1492,7 @@ def leakage_rate_degenerate(graph: Graph):
     return np.sum(all_rates)/len(times)
 
 
-from qsim.graph_algorithms.graph import unit_disk_graph, ring_graph
+from qsim.graph_algorithms.graph import unit_disk_grid_graph, ring_graph
 
 """
 Works: 
@@ -1503,12 +1503,12 @@ Works:
 
 #arr = np.reshape(np.random.binomial(1, [.5]*9), (3, 3))
 #print(arr)
-#low_spectrum(unit_disk_graph(arr))
+#low_spectrum(unit_disk_grid_graph(arr))
 
 """degeneracy = 2
 while degeneracy != 1:
     arr = np.reshape(np.random.binomial(1, [.8]*30), (6, 5))
-    graph = unit_disk_graph(arr)
+    graph = unit_disk_grid_graph(arr)
     degeneracy = graph.degeneracy
 print(repr(arr), np.sum(arr))"""
 """arr = np.array([[1, 1, 0, 0, 1],
@@ -1519,31 +1519,38 @@ print(repr(arr), np.sum(arr))"""
  [0, 0, 1, 1, 1]])"""
 arr = np.reshape(np.random.binomial(1, [.8]*25), (5, 5))
 print(len(arr))
-leakage_rate_plot(unit_disk_graph(arr))
+from matplotlib import rc
+rc('text', usetex=True)
+rc('font', **{'family': 'serif'})
+#leakage_rate_plot(unit_disk_grid_graph(arr))
 data = np.array([0.1724948655910386, 0.3034094275495633, 0.4409289424024603, 0.5064584681298279, 0.5801610644825725])
 data_STIRAP = np.array([0.12888770689657505, 0.2420344464508475, 0.3624534403491076, 0.4202028578783863, 0.4849868979133825])
 # Last part of ramp
 data_STIRAP = np.array([0.0034982512792422816, 0.006810576042416697, 0.010375622892122944, 0.01405023978879786])
 data = np.array([0.14903346566668588, 0.22347824867186522, 0.2980234122539539, 0.3726195422204543])
 ns = np.array([9, 15, 21, 27])
-plt.scatter(ns, data_STIRAP, color='limegreen', label='STIRAP jump operators', zorder=100)
-plt.scatter(ns, data, color='navy', label=r'fixed jump operator $\propto |g\rangle (\langle g| +\langle r|)$', zorder=100)
+plt.scatter(ns, data_STIRAP, color='midnightblue', zorder=100)
+plt.scatter(ns, data, color='steelblue', zorder=100)
 #plt.scatter([9, 15, 21, 27], data-data_STIRAP)
-plt.xlabel(r'system size')
+plt.xlabel(r'System Size ($|V|$)')
 plt.xticks(ns)
 plt.legend()
-plt.ylabel(r'leakage probability in last quarter of ramp')
+plt.ylabel(r'Dimensionless leakage rate, last quarter of ramp')
 m, b = np.polyfit(ns, data, deg=1)
-plt.plot(ns, m*ns+b, color='black')
+print(m)
+plt.plot(ns, m*ns+b, color='lightsteelblue', label=r'Dark protocol, leakage$=1\times 10^{-4}|V|$')
 m, b = np.polyfit(ns, data_STIRAP, deg=1)
-plt.plot(ns, m*ns+b, color='black')
+print(m)
+plt.plot(ns, m*ns+b, color='royalblue', label=r'STIRAP, leakage$=1\times 10^{-2}|V|$')
+plt.legend(loc='lower right')
+plt.hlines(0, 0, 30, linestyles=':', color='black')
 plt.show()
-
-#leakage_rate_plot(unit_disk_graph(arr))
+plt.ylim(-.1, np.max(data))
+#leakage_rate_plot(unit_disk_grid_graph(arr))
 rates = []
 for i in [(3, 3), (3, 5), (3, 7), (3, 9)]:
     arr = np.ones(i)
-    rates.append(leakage_rate_degenerate(unit_disk_graph(arr)))
+    rates.append(leakage_rate_degenerate(unit_disk_grid_graph(arr)))
     print(rates)
 #[0.1724948655910386, 0.08298716167325303] [(3, 3), (3, 4), (4, 4), (4, 5), (5, 5)]
 """rates = []
@@ -1552,7 +1559,7 @@ ns = []
 while True:
     try:
         arr = np.reshape(np.random.binomial(1, [.8]*30), (6, 5))
-        graph = unit_disk_graph(arr)
+        graph = unit_disk_grid_graph(arr)
         degeneracy = graph.degeneracy
         print(degeneracy, graph.n)
         rate = leakage_rate_degenerate(graph)/graph.n
@@ -1563,9 +1570,9 @@ while True:
     except Exception as e:
         print(e)"""
 
-#graph = unit_disk_graph(arr, visualize=False)
+#graph = unit_disk_grid_graph(arr, visualize=False)
 #graph = Graph(nx.star_graph(5))
-graph = unit_disk_graph(np.ones((2,1)), visualize=False)
+graph = unit_disk_grid_graph(np.ones((2,1)), visualize=False)
 """try:
     optimal_rates = np.nanargmin(rates, axis=0)
     worst_rates = np.nanargmax(rates, axis=0)

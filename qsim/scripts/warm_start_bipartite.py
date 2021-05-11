@@ -198,6 +198,8 @@ def generate_inital_state_cf(graph, diff=2, verbose=False):
     return State(state[:, np.newaxis]/np.linalg.norm(state), is_ket=True, graph=graph)
 
 
+
+
 from qsim.graph_algorithms.graph import ring_graph, line_graph
 
 """deg = 0
@@ -210,28 +212,54 @@ while deg!=2:
 #graph = small_bipartite_graph()#(3, 1/3, visualize=False)
 #state = generate_initial_state_hd(graph, hd=2) # np.load('d3_SDP_output.npy')#
 graph = medium_bipartite_graph()#generate_regular_graph(3, 16)
+
+graph = ring_graph(8)
+state = np.zeros((2**8, 1), dtype=np.complex128)
+state = State(state, IS_subspace=False)
+i = tools.nary_to_int(np.array([0,1,0,1,0,1,0,0]))
+state[i] = 1
+print(i)
 """where_optimal = degeneracy(cost)
 state[where_optimal] = 10
 state = state/np.linalg.norm(state)"""
-state = generate_inital_state_cf(graph, diff=8, verbose=True)
+state = generate_inital_state_cf(graph, diff=2, verbose=True)
+print(np.argwhere(state!=0))
 #state = generate_initial_state_legal_gw(graph)
 cost = hamiltonian.HamiltonianMaxCut(graph, cost_function=True)
 
 #state = State(state[:, np.newaxis], is_ket=True, graph=graph)
 driver = hamiltonian.HamiltonianDriver()
 qaoa = qaoa.SimulateQAOA(graph=graph, hamiltonian=[], cost_hamiltonian=cost)
-print('oo',  cost.optimum_overlap(state))
+#print('oo',  cost.optimum_overlap(state))
 print('cf', cost.cost_function(state))
 print('maxcut', np.max(cost.hamiltonian))
-for p in range(5, 6):
+for p in range(2, 10):
     max_result = 0
     print(p)
-    hamiltonian = [cost, driver] * p
+    hamiltonian = [driver]+[cost, driver] * p
     qaoa.hamiltonian = hamiltonian
-    result = qaoa.find_parameters_basinhopping(n=50, verbose=False, initial_state=state)
+    """num = 20
+    gammas = np.linspace(0, np.pi/2, num)
+    betas = np.linspace(0, np.pi, num)
+    results = np.zeros((num,num))
+    for g in range(len(gammas)):
+        print(g)
+        for b in range(len(betas)):
+            res = qaoa.run([1,.23,.17, 2.13, gammas[g], betas[b], 2.01, 1.53, 1.2, .92])
+            results[g, b] = res
+    results = np.fft.fft2(results)
+    results[0, 0] = 0
+
+    plt.plot(results[:, 2])
+    plt.show()
+    plt.imshow(np.log(np.abs(results)**2))
+    plt.colorbar()
+    plt.show()"""
+
+    result = qaoa.find_parameters_basinhopping(n=20, verbose=False, initial_state=state)
     if result['f_val'] > max_result:
         max_result = result['f_val']
         print('better', max_result)
     else:
         pass
-        #print('not better', result['f_val'])
+        #print('not better', result['f_val']

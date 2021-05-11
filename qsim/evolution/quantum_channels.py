@@ -250,10 +250,10 @@ class AmplitudeDampingChannel(QuantumChannel):
         # Initially generate all indices which should correspond to terms that look like \sqrt{p} and \sqrt{1-p}
         if self.IS_subspace:
             if self.code is not qubit:
-                IS, nary_to_index, num_IS = graph.independent_sets_code(self.code)
+                IS, num_IS = graph.independent_sets_qudit(self.code)
             else:
                 # We have already solved for this information
-                IS, nary_to_index, num_IS = graph.independent_sets, graph.binary_to_index, graph.num_independent_sets
+                IS, num_IS = graph.independent_sets, graph.num_independent_sets
 
             self._povm_coherence = []
             self._povm_population_decay = []
@@ -272,10 +272,10 @@ class AmplitudeDampingChannel(QuantumChannel):
                 columns_population_decay = np.zeros(num_IS, dtype=int)
                 rows_population_stable = np.zeros(num_IS, dtype=int)
                 columns_population_stable = np.zeros(num_IS, dtype=int)
-                for i in IS:
+                for i in range(num_IS):
                     num_terms += 1
                     # For each spin
-                    if IS[i][2][j] == self.transition[0]:
+                    if IS[i,j] == self.transition[0]:
                         # Higher energy state
                         # Assign population terms
                         columns_population_decay[num_terms_population_decay] = i
@@ -284,12 +284,12 @@ class AmplitudeDampingChannel(QuantumChannel):
 
                         # Flip spin at this location
                         # Get binary representation
-                        temp = IS[i][2].copy()
+                        temp = IS[i,...].copy()
                         temp[j] = self.transition[1]
-                        flipped_temp = tools.nary_to_int(temp, base=code.d)
-                        if flipped_temp in nary_to_index:
+                        where_matched = (np.argwhere(np.sum(np.abs(IS - temp), axis=1) == 0).flatten())
+                        if len(where_matched) > 0:
                             # This is a valid spin flip
-                            rows_coherence[num_terms_coherence] = nary_to_index[flipped_temp]
+                            rows_coherence[num_terms_coherence] = where_matched[0]
                             columns_coherence[num_terms_coherence] = i
                             num_terms_coherence += 1
                     else:

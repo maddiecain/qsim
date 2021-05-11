@@ -36,7 +36,7 @@ class EffectiveOperatorSpontaneousEmission(object):
             assert graph is not None
             assert isinstance(graph, Graph)
             if code is not qubit:
-                IS, nary_to_index, num_IS = graph.independent_sets_code(self.code)
+                IS, nary_to_index, num_IS = graph.independent_sets_qudit(self.code)
             else:
                 # We have already solved for this information
                 IS, nary_to_index, num_IS = graph.independent_sets, graph.binary_to_index, graph.num_independent_sets

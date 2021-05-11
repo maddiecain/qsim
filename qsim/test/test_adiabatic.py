@@ -58,7 +58,7 @@ class TestAdiabatic(unittest.TestCase):
                                                         simulation.linear_schedule(t, tf, coefficients=[10, 10]),
                                                         plot=False, verbose=True, method='RK45')
         # Now test in the IS subspace
-        self.assertTrue(np.allclose(res_trotterize, res_RK45, atol=1e-2))
+        self.assertTrue(np.allclose(res_trotterize[0]['trotterize']['optimum_overlap'], res_RK45[0]['RK45']['optimum_overlap'], atol=1e-2))
         simulation = adiabatic_simulation(sample_graph(), IS_subspace=True)
         res_trotterize = simulation.performance_vs_total_time(np.arange(1, 4, 1) * 10, metric='optimum_overlap',
                                                               schedule=lambda t, tf:
@@ -68,7 +68,7 @@ class TestAdiabatic(unittest.TestCase):
                                                         schedule=lambda t, tf:
                                                         simulation.linear_schedule(t, tf, coefficients=[10, 10]),
                                                         plot=False, verbose=True, method='RK45')
-        self.assertTrue(np.allclose(res_trotterize, res_RK45, atol=1e-2))
+        self.assertTrue(np.allclose(res_trotterize[0]['trotterize']['optimum_overlap'], res_RK45[0]['RK45']['optimum_overlap'], atol=1e-2))
 
     def test_trotterize_noisy(self):
         # Noisy simulations
@@ -84,7 +84,7 @@ class TestAdiabatic(unittest.TestCase):
                                                           simulation.linear_schedule(t, tf, coefficients=[10, 10]),
                                                           plot=False, verbose=True, method='odeint')
 
-        self.assertTrue(np.allclose(res_trotterize, res_odeint, atol=1e-2))
+        self.assertTrue(np.allclose(res_trotterize[0]['trotterize']['optimum_overlap'], res_odeint[0]['odeint']['optimum_overlap'], atol=1e-2))
 
 
 if __name__ == '__main__':

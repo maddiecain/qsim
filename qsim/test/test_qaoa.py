@@ -111,7 +111,8 @@ class TestSimulateQAOA(unittest.TestCase):
         # Test on a known graph
         for p in [1, 2, 3]:
             sim_ring.hamiltonian = ring_hamiltonians * p
-            results = sim_ring.find_parameters_minimize(verbose=False, initial_state=psi0)
+            results = sim_ring.find_parameters_basinhopping(verbose=False, initial_state=psi0)
+            print('p = '+str(p)+', approximation ratio = '+str(results['approximation_ratio']))
             if p == 3:
                 self.assertTrue(np.isclose(results['approximation_ratio'], 1))
             else:
@@ -119,7 +120,8 @@ class TestSimulateQAOA(unittest.TestCase):
         # Repeat test, but this time using the gradient
         for p in [1, 2, 3]:
             sim_ring.hamiltonian = ring_hamiltonians * p
-            results = sim_ring.find_parameters_minimize(verbose=False, analytic_gradient=True, initial_state=psi0)
+            results = sim_ring.find_parameters_basinhopping(verbose=False, analytic_gradient=True, initial_state=psi0)
+            print('p = '+str(p)+', approximation ratio = '+str(results['approximation_ratio']))
             if p == 3:
                 self.assertTrue(np.isclose(results['approximation_ratio'], 1))
             else:
@@ -130,19 +132,15 @@ class TestSimulateQAOA(unittest.TestCase):
         sim_noisy.noise = noises * 6
         print('Noiseless:')
 
-        results = sim_ket.find_parameters_minimize(verbose=False, analytic_gradient=True, initial_state=psi0)
-        print(results)
+        results = sim_ket.find_parameters_basinhopping(verbose=False, analytic_gradient=True, initial_state=psi0)
+        print('Approximation ratio = ', results['approximation_ratio'])
         self.assertTrue(np.isclose(results['approximation_ratio'], 0.9825745815865963))
-        self.assertTrue(
-            np.allclose(results['params'], np.array([0.40852239, 2.07747771, 0.85753934, 0.34297861, 1.04480957,
-                                                     0.16922441])))
 
         print('Noisy:')
-        results = sim_noisy.find_parameters_minimize(verbose=False, analytic_gradient=True, initial_state=rho0)
-        self.assertTrue(np.isclose(results['approximation_ratio'], 0.9786598500584663))
-        self.assertTrue(
-            np.allclose(results['params'], np.array([0.40657247, 2.07746402, 0.85469787, 0.34366995, 1.04087398,
-                                                     0.17029388])))
+        results = sim_noisy.find_parameters_basinhopping(verbose=False, analytic_gradient=True, initial_state=rho0)
+        print('Approximation ratio = ', results['approximation_ratio'])
+        self.assertTrue(np.isclose(results['approximation_ratio'], 0.9786636891779905))
+
 
     def test_fix_param_gauge(self):
         """

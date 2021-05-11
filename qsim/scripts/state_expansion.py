@@ -125,7 +125,7 @@ class EffectiveOperatorDissipation(lindblad_operators.LindbladJumpOperator):
             assert graph is not None
             assert isinstance(graph, Graph)
             if code is not qubit:
-                IS, nary_to_index, num_IS = graph.independent_sets_code(self.code)
+                IS, nary_to_index, num_IS = graph.independent_sets_qudit(self.code)
             else:
                 # We have already solved for this information
                 IS, nary_to_index, num_IS = graph.independent_sets, graph.binary_to_index, graph.num_independent_sets
@@ -964,9 +964,9 @@ num = 50
 n = 9
 times = np.linspace(0.01, .99, num)
 delta_rs = np.linspace(-1, 5, 5*num)
-from qsim.graph_algorithms.graph import unit_disk_graph
+from qsim.graph_algorithms.graph import unit_disk_grid_graph
 arr = np.array([[1, 1, 1, 1], [1, 1, 1, 0], [1, 1, 1, 1], [0, 1, 1, 0]])
-graph = unit_disk_graph(arr)
+graph = unit_disk_grid_graph(arr)
 rates = dissipation_over_time(times, delta_rs, graph=graph, mode='hybrid', which='S')
 plt.imshow(np.log10(rates), interpolation=None, extent=[0, 1, -1, 5], origin='lower', aspect='auto', vmin=-9, vmax=0)
 plt.colorbar()
