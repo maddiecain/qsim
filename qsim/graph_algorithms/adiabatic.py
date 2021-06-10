@@ -34,14 +34,14 @@ class SimulateAdiabatic(object):
         # Scale factor be 10 when time is one, should be one when time >= 10
         if method == 'trotterize':
             if self.noise_model == 'continuous' or self.noise_model is None:
-                return time * 1000
+                return int(time * 1000)
             elif self.noise_model == 'monte_carlo':
-                return time * int(max(30 / time, 50))
+                return int(time * int(max(30 / time, 50)))
         else:
             if self.noise_model == 'continuous' or self.noise_model is None:
-                return time * 10
+                return int(time * 10)
             elif self.noise_model == 'monte_carlo':
-                return time * 50
+                return int(time * 50)
 
     def rydberg_MIS_schedule(self, t, tf, coefficients=None, verbose=False):
         if coefficients is None:

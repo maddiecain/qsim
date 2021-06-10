@@ -5,7 +5,7 @@ import dill
 
 import scipy.sparse as sparse
 from scipy.linalg import expm
-from scipy.sparse.linalg import expm_multiply
+from scipy.sparse.linalg import expm_multiply, eigsh
 
 from qsim.codes import qubit
 from qsim.codes.quantum_state import State
@@ -234,7 +234,7 @@ def plot_schedule():
         omega_r = np.sqrt(amplitude / ratio)
         laser.omega_g = omega_g
         laser.omega_r = omega_r
-        offset = 3 * 2 * (1 / 2 - t / tf)
+        offset = -3 * 2 * (1 / 2 - t / tf)
         energy_shift.energies = (offset,)
 
     schedule = schedule_exp_fixed_true_bright
@@ -257,9 +257,8 @@ def plot_schedule():
     plt.show()
 
 
-def low_energy_leakage(graph, t):
-    import time
-    max_omega_r = 2
+def leakage(graph, t):
+    max_omega_r = 1
     max_omega_g = 1
     amplitude = np.sqrt(max_omega_r ** 2 + max_omega_g ** 2)
     max_omega_r /= amplitude
@@ -279,11 +278,12 @@ def low_energy_leakage(graph, t):
         ratio = max_omega_g / max_omega_r
         omega_g = np.sqrt(amplitude * ratio)
         omega_r = np.sqrt(amplitude / ratio)
+
         laser.omega_g = omega_g
         laser.omega_r = omega_r
         offset = 3 * 2 * (1 / 2 - t / tf)
         energy_shift.energies = (offset,)
-        dissipation.omega_g = omega_g
+        dissipation.omega_g = -omega_g
         dissipation.omega_r = omega_r
 
     def schedule_exp_fixed_true_dark(t, tf):
@@ -297,7 +297,7 @@ def low_energy_leakage(graph, t):
         ratio = max_omega_g / max_omega_r
         omega_g = np.sqrt(amplitude * ratio)
         omega_r = np.sqrt(amplitude / ratio)
-        offset = max_omega_g * max_omega_r * np.cos(x * np.pi) - (omega_r ** 2 - omega_g ** 2)
+        offset = 3 * 2 * (1 / 2 - t / tf)#max_omega_g * max_omega_r * np.cos(x * np.pi) - (omega_r ** 2 - omega_g ** 2)
         energy_shift.energies = (offset,)
 
         laser.omega_g = omega_g
@@ -320,10 +320,8 @@ def low_energy_leakage(graph, t):
         dissipation.omega_r = np.sqrt(amplitude)
 
     laser = EffectiveOperatorHamiltonian(graph=graph, IS_subspace=True,
-                                         energies=(1,),
-                                         omega_g=np.cos(np.pi / 4),
-                                         omega_r=np.sin(np.pi / 4))
-    #laser = pickle.load(open('laser.pickle', 'rb'))
+                                         energies=(1,), omega_g=1, omega_r=1)
+    #laser = dill.load(open('laser.pickle', 'rb'))
     #dill.dump(laser, open('laser.pickle', 'wb'))
     #laser = dill.load(open('laser.pickle', 'rb'))
     energy_shift = hamiltonian.HamiltonianEnergyShift(IS_subspace=True, graph=graph,
@@ -336,41 +334,155 @@ def low_energy_leakage(graph, t):
     def k_alpha_rate():
         # Construct the first order transition matrix
         eigvals, eigvecs = np.linalg.eigh((laser.hamiltonian + energy_shift.hamiltonian).todense())
-        eigvecs = eigvecs.T
+        eigvecs = np.array(eigvecs)
+        eigvals = np.array(eigvals)
         rates = np.zeros(graph.num_independent_sets)
         shape = eigvals.shape[0]
         for op in dissipation.jump_operators:
-            jump_rates = np.zeros(shape ** 2)
-            jump_rates = jump_rates + (np.abs(eigvecs.conj().T @ op @ eigvecs) ** 2).flatten()
-            jump_rates = jump_rates.reshape(shape, shape)
+            jump_rates = np.zeros((shape, shape))
+            jump_rates = jump_rates + (np.abs(eigvecs.T @ op @ eigvecs) ** 2)
             rates = rates + jump_rates[:, 0].flatten().real
         return eigvals, rates
 
-    schedule_exp_fixed_true_bright(t, 1)
+    schedule_exp_fixed_true_dark(t, 1)
     energy, rate = k_alpha_rate()
     print(repr(list(energy)))
     print()
-    print(repr(rate.tolist()[0]))
+    print(repr(rate.tolist()))
     return energy, rate
 
+def low_energy_leakage(graph, t):
+    max_omega_r = 1
+    max_omega_g = 1
+    amplitude = np.sqrt(max_omega_r ** 2 + max_omega_g ** 2)
+    max_omega_r /= amplitude
+    max_omega_g /= amplitude
+    k = 50
+    a = .95
+    b = 3.1
 
-# low_energy_leakage(line_graph(9), .5)
+    def schedule_exp_fixed_true_bright(t, tf):
+        x = t / tf
+        amplitude = max_omega_g * max_omega_r * (
+                -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (tf - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                            (1 + np.e ** (-k * (1 / 2 - (tf - a)))) ** b) + 1)
+        # Now we need to figure out what the driver strengths should be for STIRAP
 
-from qsim.graph_algorithms.graph import unit_disk_grid_graph, unit_disk_graph
+        ratio = max_omega_g / max_omega_r
+        omega_g = np.sqrt(amplitude * ratio)
+        omega_r = np.sqrt(amplitude / ratio)
 
-#n = 45
-#rho = 7
-#arr = np.random.uniform(0, np.sqrt(n / rho), size=2 * n)
-#arr = np.reshape(arr, (-1, 2))
-#graph = unit_disk_graph(arr, visualize=False)
-#print(graph.num_independent_sets, graph.mis_size, graph.degeneracy)
-#pickle.dump(graph, open('graph.pickle', 'wb'))
-#graph = pickle.load(open('graph.pickle', 'rb'))
-#energy, rate = low_energy_leakage(graph, .7)
+        laser.omega_g = omega_g
+        laser.omega_r = omega_r
+        offset = 3 * 2 * (1 / 2 - t / tf)
+        energy_shift.energies = (offset,)
+        dissipation.omega_g = -omega_g
+        dissipation.omega_r = omega_r
 
+    def schedule_exp_fixed_true_dark(t, tf):
+        x = t / tf
+        amplitude = max_omega_g * max_omega_r * (
+                -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (tf - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                            (1 + np.e ** (-k * (1 / 2 - (tf - a)))) ** b) + 1)
+
+        # Now, choose the opposite of the STIRAP sequence
+        ratio = max_omega_g / max_omega_r
+        omega_g = np.sqrt(amplitude * ratio)
+        omega_r = np.sqrt(amplitude / ratio)
+        offset = 2 * (1 / 2 - t / tf)#max_omega_g * max_omega_r * np.cos(x * np.pi) - (omega_r ** 2 - omega_g ** 2)
+        energy_shift.energies = (offset,)
+
+        laser.omega_g = omega_g
+        laser.omega_r = omega_r
+        dissipation.omega_g = omega_g
+        dissipation.omega_r = omega_r
+
+    def schedule_exp_fixed(t, tf=1):
+        x = t / tf * np.pi / 2
+        amplitude = np.abs(np.cos(x) * np.sin(x))
+        # Now we need to figure out what the driver strengths should be for STIRAP
+        omega_g = np.sin(x)
+        omega_r = np.cos(x)
+        offset = omega_r ** 2 - omega_g ** 2
+        # Now, choose the opposite of the STIRAP sequence
+        energy_shift.energies = (offset,)
+        laser.omega_g = np.sqrt(amplitude)
+        laser.omega_r = np.sqrt(amplitude)
+        dissipation.omega_g = np.sqrt(amplitude)
+        dissipation.omega_r = np.sqrt(amplitude)
+
+    laser = EffectiveOperatorHamiltonian(graph=graph, IS_subspace=True,
+                                         energies=(1,), omega_g=1, omega_r=1)
+    #laser = dill.load(open('laser.pickle', 'rb'))
+    #dill.dump(laser, open('laser.pickle', 'wb'))
+    #laser = dill.load(open('laser.pickle', 'rb'))
+    energy_shift = hamiltonian.HamiltonianEnergyShift(IS_subspace=True, graph=graph,
+                                                      energies=(2.5,), index=0)
+    dissipation = EffectiveOperatorDissipation(graph=graph, omega_r=1, omega_g=1,
+                                               rates=(1,))
+    #dill.dump(dissipation, open('dissipation.pickle', 'wb'))
+    #dissipation = dill.load(open('dissipation.pickle', 'rb'))
+
+    def k_alpha_rate():
+        # Construct the first order transition matrix
+        eigvals, eigvecs = eigsh(laser.hamiltonian + energy_shift.hamiltonian, k=100, which='SA')
+        return eigvals
+
+    schedule_exp_fixed_true_dark(t, 1)
+    energy = k_alpha_rate()
+    #print(repr(list(energy)))
+    #print()
+    return energy
+
+
+"""from qsim.graph_algorithms.graph import unit_disk_grid_graph, unit_disk_graph
+large = True
+while large:
+    n = 40
+    rho = 7
+    arr = np.random.uniform(0, np.sqrt(n / rho), size=2 * n)
+    arr = np.reshape(arr, (-1, 2))
+    graph = unit_disk_graph(arr, visualize=False)
+    print(graph.num_independent_sets, graph.mis_size, graph.degeneracy)
+    if graph.num_independent_sets < 15000 and graph.degeneracy == 1:
+        large=False"""
+#pickle.dump(graph, open('graph_nondegenerate.pickle', 'wb'))
+#import networkx as nx
+#nx.draw(graph.graph)
+#plt.show()
+#print('done bitches')
+#import time
+#t0 = time.time()
+from matplotlib import rc
+rc('text', usetex=True)
+rc('font', **{'family': 'serif'})
+times = np.linspace(.1, .95, 100)
+graph = pickle.load(open('graph_nondegenerate.pickle', 'rb'))
+#graph = line_graph(15)
+print(graph.num_independent_sets)
+num = 100
+energies = np.zeros((len(times),num))
+for index in range(len(times)):
+    print(index)
+    energy = low_energy_leakage(graph, times[index])
+    energies[index, ...] = energy
+energies = energies.T - energies[:,0].flatten()
+energies = energies.T
+for index in range(num):
+    if index == 0:
+        plt.plot(times, energies[..., index], color = 'red')
+    else:
+        plt.plot(times, energies[..., index], color='grey', linewidth=1)
+plt.xlabel(r'Time ($t/T$)')
+plt.ylabel(r'Eigenenergy ($E_j-E_0$)')
+plt.show()
+#energy, rate = low_energy_leakage(line_graph(2), .6)
+#print((time.time()-t0)/60)
 #graph = pickle.load(open('graph.pickle', 'rb'))
 #print(graph.num_independent_sets)
-#low_energy_leakage(line_graph(7), .5)
+#low_energy_leakage(graph, .5)
 #print(graph.num_independent_sets, graph.n)
 """arr = np.reshape(np.random.binomial(1, [.8]*36), (6, 6))
 print(repr(arr), np.sum(arr))
@@ -383,7 +495,7 @@ if __name__ == "__main__":
     import sys
 
     index = int(sys.argv[1])
-    times = np.linspace(.1, .95, 500)
+    times = np.linspace(.1, .95, 200)
     #pickle.dump(graph, open('graph.pickle', 'wb'))
-    graph = pickle.load(open('graph.pickle', 'rb'))
+    graph = pickle.load(open('graph_nondegenerate.pickle', 'rb'))
     low_energy_leakage(graph, times[index])

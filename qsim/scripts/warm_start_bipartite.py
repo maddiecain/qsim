@@ -42,8 +42,8 @@ def goemans_williamson(graph: nx.Graph) -> Tuple[np.ndarray, float, float]:
     bound = np.trace(laplacian @ psd_mat.value)
     print(bound)
     random_vector = np.random.randn(sdp_vectors.shape[1])
-    random_vector = random_vector/np.linalg.norm(random_vector)
-    #print(sdp_vectors)
+    random_vector = random_vector / np.linalg.norm(random_vector)
+    # print(sdp_vectors)
     print([vec @ random_vector for vec in sdp_vectors])
     colors = np.sign([vec @ random_vector for vec in sdp_vectors])
     score = colors @ laplacian @ colors.T
@@ -53,16 +53,16 @@ def goemans_williamson(graph: nx.Graph) -> Tuple[np.ndarray, float, float]:
 
 def generate_SDP_graph(d, epsilon, visualize=False, le=False):
     graph = nx.Graph()
-    graph.add_nodes_from(np.arange(2**d))
-    for i in range(2**d):
-        for j in range(2**d):
-            binary_i = 2*(tools.int_to_nary(i, size=d)-1/2)/np.sqrt(d)
-            binary_j = 2*(tools.int_to_nary(j, size=d)-1/2)/np.sqrt(d)
+    graph.add_nodes_from(np.arange(2 ** d))
+    for i in range(2 ** d):
+        for j in range(2 ** d):
+            binary_i = 2 * (tools.int_to_nary(i, size=d) - 1 / 2) / np.sqrt(d)
+            binary_j = 2 * (tools.int_to_nary(j, size=d) - 1 / 2) / np.sqrt(d)
             if le:
-                if (1-np.dot(binary_i, binary_j))/2 > 1-epsilon+1e-5:
+                if (1 - np.dot(binary_i, binary_j)) / 2 > 1 - epsilon + 1e-5:
                     graph.add_edge(i, j, weight=1)
             else:
-                if np.isclose((1-np.dot(binary_i, binary_j))/2, 1-epsilon):
+                if np.isclose((1 - np.dot(binary_i, binary_j)) / 2, 1 - epsilon):
                     graph.add_edge(i, j, weight=1)
     if visualize:
         nx.draw(graph, with_labels=True)
@@ -158,46 +158,44 @@ def generate_regular_graph(d, n, visualize=False):
 
 
 def generate_initial_state_hd(graph, hd=1):
-    n = len(graph.nodes)//2
-    state = np.zeros(2**graph.n, dtype=np.complex128)
+    n = len(graph.nodes) // 2
+    state = np.zeros(2 ** graph.n, dtype=np.complex128)
     perfect = np.zeros(graph.n, dtype=int)
     perfect[:n] = 1
-    for cut in range(2**graph.n):
+    for cut in range(2 ** graph.n):
         # Check if perfect with a single defect
         binary = tools.int_to_nary(cut, size=graph.n)
-        if np.sum(np.abs(binary-perfect)) == hd or np.sum(np.abs(binary-perfect)) == graph.n-hd:
+        if np.sum(np.abs(binary - perfect)) == hd or np.sum(np.abs(binary - perfect)) == graph.n - hd:
             state[cut] = 1
-    return State(state[:, np.newaxis]/np.linalg.norm(state), is_ket=True, graph=graph)
+    return State(state[:, np.newaxis] / np.linalg.norm(state), is_ket=True, graph=graph)
 
 
 def generate_initial_state_legal_gw(graph, verbose=False):
-    state = np.zeros(2**graph.n)
+    state = np.zeros(2 ** graph.n)
     for i in range(1000):
         bound, colors, score = goemans_williamson(graph.graph)
-        colors = (colors+1)/2
+        colors = (colors + 1) / 2
         if verbose:
             print(i)
             print(colors)
         j = tools.nary_to_int(colors)
         state[j] = 1
-        state[2**graph.n-1-j] = 1
+        state[2 ** graph.n - 1 - j] = 1
     if verbose:
-        print(len(np.where(state!=0)))
-    return State(state[:, np.newaxis]/np.linalg.norm(state), is_ket=True, graph=graph)
+        print(len(np.where(state != 0)))
+    return State(state[:, np.newaxis] / np.linalg.norm(state), is_ket=True, graph=graph)
 
 
 def generate_inital_state_cf(graph, diff=2, verbose=False):
     cost = hamiltonian.HamiltonianMaxCut(graph, cost_function=True)
     maxcut = np.max(cost.hamiltonian)
-    target = maxcut-diff
+    target = maxcut - diff
     where_target = sparse.find(cost.hamiltonian.real == target)[0]
-    state = np.zeros(2**graph.n)
+    state = np.zeros(2 ** graph.n)
     state[where_target] = 1
     if verbose:
-        print('num nonzero', len(np.argwhere(state!=0)))
-    return State(state[:, np.newaxis]/np.linalg.norm(state), is_ket=True, graph=graph)
-
-
+        print('num nonzero', len(np.argwhere(state != 0)))
+    return State(state[:, np.newaxis] / np.linalg.norm(state), is_ket=True, graph=graph)
 
 
 from qsim.graph_algorithms.graph import ring_graph, line_graph
@@ -209,34 +207,39 @@ while deg!=2:
     cost = hamiltonian.HamiltonianMaxCut(graph, cost_function=True)
     deg = len(degeneracy(cost))
     print(deg)"""
-#graph = small_bipartite_graph()#(3, 1/3, visualize=False)
-#state = generate_initial_state_hd(graph, hd=2) # np.load('d3_SDP_output.npy')#
-graph = medium_bipartite_graph()#generate_regular_graph(3, 16)
+# graph = small_bipartite_graph()#(3, 1/3, visualize=False)
+# state = generate_initial_state_hd(graph, hd=2) # np.load('d3_SDP_output.npy')#
+graph = medium_bipartite_graph()  # generate_regular_graph(3, 16)
 
-graph = ring_graph(8)
-state = np.zeros((2**8, 1), dtype=np.complex128)
+graph = ring_graph(12)
+state = np.zeros((2 ** 12, 1), dtype=np.complex128)
 state = State(state, IS_subspace=False)
-i = tools.nary_to_int(np.array([0,1,0,1,0,1,0,0]))
-state[i] = 1
-print(i)
+for j in range(1):
+    i = np.array([0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0])
+    i = tools.nary_to_int(np.roll(i, j))
+    state[i] = 1
+    i = 1 - np.array([0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0])
+    i = tools.nary_to_int(np.roll(i, j))
+    state[i] = 1
+print(np.argwhere(state != 0))
+state = state / np.linalg.norm(state)
 """where_optimal = degeneracy(cost)
 state[where_optimal] = 10
 state = state/np.linalg.norm(state)"""
-state = generate_inital_state_cf(graph, diff=2, verbose=True)
-print(np.argwhere(state!=0))
-#state = generate_initial_state_legal_gw(graph)
+# state = generate_inital_state_cf(graph, diff=2, verbose=True)
+# state = generate_initial_state_legal_gw(graph)
 cost = hamiltonian.HamiltonianMaxCut(graph, cost_function=True)
 
-#state = State(state[:, np.newaxis], is_ket=True, graph=graph)
+# state = State(state[:, np.newaxis], is_ket=True, graph=graph)
 driver = hamiltonian.HamiltonianDriver()
 qaoa = qaoa.SimulateQAOA(graph=graph, hamiltonian=[], cost_hamiltonian=cost)
-#print('oo',  cost.optimum_overlap(state))
+# print('oo',  cost.optimum_overlap(state))
 print('cf', cost.cost_function(state))
 print('maxcut', np.max(cost.hamiltonian))
 for p in range(2, 10):
     max_result = 0
     print(p)
-    hamiltonian = [driver]+[cost, driver] * p
+    hamiltonian = [driver] + [cost, driver] * p
     qaoa.hamiltonian = hamiltonian
     """num = 20
     gammas = np.linspace(0, np.pi/2, num)
@@ -262,4 +265,4 @@ for p in range(2, 10):
         print('better', max_result)
     else:
         pass
-        #print('not better', result['f_val']
+        # print('not better', result['f_val']

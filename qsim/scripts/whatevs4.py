@@ -1,6 +1,85 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.optimize
+import pickle
+from matplotlib.collections import LineCollection
+from matplotlib import rc
+rc('text', usetex=True)
+rc('font', **{'family': 'serif'})
+times = np.linspace(.1, .95, 200)
+graph = pickle.load(open('graph.pickle', 'rb'))
+energies = np.zeros((len(times), graph.num_independent_sets))
+rates = np.zeros((len(times), graph.num_independent_sets))
+for i in range(len(times)):
+    file = open('./energies_and_rates_ud/times_'+str(i)+'.out', 'r')
+    energy, trash, rate = file.readlines()
+    energy = energy.replace(',', '')
+    energy = energy[1:]
+    energy = energy.replace(']', '')
+    energy = np.array(energy.split(), dtype=float)
+    rate = rate.replace(',', '')
+    rate = rate[1:]
+    rate = rate.replace(']', '')
+    rate = np.array(rate.split(), dtype=float)
+    if i == 0:
+        print(rate)
+        print(rate[0])
+        print(np.sum(rate))
+    rates[i, :] = rate
+    energies[i, :] = energy
+energies = energies.T - energies[:,0].flatten()
+energies = energies.T
+rates = np.log10(rates/graph.n)
+print(energies.shape)
+times = times[20:-20]
+energies = energies[20:-20, ...]
+rates = rates[20:-20, ...]
+#mask = energies<7
+#rates = rates*mask
+fig, ax = plt.subplots()
+print(np.min(rates))
+norm = plt.Normalize(-10, np.max(rates))
+for i in range(graph.num_independent_sets):
+    print(i)
+    points = np.array([times, energies[:, i]]).T.reshape(-1, 1, 2)
+    segments = np.concatenate([points[:-1], points[1:]], axis=1)
+    lc = LineCollection(segments, cmap='coolwarm', norm=norm)
+    # Set the values used for colormapping
+    lc.set_array(rates[:-1, i])
+    lc.set_linewidth(1)
+    line = ax.add_collection(lc)
+
+cbar = fig.colorbar(line, ax=ax)
+cbar.ax.set_ylabel(r'$\log_{10}(\rm{rate\ into\ } |j\rangle)$')
+ax.set_xlim(times[0],times[-1])
+ax.set_xlabel(r'Time ($t/T$)')
+ax.set_ylabel(r'Eigenenergy ($E_j-E_0$)')
+ax.set_ylim(-1, 12.5)
+fig.tight_layout()
+plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 fidelities_ss_hybrid = [0.9892727714174617, 0.9852232305797289,  0.9819290366560707, 0.9789444330906605,.9761063176477378, 0.9733356232127055, 0.9705883207000972, 0.9678379039515611,
               0.9650677180756911, 0.9622671231421603, .9594293851286988, .9565504298978581, .9565504298978581, .9536280637067762]
 fidelities_hybrid_3 = [0.79777504, 0.85580079, 0.88522155, 0.90294435, 0.91477952, 0.92324049,
@@ -206,7 +285,7 @@ plt.scatter(xis_hybrid_7, fidelities_hybrid_9, color='seagreen', label='hybrid 9
 plt.legend()
 plt.xlabel(r'$\Omega^2 T/\gamma$')
 [plt.ylabel(r'Fidelity')]
-plt.show()
+#plt.show()
 
 def scaling_vs_n():
     plt.clf()
@@ -220,4 +299,4 @@ def scaling_vs_n():
     plt.ylabel(r'$k$')
     plt.legend()
     plt.show()
-scaling_vs_n()
+#scaling_vs_n()

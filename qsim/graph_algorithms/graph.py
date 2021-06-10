@@ -402,7 +402,9 @@ def unit_disk_grid_graph(grid, radius=np.sqrt(2) + 1e-5, visualize=False):
         # nx.draw_networkx_edges(g, pos=pos, edge_color='black')
         plt.axis('off')
         plt.show()
-    return Graph(g)
+    g = Graph(g)
+    g.positions = nodes
+    return g
 
 
 def unit_disk_graph(points, radius=1 + 1e-5, periodic=False, visualize=False):
@@ -419,7 +421,9 @@ def unit_disk_graph(points, radius=1 + 1e-5, periodic=False, visualize=False):
         pos = {nodes[i]: points[i] for i in range(len(nodes))}
         nx.draw(graph, pos=pos)
         plt.show()
-    return Graph(graph)
+    graph = Graph(graph)
+    graph.positions = nodes
+    return graph
 
 
 def branching_tree_from_edge(n_branches, visualize=True):

@@ -179,8 +179,8 @@ def heisenberg_operator(edge, graph, depth):
     return terms
 
 from qsim.graph_algorithms.graph import branching_tree_from_edge
-graph = branching_tree_from_edge([3, 3], visualize=True)
-terms = heisenberg_operator((0, 1), graph, 5)
+graph = branching_tree_from_edge([4], visualize=True)
+terms = heisenberg_operator((0, 1), graph, 3)
 #print(terms)
 for term in terms:
     if terms[term] != '' and 'y' not in term and 'x' not in term:
@@ -188,5 +188,5 @@ for term in terms:
         for i in term:
             if i == 'z':
                 count += 1
-        print(term, count)
+        print(term, count, terms[term])
 
