@@ -1009,12 +1009,11 @@ class HamiltonianHeisenberg(object):
             if self.energies[0] != 0:
                 term = self.code.left_multiply(state, [edge[0], edge[1]], ['X', 'X'])
                 temp = temp + self.energies[0] * term
-            if self.energies[1] != 0:
                 term = self.code.left_multiply(state, [edge[0], edge[1]], ['Y', 'Y'])
-                temp = temp + self.energies[1] * term
-            if self.energies[2] != 0:
+                temp = temp + self.energies[0] * term
+            if self.energies[1] != 0:
                 term = self.code.left_multiply(state, [edge[0], edge[1]], ['Z', 'Z'])
-                temp = temp + self.energies[2] * term
+                temp = temp + self.energies[1] * term
         return State(temp, is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code, graph=self.graph)
 
     def right_multiply(self, state: State):
@@ -1023,12 +1022,11 @@ class HamiltonianHeisenberg(object):
             if self.energies[0] != 0:
                 term = self.code.right_multiply(state, [edge[0], edge[1]], ['X', 'X'])
                 temp = temp + self.energies[0] * term
-            if self.energies[1] != 0:
                 term = self.code.right_multiply(state, [edge[0], edge[1]], ['Y', 'Y'])
-                temp = temp + self.energies[2] * term
-            if self.energies[2] != 0:
+                temp = temp + self.energies[0] * term
+            if self.energies[1] != 0:
                 term = self.code.right_multiply(state, [edge[0], edge[1]], ['Z', 'Z'])
-                temp = temp + self.energies[2] * term
+                temp = temp + self.energies[1] * term
         return State(temp, is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code, graph=self.graph)
 
     def evolve(self, state: State, time):

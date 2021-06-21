@@ -6,18 +6,41 @@ from scipy import sparse
 from scipy.sparse.linalg import expm_multiply, eigsh, expm
 from scipy.special import comb
 from scipy.special import jv, iv
+from qsim.codes.quantum_state import State
 from scipy.fft import fft
 import matplotlib.pyplot as plt
 import dill
 from os import path
 
 
-def disorder_hamiltonian(states,h=1.):
-    disorder = (np.random.random(size=states.shape[1])-1/2)*h
-    disorder = np.array([0.848539, -0.038314, -0.170679, 0.384688, 0.00254869, 0.877209, -0.523275, -0.628435])/2
-    return sparse.csc_matrix(
-        (np.sum((1/2-states)*2*disorder, axis=1), (np.arange(states.shape[0]),
-                                    np.arange(states.shape[0]))), shape=(states.shape[0], states.shape[0]))
+def disorder_hamiltonian(states, h=1., subspace=None):
+    if subspace is None:
+        disorder = (np.random.random(size=states.shape[1])-1/2)*h
+        return sparse.csc_matrix(
+            (np.sum((1/2-states)*2*disorder, axis=1), (np.arange(states.shape[0]),
+                                        np.arange(states.shape[0]))), shape=(states.shape[0], states.shape[0]))
+    if subspace is 'all':
+        return (np.random.random(size=states) - 1 / 2) * h
+
+
+
+def matvec_heisenberg(heisenberg: qsim.evolution.hamiltonian.HamiltonianHeisenberg, disorder, state: State):
+    temp = np.zeros_like(state)
+    # For each logical qubit
+    state_shape = state.shape
+    for i in range(state.number_logical_qudits):
+        ind = 2 ** i
+        out = np.zeros_like(state, dtype=np.complex128)
+        state = state.reshape((-1, 2, ind), order='F')
+        # Note index start from the right (sN,...,s3,s2,s1)
+        out = out.reshape((-1, 2, ind), order='F')
+        out[:, [0, 1], :] = state[:, [0, 1], :]
+        out[:, 1, :] = -disorder[i] * out[:, 1, :]
+        out[:, 0, :] = disorder[i] * out[:, 0, :]
+        state = state.reshape(state_shape, order='F')
+        out = out.reshape(state_shape, order='F')
+        temp = temp + out
+    return heisenberg.left_multiply(state) + temp
 
 
 def matvec(A, v):
@@ -363,4 +386,19 @@ def magnetization(graph, h=1):
     plt.show()
 
 
-generate_time_evolved_states(line_graph(8), np.linspace(0, 1000, 1), verbose=True)
+#generate_time_evolved_states(line_graph(8), np.linspace(0, 1000, 1), verbose=True)
+n = 28
+print(2**n)
+import time
+t0 = time.time()
+print('beginning')
+heisenberg = qsim.evolution.hamiltonian.HamiltonianHeisenberg(line_graph(n), subspace='all', energies=(1/4, 1/2))
+disorder = disorder_hamiltonian(n, subspace='all', h=1.)
+print(disorder)
+state = State(np.random.random((2**n, 1)))
+state = state/np.linalg.norm(state)
+#state = State(np.ones((2**n, 1)))
+#print(state)
+state = matvec_heisenberg(heisenberg, disorder, state)
+print(state)
+print(time.time()-t0)
