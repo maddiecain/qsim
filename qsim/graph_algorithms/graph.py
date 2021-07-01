@@ -267,23 +267,18 @@ class GraphMonteCarlo(object):
         return nx.algorithms.approximation.maximum_independent_set(self.graph)
 
 
-def line_graph(n, return_mis=False):
+def line_graph(n, IS=True):
     g = nx.Graph()
     g.add_nodes_from(np.arange(0, n), weight=1)
     if n == 1:
-        if return_mis:
-            return Graph(g), 1
-        else:
-            return Graph(g)
+        return Graph(g)
     else:
         for i in range(n - 1):
             g.add_edge(i, i + 1, weight=1)
-    if return_mis:
-        return Graph(g), np.ceil(n / 2)
-    return Graph(g)
+    return Graph(g, IS=IS)
 
 
-def ring_graph(n, node_weight=1, edge_weight=1, return_mis=False):
+def ring_graph(n, node_weight=1, edge_weight=1, IS=True):
     g = nx.Graph()
     g.add_nodes_from(np.arange(0, n), weight=node_weight)
     if n == 1:
@@ -292,18 +287,14 @@ def ring_graph(n, node_weight=1, edge_weight=1, return_mis=False):
         for i in range(n - 1):
             g.add_edge(i, i + 1, weight=edge_weight)
         g.add_edge(0, n - 1, weight=edge_weight)
-    if return_mis:
-        return Graph(g), np.floor(n / 2)
-    return Graph(g)
+    return Graph(g, IS=IS)
 
 
-def degree_fails_graph(return_mis=False):
+def degree_fails_graph(return_mis=False, IS=True):
     g = nx.Graph()
     g.add_weighted_edges_from(
         [(0, 1, 1), (0, 4, 1), (0, 5, 1), (4, 5, 1), (1, 4, 1), (1, 3, 1), (2, 4, 1)])
-    if return_mis:
-        return Graph(g), 3
-    return Graph(g)
+    return Graph(g, IS=IS)
 
 
 def IS_projector(graph, code):
@@ -341,7 +332,7 @@ def IS_projector(graph, code):
         return np.array([np.diagonal(proj)]).T
 
 
-def grid_graph(n, m, periodic=False, return_mis=False, nn=False):
+def grid_graph(n, m, periodic=False, nn=False, IS=True):
     graph = nx.grid_2d_graph(n, m, periodic=periodic)
     nodes = graph.nodes
     if nn:
@@ -358,13 +349,10 @@ def grid_graph(n, m, periodic=False, return_mis=False, nn=False):
     new_nodes = list(range(len(nodes)))
     mapping = dict(zip(nodes, new_nodes))
     nx.relabel_nodes(graph, mapping, copy=False)
-    if return_mis:
-        return Graph(graph), n * m / 2 - 1
-    else:
-        return Graph(graph)
+    return Graph(graph, IS=IS)
 
 
-def unit_disk_grid_graph(grid, radius=np.sqrt(2) + 1e-5, visualize=False):
+def unit_disk_grid_graph(grid, radius=np.sqrt(2) + 1e-5, visualize=False, IS=True):
     x = grid.shape[1]
     y = grid.shape[0]
 
@@ -398,16 +386,16 @@ def unit_disk_grid_graph(grid, radius=np.sqrt(2) + 1e-5, visualize=False):
 
     if visualize:
         pos = {nodes[i]: nodes_geometric[i] for i in range(len(nodes))}
-        nx.draw_networkx_nodes(g, pos=pos, node_color='lightblue')  # edgecolors='black',
-        # nx.draw_networkx_edges(g, pos=pos, edge_color='black')
+        nx.draw_networkx_nodes(g, pos=pos, node_color='cornflowerblue', node_size=40,edgecolors='black')  # edgecolors='black',
+        nx.draw_networkx_edges(g, pos=pos, edge_color='black')
         plt.axis('off')
         plt.show()
-    g = Graph(g)
+    g = Graph(g, IS=IS)
     g.positions = nodes
     return g
 
 
-def unit_disk_graph(points, radius=1 + 1e-5, periodic=False, visualize=False):
+def unit_disk_graph(points, radius=1 + 1e-5, periodic=False, visualize=False, IS=True):
     nodes = np.arange(points.shape[0])
     adjacency_matrix = np.zeros((points.shape[0], points.shape[0]))
     for n1 in nodes:
@@ -421,12 +409,12 @@ def unit_disk_graph(points, radius=1 + 1e-5, periodic=False, visualize=False):
         pos = {nodes[i]: points[i] for i in range(len(nodes))}
         nx.draw(graph, pos=pos)
         plt.show()
-    graph = Graph(graph)
+    graph = Graph(graph, IS=IS)
     graph.positions = nodes
     return graph
 
 
-def branching_tree_from_edge(n_branches, visualize=True):
+def branching_tree_from_edge(n_branches, visualize=True, IS=True):
     graph = nx.Graph()
     graph.add_edge(0, 1)
     last_layer = [0, 1]
@@ -442,6 +430,6 @@ def branching_tree_from_edge(n_branches, visualize=True):
     if visualize:
         nx.draw(graph, with_labels=True)
         plt.show()
-    return Graph(graph)
+    return Graph(graph, IS=IS)
 
 

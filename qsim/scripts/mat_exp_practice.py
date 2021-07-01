@@ -43,14 +43,33 @@ def matvec_heisenberg(heisenberg: qsim.evolution.hamiltonian.HamiltonianHeisenbe
     return heisenberg.left_multiply(state) + temp
 
 
+def matvec_heisenberg_imag(heisenberg: qsim.evolution.hamiltonian.HamiltonianHeisenberg, disorder, state: State):
+    temp = np.zeros_like(state)
+    # For each logical qubit
+    state_shape = state.shape
+    for i in range(state.number_logical_qudits):
+        ind = 2 ** i
+        out = np.zeros_like(state, dtype=np.complex128)
+        state = state.reshape((-1, 2, ind), order='F')
+        # Note index start from the right (sN,...,s3,s2,s1)
+        out = out.reshape((-1, 2, ind), order='F')
+        out[:, [0, 1], :] = state[:, [0, 1], :]
+        out[:, 1, :] = -disorder[i] * out[:, 1, :]
+        out[:, 0, :] = disorder[i] * out[:, 0, :]
+        state = state.reshape(state_shape, order='F')
+        out = out.reshape(state_shape, order='F')
+        temp = temp + out
+    return -1j*(heisenberg.left_multiply(state) + temp)
+
 def matvec(A, v):
     """
-
-    :param A:
-    :param v:
-    :return:
+    for A a sparse matrix or LinearOperator
     """
-    return A @ v
+    if callable(A):
+        return A(v)
+    else:
+        return A.dot(v)
+
 
 
 def chebyshev(A, v, tau, eps, p_check, verbose=False):
@@ -214,6 +233,7 @@ def chebs_imag(m, l1, ln, tau):
     bessels *= 2 * np.exp(1j*tau * ln)
     bessels[0] *= 0.5
     return bessels
+
 """print(chebs_real(5, .8, 2., -1j*1.2))
 print(chebs_imag(5, .8, 2., 1.2))
 
@@ -231,7 +251,7 @@ result = chebyshev(A, v, tau, 1e-6, 7, verbose=True)
 #print(np.linalg.norm(result))
 #print((np.abs(correct)-np.abs(result))/np.abs(correct))"""
 
-
+"""
 def generate_time_evolved_states(graph, times, verbose=False, h=1):
     import dill
     if verbose:
@@ -302,15 +322,7 @@ def generate_time_evolved_states(graph, times, verbose=False, h=1):
 
 
 def return_probability(graph, times, verbose=False, h=1, exact=True):
-    """
-    For random product states in the computational basis, time evolve then compute
-    :param graph:
-    :param times:
-    :param verbose:
-    :param h:
-    :return:
-    """
-
+    #For random product states in the computational basis, time evolve then compute
     if verbose:
         print('beginning')
 
@@ -402,3 +414,4 @@ state = state/np.linalg.norm(state)
 state = matvec_heisenberg(heisenberg, disorder, state)
 print(state)
 print(time.time()-t0)
+"""
