@@ -400,12 +400,12 @@ for i in range(400):
     gaps.append(gap)
 print(gaps)"""
 #print(s, eigvals, flush=True)
-n = 15
+n = 13
 times = np.arange(0, 1.0, .01)
 k = 2
 use_Z2_symmetry=False
 eigvals = np.zeros((len(times), k))
-p = 7
+p = 3
 graph = sk_hamiltonian(n, use_degenerate=False, p=p, verbose=True)
 #graph = sk_p3_instance()
 for i in range(len(times)):

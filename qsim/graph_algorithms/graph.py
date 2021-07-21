@@ -13,6 +13,7 @@ may subclass nx.Graph."""
 class Graph(object):
     def __init__(self, graph: nx.Graph, IS=True):
         # Set default weights to one
+
         for edge in graph.edges:
             if not ('weight' in graph.edges[edge]):
                 graph.edges[edge]['weight'] = 1
@@ -35,13 +36,6 @@ class Graph(object):
         self.degeneracy = None
         if IS:
             self.generate_independent_sets()
-
-        # Populate initialized attributes
-        self.neighbors = {i: [] for i in range(self.n)}
-        for i in range(self.n):
-            for j in range(self.n):
-                if (i, j) in self.edges or (j, i) in self.edges:
-                    self.neighbors[i].append(j)
 
     def generate_independent_sets(self):
         # Construct generator containing independent sets
@@ -352,7 +346,7 @@ def grid_graph(n, m, periodic=False, nn=False, IS=True):
     return Graph(graph, IS=IS)
 
 
-def unit_disk_grid_graph(grid, radius=np.sqrt(2) + 1e-5, visualize=False, IS=True):
+def unit_disk_grid_graph(grid, radius=np.sqrt(2) + 1e-5, visualize=False, periodic=False, IS=True):
     x = grid.shape[1]
     y = grid.shape[0]
 
@@ -365,6 +359,13 @@ def unit_disk_grid_graph(grid, radius=np.sqrt(2) + 1e-5, visualize=False, IS=Tru
         grid_x, grid_y = np.meshgrid(np.arange(x), np.arange(y))
         # a is 1 if the location is within a unit distance of (i, j), and zero otherwise
         a = np.sqrt((grid_x - n[1]) ** 2 + (grid_y - n[0]) ** 2) <= radius
+        if periodic:
+            b = np.sqrt((np.abs(grid_x - n[1])-x) ** 2 + (grid_y - n[0]) ** 2) <= radius
+            a = a +b
+            b = np.sqrt((grid_x - n[1]) ** 2 + (np.abs(grid_y - n[0])-y) ** 2) <= radius
+            a = a + b
+            b = np.sqrt((np.abs(grid_x - n[1])-x) ** 2 + (np.abs(grid_y - n[0]) - y) ** 2) <= radius
+            a = a + b
         # TODO: add an option for periodic boundary conditions
         # Remove the node itself
         a[n[0], n[1]] = 0

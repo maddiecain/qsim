@@ -2,6 +2,5 @@ matplotlib
 networkx
 numpy
 scipy
-sphinx_rtd_theme
-qutip
+odeintw
 .
