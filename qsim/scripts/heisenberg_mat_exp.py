@@ -51,17 +51,23 @@ def chebyshev(A, v, tau, eps, p_check, return_cost=False):
         return bessels
 
     vnorm = np.linalg.norm(v)
+    print(vnorm)
 
     def m_max(eps, tau, lambda_1, lambda_n):
         bound = eps / (4 * vnorm)
+        print(vnorm, eps)
         if ((0.5) ** (np.exp(1) * tau * (lambda_n - lambda_1) / 2) < bound):
             return int(np.exp(1) * tau * (lambda_n - lambda_1) / 2)
         else:
+            print(bound)
+            print(np.log2(1 / bound))
             return int(np.log(1 / bound) / np.log(2))
 
     # Compute conservative upper bound for the number of terms needed
     m_upper = m_max(eps, tau, lambda_1, lambda_n)
+    print(m_upper)
     chebs_upper = chebs(m_upper, l1, ln, tau)
+    print(chebs_upper)
     # initialize vectors etc for cheb iteration
     v_old = v
     v_new = matvec(A, v) / l1 - ln / l1 * v
@@ -207,10 +213,11 @@ def time_evolve(tau, eps, L=12, h=1, verbose=False):
     if verbose:
         print('starting ham')
     disorder = (np.random.random(size=L) - 1 / 2) * h
+    disorder = np.array([0.848539, -0.038314, -0.170679, 0.384688, 0.00254869, 0.877209, -0.523275, -0.628435])/2
     np.set_printoptions(threshold=np.inf)
     print(repr(disorder))
     graph = line_graph(L)
-    Heis = ham.HamiltonianHeisenberg(graph, energies=(1, 1), subspace='all')
+    Heis = ham.HamiltonianHeisenberg(graph, energies=(1/4, 1/4), subspace='all')
 
     def matvec_disorder(x):
         if len(x.shape) == 2:
@@ -223,13 +230,14 @@ def time_evolve(tau, eps, L=12, h=1, verbose=False):
     if verbose:
         print('done with ham')
     # initial state:
-    v0 = State(np.ones((2 ** L, 1)) / np.sqrt(2 ** L))
+    v0 = State(np.zeros((2 ** L, 1)) )
+    v0[0]=1
     p_check = 5
     nu_max = 7
     if verbose:
         print('start kryl')
-    nmatvec, runtime, expk = krylov(disorder_heis, v0, tau, eps, p_check, nu_max, return_cost=True)
-    print('done kryl, {} matvec, {} s'.format(nmatvec, runtime))
+    #nmatvec, runtime, expk = krylov(disorder_heis, v0, tau, eps, p_check, nu_max, return_cost=True)
+    #print('done kryl, {} matvec, {} s'.format(nmatvec, runtime))
     if verbose:
         print('start cheb')
     nmatvec, runtime, expc = chebyshev(disorder_heis, v0, tau, eps, p_check, return_cost=True)
@@ -241,8 +249,8 @@ def time_evolve(tau, eps, L=12, h=1, verbose=False):
 # print('done scipy', expe.shape)
 # print(np.max(np.abs((expc-expe)/expe)))
 # print(np.max(np.abs((expk-expe)/expe)))
-n = 22
+n = 8
 print(2 ** n)
-taus = 10 ** np.linspace(-2, 0, 3)
-tols = 10 ** np.linspace(-8, -2, 10)
-time_evolve(1e-2, 1e-5, L=n, verbose=True)
+#taus = 10 ** np.linspace(-2, 0, 3)
+#tols = 10 ** np.linspace(-8, -2, 10)
+time_evolve(1e0, 1e-5, L=n, verbose=True)

@@ -394,6 +394,51 @@ def unit_disk_grid_graph(grid, radius=np.sqrt(2) + 1e-5, visualize=False, IS=Tru
     g.positions = nodes
     return g
 
+def unit_disk_grid_graph_rydberg(grid, radius=np.sqrt(2) + 1e-5, A=863300/(4.47)**6, visualize=False, IS=True):
+    x = grid.shape[1]
+    y = grid.shape[0]
+
+    def neighbors_from_geometry(n):
+        """Identify the neighbors within a unit distance of the atom at index (i, j) (zero-indexed).
+        Returns a numpy array listing both the geometric graph of the neighbors, and the indices of the
+        neighbors of the form [[first indices], [second indices]]"""
+        # Assert that we actually have an atom at this location
+        assert grid[n[0], n[1]] != 0
+        grid_x, grid_y = np.meshgrid(np.arange(x), np.arange(y))
+        # a is 1 if the location is within a unit distance of (i, j), and zero otherwise
+        a = np.sqrt((grid_x - n[1]) ** 2 + (grid_y - n[0]) ** 2) <= radius
+        # TODO: add an option for periodic boundary conditions
+        # Remove the node itself
+        a[n[0], n[1]] = 0
+        # a is 1 if  within a unit distance of (i, j) and a node is at that location, and zero otherwise
+        a = a * grid
+        return np.argwhere(a != 0)
+
+    nodes_geometric = np.argwhere(grid != 0)
+    nodes = list(range(len(nodes_geometric)))
+    g = nx.Graph()
+    g.add_nodes_from(nodes)
+    j = 0
+    for node in nodes_geometric:
+        neighbors = neighbors_from_geometry(node)
+        neighbors_geometric = neighbors.copy()
+        neighbors = [np.argwhere(np.all(nodes_geometric == i, axis=1))[0, 0] for i in neighbors]
+        i = 0
+        for neighbor in neighbors:
+            g.add_edge(j, neighbor, weight=A/(np.sqrt((node[0]-neighbors_geometric[i][0])**2+(node[1]-neighbors_geometric[i][1])**2))**6)
+            i +=1
+        j += 1
+
+    if visualize:
+        pos = {nodes[i]: nodes_geometric[i] for i in range(len(nodes))}
+        nx.draw_networkx_nodes(g, pos=pos, node_color='cornflowerblue', node_size=40,edgecolors='black')  # edgecolors='black',
+        nx.draw_networkx_edges(g, pos=pos, edge_color='black')
+        plt.axis('off')
+        plt.show()
+    g = Graph(g, IS=IS)
+    g.positions = nodes
+    return g
+
 
 def unit_disk_graph(points, radius=1 + 1e-5, periodic=False, visualize=False, IS=True):
     nodes = np.arange(points.shape[0])
