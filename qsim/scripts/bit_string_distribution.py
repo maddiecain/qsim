@@ -10,7 +10,7 @@ from scipy.sparse.linalg import expm_multiply
 from qsim.codes import qubit
 from qsim.codes.quantum_state import State
 from qsim.evolution import lindblad_operators, hamiltonian
-from qsim.graph_algorithms.graph import Graph, unit_disk_graph, line_graph, degree_fails_graph, unit_disk_grid_graph
+from qsim.graph_algorithms.graph import Graph, unit_disk_graph, line_graph, degree_fails_graph, unit_disk_grid_graph, rydberg_graph
 from qsim.lindblad_master_equation import LindbladMasterEquation
 from qsim.schrodinger_equation import SchrodingerEquation
 from qsim.graph_algorithms.adiabatic import SimulateAdiabatic
@@ -19,7 +19,15 @@ from qsim.graph_algorithms.adiabatic import SimulateAdiabatic
 from qsim.evolution.lindblad_operators import SpontaneousEmission
 from matplotlib import rc
 from scipy.optimize import minimize, minimize_scalar, basinhopping, brentq
+grid3 = np.array([[False, False,  True,  True,  True,  True],
+       [False,  True, False,  True,  True,  True],
+       [ True,  True,  True,  True,  True, False],
+       [False,  True,  True,  True,  True,  True],
+       [ True,  True,  True,  True,  True,  True],
+       [ True,  True,  True,  True,  True, False]])
 
+graph = unit_disk_grid_graph(grid3, periodic=False, visualize=False)
+tails_graph = rydberg_graph(grid3, visualize=False)
 
 """
 Plan:
@@ -64,6 +72,7 @@ def find_critical_time(graph, critical_optimum_overlap):
 def find_fidelity(graph, critical_time):
     cost = hamiltonian.HamiltonianMIS(graph, IS_subspace=True)
     driver = hamiltonian.HamiltonianDriver(IS_subspace=True, graph=graph)
+    rydberg = hamiltonian.HamiltonianRydberg(tails_graph, graph, IS_subspace=True)
 
     def schedule(t, T):
         # Linear ramp on the detuning, experiment-like ramp on the driver

@@ -60,7 +60,7 @@ class Graph(object):
             if len(i) > self.mis_size:
                 self.mis_size = len(i)
             k -= 1
-        self.degeneracy = len(np.argwhere(self.n-np.sum(indices, axis=1) == self.mis_size))
+        self.degeneracy = len(np.argwhere(self.n - np.sum(indices, axis=1) == self.mis_size))
         self.independent_sets = indices
         return
 
@@ -69,7 +69,7 @@ class Graph(object):
         # You do NOT need to count the number in ground, this is just n-# excited
         # Count the number of elements in the ground space and map to their representation in ternary
         # Determine how large to make the array
-        num_IS = np.sum((code.d-1)**np.sum(self.independent_sets, axis=1))
+        num_IS = np.sum((code.d - 1) ** np.sum(self.independent_sets, axis=1))
         # Now, we need to generate a way to map between the restricted indices and the original
         # indices
         IS = np.zeros((num_IS, self.n))
@@ -360,11 +360,11 @@ def unit_disk_grid_graph(grid, radius=np.sqrt(2) + 1e-5, visualize=False, period
         # a is 1 if the location is within a unit distance of (i, j), and zero otherwise
         a = np.sqrt((grid_x - n[1]) ** 2 + (grid_y - n[0]) ** 2) <= radius
         if periodic:
-            b = np.sqrt((np.abs(grid_x - n[1])-x) ** 2 + (grid_y - n[0]) ** 2) <= radius
-            a = a +b
-            b = np.sqrt((grid_x - n[1]) ** 2 + (np.abs(grid_y - n[0])-y) ** 2) <= radius
+            b = np.sqrt((np.abs(grid_x - n[1]) - x) ** 2 + (grid_y - n[0]) ** 2) <= radius
             a = a + b
-            b = np.sqrt((np.abs(grid_x - n[1])-x) ** 2 + (np.abs(grid_y - n[0]) - y) ** 2) <= radius
+            b = np.sqrt((grid_x - n[1]) ** 2 + (np.abs(grid_y - n[0]) - y) ** 2) <= radius
+            a = a + b
+            b = np.sqrt((np.abs(grid_x - n[1]) - x) ** 2 + (np.abs(grid_y - n[0]) - y) ** 2) <= radius
             a = a + b
         # TODO: add an option for periodic boundary conditions
         # Remove the node itself
@@ -387,17 +387,20 @@ def unit_disk_grid_graph(grid, radius=np.sqrt(2) + 1e-5, visualize=False, period
 
     if visualize:
         pos = {nodes[i]: nodes_geometric[i] for i in range(len(nodes))}
-        nx.draw_networkx_nodes(g, pos=pos, node_color='cornflowerblue', node_size=40,edgecolors='black')  # edgecolors='black',
+        nx.draw_networkx_nodes(g, pos=pos, node_color='cornflowerblue', node_size=40,
+                               edgecolors='black')  # edgecolors='black',
         nx.draw_networkx_edges(g, pos=pos, edge_color='black')
         plt.axis('off')
         plt.show()
     g = Graph(g, IS=IS)
     g.positions = nodes
+    g.radius = radius
+    g.periodic = periodic
     return g
 
-def unit_disk_grid_graph_rydberg(grid, radius=np.sqrt(2) + 1e-5, A=863300/(4.47)**6, visualize=False, IS=True):
-    x = grid.shape[1]
-    y = grid.shape[0]
+
+def unit_disk_grid_graph_rydberg(grid, radius=np.sqrt(2) + 1e-5, B=863300 / (4.47) ** 6, visualize=False, IS=True):
+    y, x = grid.shape
 
     def neighbors_from_geometry(n):
         """Identify the neighbors within a unit distance of the atom at index (i, j) (zero-indexed).
@@ -426,19 +429,86 @@ def unit_disk_grid_graph_rydberg(grid, radius=np.sqrt(2) + 1e-5, A=863300/(4.47)
         neighbors = [np.argwhere(np.all(nodes_geometric == i, axis=1))[0, 0] for i in neighbors]
         i = 0
         for neighbor in neighbors:
-            g.add_edge(j, neighbor, weight=A/(np.sqrt((node[0]-neighbors_geometric[i][0])**2+(node[1]-neighbors_geometric[i][1])**2))**6)
-            i +=1
+            g.add_edge(j, neighbor, weight=B / (
+                np.sqrt((node[0] - neighbors_geometric[i][0]) ** 2 + (node[1] - neighbors_geometric[i][1]) ** 2)) ** 6)
+            i += 1
         j += 1
 
     if visualize:
         pos = {nodes[i]: nodes_geometric[i] for i in range(len(nodes))}
-        nx.draw_networkx_nodes(g, pos=pos, node_color='cornflowerblue', node_size=40,edgecolors='black')  # edgecolors='black',
+        nx.draw_networkx_nodes(g, pos=pos, node_color='cornflowerblue', node_size=40,
+                               edgecolors='black')  # edgecolors='black',
         nx.draw_networkx_edges(g, pos=pos, edge_color='black')
         plt.axis('off')
         plt.show()
     g = Graph(g, IS=IS)
     g.positions = nodes
+    g.radius = radius
+    g.B = B
     return g
+
+
+def rydberg_graph(points, B=863300 / (4.47) ** 6, alpha=6, threshold=1e-8, label_node_by_coords=False,
+                  visualize=False, IS=True, periodic=False):
+    """ Create a Graph object from xy-coordinates
+    where the edge weights correspond to
+            B / ||r_i - r_j||^alpha
+
+    Arguments:
+        xy = an n-by-2 matrix of xy-coordinates
+        B = Blockade interaction at unit distance
+        alpha = power parameter in interaction strength.
+                Reduces to unit step function if alpha = float('inf')
+        threshold = the minimum value of a edge
+                weight to be counted as an edge (default: 1e-8)
+        label_node_by_coords = True if the nodes are labelled by their (x,y)
+                coordinates, or False if nodes are indexed by integers
+
+    Returns:
+        graph = a networkx.Graph
+        pos = a position dictionary {node: xy(node)}
+    """
+    n, d = points.shape
+    if d != 2:  # convert to 2D coordinates
+        points = np.argwhere(points != 0)
+        d = 2
+        n = points.shape[0]
+    assert d == 2
+
+
+    def interaction(displacement):
+        # If alpha is 'inf', does a hard constraint with weight B
+        distnorm = np.linalg.norm(displacement)
+        if alpha < float('inf'):
+            return B / distnorm ** alpha
+        elif distnorm <= 1:
+            return B
+        else:
+            return 0
+
+    if label_node_by_coords:
+        nodelist = [(points[i, 0], points[i, 1]) for i in range(n)]
+        pos = {v: v for v in nodelist}
+    else:
+        nodelist = np.arange(n)
+        pos = {i: (points[i, 0], points[i, 1]) for i in nodelist}
+    graph = nx.Graph()
+    graph.add_nodes_from(nodelist)
+    for i in range(n - 1):
+        for j in range(i + 1, n):
+            temp = interaction(points[i] - points[j])
+            if temp >= threshold:
+                graph.add_edge(nodelist[i], nodelist[j], weight=temp)
+    if visualize:
+        plt.figure(figsize=(7, 7))
+        nx.draw_networkx(graph, pos=pos,
+                         labels={}, node_size=20, node_color='r')
+        plt.show()
+    graph = Graph(graph, IS=IS)
+    graph.positions = points
+    graph.B = B
+    graph.periodic = periodic
+    return graph
 
 
 def unit_disk_graph(points, radius=1 + 1e-5, periodic=False, visualize=False, IS=True):
@@ -477,5 +547,3 @@ def branching_tree_from_edge(n_branches, visualize=True, IS=True):
         nx.draw(graph, with_labels=True)
         plt.show()
     return Graph(graph, IS=IS)
-
-

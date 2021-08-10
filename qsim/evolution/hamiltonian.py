@@ -1083,6 +1083,7 @@ class HamiltonianEnergyShift(object):
             self._hamiltonian = sparse.csc_matrix(
                 (self._diagonal_hamiltonian.T[0], (np.arange(num_IS), np.arange(num_IS))),
                 shape=(num_IS, num_IS))
+            print(self._hamiltonian)
         else:
             # Use full Hilbert space
             self._hamiltonian = None
@@ -1191,3 +1192,164 @@ class HamiltonianEnergyShift(object):
                 exp_hamiltonian = np.exp(-1j * time * self.energies[0] * self._diagonal_hamiltonian)
                 return State(exp_hamiltonian * state * exp_hamiltonian.conj().T,
                              is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code, graph=self.graph)
+
+
+class HamiltonianRydberg(object):
+    def __init__(self, tails_graph: Graph, hard_constraint_graph = None, index: int = 0,
+                 energies=(1,), code=qubit, IS_subspace=False):
+        """Default is that the first element in transition is the higher energy s."""
+        self.index = index
+        self.energies = energies
+        self.code = code
+        self.tails_graph = tails_graph
+        self.hard_constraint_graph = hard_constraint_graph
+        if self.code.logical_code:
+            raise Exception('Logical codes not supported.')
+        self.IS_subspace = IS_subspace
+        if self.tails_graph.periodic or self.hard_constraint_graph.periodic:
+            raise Exception('Periodic graphs not yet supported.')
+        # Generate tails matrix
+        tails_matrix = np.zeros((self.tails_graph.n, self.tails_graph.n))
+        for node in self.tails_graph.graph:
+            for neighbor in self.tails_graph.graph[node]:
+                # Compute L2 distance
+                if np.linalg.norm(self.tails_graph.positions[node]-self.tails_graph.positions[neighbor]) >= hard_constraint_graph.radius:
+                    tails_matrix[neighbor, node] = tails_matrix[neighbor, node] + self.tails_graph.graph[node][neighbor]['weight']
+        if self.IS_subspace:
+            # Generate sparse mixing Hamiltonian
+            assert hard_constraint_graph is not None
+            assert isinstance(hard_constraint_graph, Graph)
+            if code is not qubit:
+                IS, num_IS = hard_constraint_graph.independent_sets_qudit(self.code)
+            else:
+                # We have already solved for this information
+                IS, num_IS = hard_constraint_graph.independent_sets, hard_constraint_graph.num_independent_sets
+            self._diagonal_hamiltonian = np.zeros((num_IS, 1), dtype=float)
+            for k in range(num_IS):
+                #f k == 0:
+                #    print(1-self.hard_constraint_graph.independent_sets[k])
+                #    print(tails_matrix @ (np.array([1-self.hard_constraint_graph.independent_sets[k]]).T))
+                # Get state as bit string
+                # Multiply by weights matrix
+                # Sum result
+                weight = np.sum(tails_matrix @ (np.array([1-self.hard_constraint_graph.independent_sets[k]]).T))/2
+                self._diagonal_hamiltonian[k, 0] = weight
+            np.set_printoptions(threshold=np.inf)
+            #print(self._diagonal_hamiltonian*2*np.pi)
+            #raise Exception
+
+            self._hamiltonian = sparse.csc_matrix(
+                (self._diagonal_hamiltonian.T[0], (np.arange(num_IS), np.arange(num_IS))),
+                shape=(num_IS, num_IS))
+        else:
+            # Use full Hilbert space
+            self._hamiltonian = None
+
+    @property
+    def hamiltonian(self):
+        if self._hamiltonian is None:
+            assert not self.IS_subspace
+            try:
+                assert self.graph is not None
+            except AssertionError:
+                print('self.graph must be not None to generate the Hamiltonian property.')
+            self._hamiltonian = sparse.csc_matrix(((self.code.d * self.code.n) ** self.graph.n,
+                                                   (self.code.d * self.code.n) ** self.graph.n))
+            for i in range(self.graph.n):
+                self._hamiltonian = self._hamiltonian + tools.tensor_product(
+                    [sparse.identity((self.code.d * self.code.n) ** i),
+                     self._operator,
+                     sparse.identity((self.code.d * self.code.n) ** (self.graph.n - i - 1))],
+                    sparse=True)
+        return self.energies[0] * self._hamiltonian
+
+    def left_multiply(self, state: State):
+        if not self.IS_subspace:
+            temp = np.zeros_like(state)
+            # For each logical qubit
+            state_shape = state.shape
+            for i in range(state.number_logical_qudits):
+                if self.code.logical_code:
+                    temp = temp + self.code.left_multiply(state, [i], self._operator)
+                elif not self.code.logical_code:
+                    ind = self.code.d ** i
+                    out = np.zeros_like(state, dtype=np.complex128)
+                    if state.is_ket:
+                        state = state.reshape((-1, self.code.d, ind), order='F')
+                        # Note index start from the right (sN,...,s3,s2,s1)
+                        out = out.reshape((-1, self.code.d, ind), order='F')
+                        out[:, self.index, :] = state[:, self.index, :]
+                        state = state.reshape(state_shape, order='F')
+                        out = out.reshape(state_shape, order='F')
+                    else:
+                        out = out.reshape((-1, self.code.d, self.code.d ** (state.number_physical_qudits - 1),
+                                           self.code.d, ind), order='F')
+                        state = state.reshape((-1, self.code.d, self.code.d ** (state.number_physical_qudits - 1),
+                                               self.code.d, ind), order='F')
+                        out[:, self.index, :, :, :] = state[:, self.index, :, :, :]
+                        state = state.reshape(state_shape, order='F')
+                        out = out.reshape(state_shape, order='F')
+                    temp = temp + out
+            return State(self.energies[0] * temp, is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code,
+                         graph=self.hard_constraint_graph)
+        else:
+            # Handle dimensions
+            return State(self.energies[0] * self._diagonal_hamiltonian * state, is_ket=state.is_ket,
+                         IS_subspace=state.IS_subspace,
+                         code=state.code, graph=self.hard_constraint_graph)
+
+    def right_multiply(self, state: State):
+        if state.is_ket:
+            print('Warning: right multiply functionality currently applies the operator and daggers the state.')
+            return self.left_multiply(state).conj().T
+        elif not self.IS_subspace:
+            temp = np.zeros_like(state)
+            # For each physical qubit
+            state_shape = state.shape
+            for i in range(state.number_logical_qudits):
+                if self.code.logical_code:
+                    temp = temp + self.code.right_multiply(state, [i], self._operator)
+                else:
+                    ind = self.code.d ** i
+                    out = np.zeros_like(state)
+                    out = out.reshape(
+                        (-1, self.code.d, self.code.d ** (state.number_physical_qudits - 1), self.code.d, ind),
+                        order='F')
+                    state = state.reshape(
+                        (-1, self.code.d, self.code.d ** (state.number_physical_qudits - 1), self.code.d, ind),
+                        order='F')
+                    out[:, :, :, self.index, :] = state[:, :, :, self.index, :]
+                    state = state.reshape(state_shape, order='F')
+                    out = out.reshape(state_shape, order='F')
+                    temp = temp + out
+            return State(self.energies[0] * temp, is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code,
+                         graph=self.hard_constraint_graph)
+        else:
+            return State(self.energies[0] * state * self._diagonal_hamiltonian.T, is_ket=state.is_ket,
+                         IS_subspace=state.IS_subspace,
+                         code=state.code, graph=self.hard_constraint_graph)
+
+    def evolve(self, state: State, time):
+        r"""
+        Use reshape to efficiently implement evolution under :math:`H_B=\\sum_i X_i`
+        """
+        if not self.IS_subspace:
+            # We don't want to modify the original s
+            out = state.copy()
+            for i in range(state.number_logical_qudits):
+                # Note that self._operator is not necessarily involutary
+                out = self.code.rotation(out, [i], self.energies[0] * time, self._operator)
+            return out
+        else:
+            if state.is_ket:
+                # Handle dimensions
+                return State(np.exp(-1j * time * self.energies[0] * self._diagonal_hamiltonian) * state,
+                             is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code, graph=self.hard_constraint_graph)
+            else:
+                exp_hamiltonian = np.exp(-1j * time * self.energies[0] * self._diagonal_hamiltonian)
+                return State(exp_hamiltonian * state * exp_hamiltonian.conj().T,
+                             is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code, graph=self.hard_constraint_graph)
+
+
+
+
