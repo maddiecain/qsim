@@ -448,7 +448,7 @@ def unit_disk_grid_graph_rydberg(grid, radius=np.sqrt(2) + 1e-5, B=863300 / (4.4
     return g
 
 
-def rydberg_graph(points, B=863300 / (4.47) ** 6, alpha=6, threshold=1e-8, label_node_by_coords=False,
+def rydberg_graph(points, B=863300 / 4.47 ** 6, alpha=6, threshold=1e-8, label_node_by_coords=False,
                   visualize=False, IS=True, periodic=False):
     """ Create a Graph object from xy-coordinates
     where the edge weights correspond to
@@ -474,7 +474,6 @@ def rydberg_graph(points, B=863300 / (4.47) ** 6, alpha=6, threshold=1e-8, label
         d = 2
         n = points.shape[0]
     assert d == 2
-
 
     def interaction(displacement):
         # If alpha is 'inf', does a hard constraint with weight B

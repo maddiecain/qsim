@@ -8,7 +8,7 @@ from qsim.graph_algorithms.adiabatic import SimulateAdiabatic
 def find_ratio(graph, tf):
     cost = hamiltonian.HamiltonianMIS(graph, IS_subspace=True)
     driver = hamiltonian.HamiltonianDriver(IS_subspace=True, graph=graph)
-    rydberg = hamiltonian.HamiltonianRydberg(tails_graph, graph, IS_subspace=True)
+    rydberg = hamiltonian.HamiltonianRydberg(tails_graph, graph, IS_subspace=True, energies=(1/(np.pi),))
 
     def schedule(t, T):
         # Linear ramp on the detuning, experiment-like ramp on the driver
@@ -76,7 +76,12 @@ grid3 = np.array([[False, False,  True,  True,  True,  True],
        [ True,  True,  True,  True,  True, False],
        [False,  True,  True,  True,  True,  True],
        [ True,  True,  True,  True,  True,  True],
-       [ True,  True,  True,  True,  True, False]])"""
+       [ True,  True,  True,  True,  True, False]])
+       
+grid3 = np.array([[True, True, False],
+          [True, False, True],
+          [True, False, True]])
+"""
 
 graph = unit_disk_grid_graph(grid3, periodic=False)
 print('MIS size', graph.mis_size)
@@ -93,6 +98,7 @@ for time in times:
     ratios.append(ratio)
     plt.scatter(time/2/np.pi, 1 - ratio, color='navy')
 
+print(1-np.array(ratios))
 plt.loglog()
 plt.ylabel(r'1-ratio')
 plt.xlabel(r'total time ($\mu s$)')

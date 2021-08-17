@@ -1209,12 +1209,6 @@ class HamiltonianRydberg(object):
         if self.tails_graph.periodic or self.hard_constraint_graph.periodic:
             raise Exception('Periodic graphs not yet supported.')
         # Generate tails matrix
-        tails_matrix = np.zeros((self.tails_graph.n, self.tails_graph.n))
-        for node in self.tails_graph.graph:
-            for neighbor in self.tails_graph.graph[node]:
-                # Compute L2 distance
-                if np.linalg.norm(self.tails_graph.positions[node]-self.tails_graph.positions[neighbor]) >= hard_constraint_graph.radius:
-                    tails_matrix[neighbor, node] = tails_matrix[neighbor, node] + self.tails_graph.graph[node][neighbor]['weight']
         if self.IS_subspace:
             # Generate sparse mixing Hamiltonian
             assert hard_constraint_graph is not None
@@ -1226,17 +1220,16 @@ class HamiltonianRydberg(object):
                 IS, num_IS = hard_constraint_graph.independent_sets, hard_constraint_graph.num_independent_sets
             self._diagonal_hamiltonian = np.zeros((num_IS, 1), dtype=float)
             for k in range(num_IS):
-                #f k == 0:
-                #    print(1-self.hard_constraint_graph.independent_sets[k])
-                #    print(tails_matrix @ (np.array([1-self.hard_constraint_graph.independent_sets[k]]).T))
                 # Get state as bit string
                 # Multiply by weights matrix
                 # Sum result
-                weight = np.sum(tails_matrix @ (np.array([1-self.hard_constraint_graph.independent_sets[k]]).T))/2
+                weight = 0
+                for i in range(tails_graph.n):
+                    for j in range(i+1, tails_graph.n):
+                        if self.hard_constraint_graph.independent_sets[k][i] == \
+                                self.hard_constraint_graph.independent_sets[k][j] == 0:
+                            weight += self.tails_graph.graph[i][j]['weight']
                 self._diagonal_hamiltonian[k, 0] = weight
-            np.set_printoptions(threshold=np.inf)
-            #print(self._diagonal_hamiltonian*2*np.pi)
-            #raise Exception
 
             self._hamiltonian = sparse.csc_matrix(
                 (self._diagonal_hamiltonian.T[0], (np.arange(num_IS), np.arange(num_IS))),
