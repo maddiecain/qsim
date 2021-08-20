@@ -26,6 +26,7 @@ class SchrodingerEquation(object):
         res = State(np.zeros(state.shape), is_ket=state.is_ket, code=state.code, IS_subspace=state.IS_subspace,
                     graph=state.graph)
         for i in range(len(self.hamiltonians)):
+            #print(self.hamiltonians[i].left_multiply(state)[:10], state[:10], self.hamiltonians[i])
             res = res - 1j * self.hamiltonians[i].left_multiply(state)
         return res
 
@@ -36,7 +37,7 @@ class SchrodingerEquation(object):
             sparse_hamiltonian = sparse_hamiltonian + self.hamiltonians[i].hamiltonian
         return expm_multiply(-1j * time * sparse_hamiltonian, state)
 
-    def run_ode_solver(self, state: State, t0, tf, num=50, schedule=lambda t: None, times=None, method='RK45',
+    def run_ode_solver(self, state: State, t0, tf, num=50, schedule=lambda t: None, times=None, method='odeint',
                        full_output=True, verbose=False):
         """Numerically integrates the Schrodinger equation"""
         assert state.is_ket

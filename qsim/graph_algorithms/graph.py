@@ -393,7 +393,7 @@ def unit_disk_grid_graph(grid, radius=np.sqrt(2) + 1e-5, visualize=False, period
         plt.axis('off')
         plt.show()
     g = Graph(g, IS=IS)
-    g.positions = nodes
+    g.positions = grid
     g.radius = radius
     g.periodic = periodic
     return g

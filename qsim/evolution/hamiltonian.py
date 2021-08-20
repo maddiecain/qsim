@@ -1083,7 +1083,6 @@ class HamiltonianEnergyShift(object):
             self._hamiltonian = sparse.csc_matrix(
                 (self._diagonal_hamiltonian.T[0], (np.arange(num_IS), np.arange(num_IS))),
                 shape=(num_IS, num_IS))
-            print(self._hamiltonian)
         else:
             # Use full Hilbert space
             self._hamiltonian = None
@@ -1230,7 +1229,6 @@ class HamiltonianRydberg(object):
                                 self.hard_constraint_graph.independent_sets[k][j] == 0:
                             weight += self.tails_graph.graph[i][j]['weight']
                 self._diagonal_hamiltonian[k, 0] = weight
-
             self._hamiltonian = sparse.csc_matrix(
                 (self._diagonal_hamiltonian.T[0], (np.arange(num_IS), np.arange(num_IS))),
                 shape=(num_IS, num_IS))
@@ -1241,55 +1239,13 @@ class HamiltonianRydberg(object):
     @property
     def hamiltonian(self):
         if self._hamiltonian is None:
-            assert not self.IS_subspace
-            try:
-                assert self.graph is not None
-            except AssertionError:
-                print('self.graph must be not None to generate the Hamiltonian property.')
-            self._hamiltonian = sparse.csc_matrix(((self.code.d * self.code.n) ** self.graph.n,
-                                                   (self.code.d * self.code.n) ** self.graph.n))
-            for i in range(self.graph.n):
-                self._hamiltonian = self._hamiltonian + tools.tensor_product(
-                    [sparse.identity((self.code.d * self.code.n) ** i),
-                     self._operator,
-                     sparse.identity((self.code.d * self.code.n) ** (self.graph.n - i - 1))],
-                    sparse=True)
+            raise Exception
         return self.energies[0] * self._hamiltonian
 
     def left_multiply(self, state: State):
-        if not self.IS_subspace:
-            temp = np.zeros_like(state)
-            # For each logical qubit
-            state_shape = state.shape
-            for i in range(state.number_logical_qudits):
-                if self.code.logical_code:
-                    temp = temp + self.code.left_multiply(state, [i], self._operator)
-                elif not self.code.logical_code:
-                    ind = self.code.d ** i
-                    out = np.zeros_like(state, dtype=np.complex128)
-                    if state.is_ket:
-                        state = state.reshape((-1, self.code.d, ind), order='F')
-                        # Note index start from the right (sN,...,s3,s2,s1)
-                        out = out.reshape((-1, self.code.d, ind), order='F')
-                        out[:, self.index, :] = state[:, self.index, :]
-                        state = state.reshape(state_shape, order='F')
-                        out = out.reshape(state_shape, order='F')
-                    else:
-                        out = out.reshape((-1, self.code.d, self.code.d ** (state.number_physical_qudits - 1),
-                                           self.code.d, ind), order='F')
-                        state = state.reshape((-1, self.code.d, self.code.d ** (state.number_physical_qudits - 1),
-                                               self.code.d, ind), order='F')
-                        out[:, self.index, :, :, :] = state[:, self.index, :, :, :]
-                        state = state.reshape(state_shape, order='F')
-                        out = out.reshape(state_shape, order='F')
-                    temp = temp + out
-            return State(self.energies[0] * temp, is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code,
-                         graph=self.hard_constraint_graph)
-        else:
-            # Handle dimensions
-            return State(self.energies[0] * self._diagonal_hamiltonian * state, is_ket=state.is_ket,
-                         IS_subspace=state.IS_subspace,
-                         code=state.code, graph=self.hard_constraint_graph)
+        return State(self.energies[0] * self._diagonal_hamiltonian * state, is_ket=state.is_ket,
+                     IS_subspace=state.IS_subspace,
+                     code=state.code, graph=self.hard_constraint_graph)
 
     def right_multiply(self, state: State):
         if state.is_ket:

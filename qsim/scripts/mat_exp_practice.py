@@ -1,5 +1,5 @@
 import qsim.evolution.hamiltonian
-from qsim.graph_algorithms.graph import line_graph
+from qsim.graph_algorithms.graph import line_graph, ring_graph
 from qsim.tools import tools
 import numpy as np
 from scipy import sparse
@@ -15,13 +15,13 @@ from os import path
 
 def disorder_hamiltonian(states, h=1., subspace=None):
     if subspace is None:
-        disorder = (np.random.random(size=states.shape[1])-1/2)*h
+        disorder = (np.random.random(size=states.shape[1]) - 1 / 2) * h
         return sparse.csc_matrix(
-            (np.sum((1/2-states)*2*disorder, axis=1), (np.arange(states.shape[0]),
-                                        np.arange(states.shape[0]))), shape=(states.shape[0], states.shape[0]))
+            (np.sum((1 / 2 - states) * 2 * disorder, axis=1), (np.arange(states.shape[0]),
+                                                               np.arange(states.shape[0]))),
+            shape=(states.shape[0], states.shape[0]))
     if subspace is 'all':
         return (np.random.random(size=states) - 1 / 2) * h
-
 
 
 def matvec_heisenberg(heisenberg: qsim.evolution.hamiltonian.HamiltonianHeisenberg, disorder, state: State):
@@ -59,7 +59,8 @@ def matvec_heisenberg_imag(heisenberg: qsim.evolution.hamiltonian.HamiltonianHei
         state = state.reshape(state_shape, order='F')
         out = out.reshape(state_shape, order='F')
         temp = temp + out
-    return -1j*(heisenberg.left_multiply(state) + temp)
+    return -1j * (heisenberg.left_multiply(state) + temp)
+
 
 def matvec(A, v):
     """
@@ -71,7 +72,6 @@ def matvec(A, v):
         return A.dot(v)
 
 
-
 def chebyshev(A, v, tau, eps, p_check, verbose=False):
     def max_eig_estimate(A):
         # This is the infinity-norm. Lanczos method probably more accurate but slower
@@ -81,6 +81,7 @@ def chebyshev(A, v, tau, eps, p_check, verbose=False):
     def min_eig_estimate(A):
         eigval, eigvec = eigsh(A, k=1, which='SA')
         return eigval[0], eigvec
+
     # eps is (relative?) error
     # p is frequency of checking convergence
     norm = np.linalg.norm(v)
@@ -106,10 +107,10 @@ def chebyshev(A, v, tau, eps, p_check, verbose=False):
         bessels = np.zeros(m + 1, dtype=np.complex128)
         bessels[m] = bessel_asymptotic(m, tau * l1)
         bessels[m - 1] = bessel_asymptotic(m - 1, tau * l1)
-        for i in range(m-2, -1, -1):
+        for i in range(m - 2, -1, -1):
             print(i)
             bessels[i] = bessel_asymptotic(i, tau * l1)
-            #bessels[i] = 2*(i+1) / (-1j*tau * l1) * bessels[i + 1] + bessels[i + 2]
+            # bessels[i] = 2*(i+1) / (-1j*tau * l1) * bessels[i + 1] + bessels[i + 2]
         # Now convert to Chebyshev coefficient with exponential prefactor:
         bessels *= 2 * np.exp(tau * ln)
         bessels[0] *= 0.5
@@ -122,6 +123,7 @@ def chebyshev(A, v, tau, eps, p_check, verbose=False):
         # from Abramowitz and Stegun, 9.7.
         # What is a good order to choose?
         mu = 4 * nu ** 2
+
         def term(n):
             tmp = 1
             for i in range(n):
@@ -135,13 +137,10 @@ def chebyshev(A, v, tau, eps, p_check, verbose=False):
 
     def m_max(eps, tau, lambda_1, lambda_n):
         bound = eps * np.abs(c1) / (4 * norm)
-        if ((0.5)**(np.exp(1)*tau*(lambda_n-lambda_1)/2) < bound):
-            return int(np.exp(1)*tau*(lambda_n-lambda_1)/2)
+        if ((0.5) ** (np.exp(1) * tau * (lambda_n - lambda_1) / 2) < bound):
+            return int(np.exp(1) * tau * (lambda_n - lambda_1) / 2)
         else:
-            return int(np.log(1/bound)/np.log(2))
-
-
-
+            return int(np.log(1 / bound) / np.log(2))
 
         # minimum m satisfying E(m) < bound
         # u1 is the output min eigvec of the RQ minimization function
@@ -156,13 +155,12 @@ def chebyshev(A, v, tau, eps, p_check, verbose=False):
     def E(m, tau, lambda_1, lambda_n):
         b = 0.618
         d = 0.438  # Pull more accurate values later
-        rho = lambda_n-lambda_1
+        rho = lambda_n - lambda_1
         if m > tau * rho:
             return d ** m / (1 - d)
         else:
             return np.exp(-b * (m + 1) ** 2 / (tau * rho)) * (1 + np.sqrt(np.pi * tau * rho / (4 * b))) + \
                    d ** (tau * rho) / (1 - d)
-
 
     # Compute conservative upper bound for the number of terms needed
     if verbose:
@@ -171,11 +169,11 @@ def chebyshev(A, v, tau, eps, p_check, verbose=False):
     if verbose:
         print('m_upper:{}'.format(m_upper))
     # A_k in the expansion
-    print(chebs(5, 0.8, 2.0, -1j*1.2))
+    print(chebs(5, 0.8, 2.0, -1j * 1.2))
     raise Exception
-    chebs_upper = chebs(m_upper, l1, ln, -1j*tau)
-    #print(chebs_upper, [bessel_asymptotic(m, -tau*l1)*2 * np.exp(-tau * ln) for m in range(0, m_upper+1)])
-    #print(np.sum(chebs(1000, l1, ln, tau))-np.sum(chebs_upper), 2*norm*np.exp(-tau*lambda_1)*E(m_upper, tau, lambda_1, lambda_n))
+    chebs_upper = chebs(m_upper, l1, ln, -1j * tau)
+    # print(chebs_upper, [bessel_asymptotic(m, -tau*l1)*2 * np.exp(-tau * ln) for m in range(0, m_upper+1)])
+    # print(np.sum(chebs(1000, l1, ln, tau))-np.sum(chebs_upper), 2*norm*np.exp(-tau*lambda_1)*E(m_upper, tau, lambda_1, lambda_n))
     if verbose:
         print('chebs:')
         print(chebs_upper)
@@ -188,16 +186,16 @@ def chebyshev(A, v, tau, eps, p_check, verbose=False):
     norm_test = False
     k = 1
     while not exit_test:
-        v_old = 2*(matvec(A, v_new) / l1 - ln / l1 * v_new) - v_old
+        v_old = 2 * (matvec(A, v_new) / l1 - ln / l1 * v_new) - v_old
 
-        s_current = s_current+chebs_upper[k + 1] * v_old
+        s_current = s_current + chebs_upper[k + 1] * v_old
         s_norms.append(np.linalg.norm(s_current))
         if k % p_check == 0 and not norm_test:
-            r = np.linalg.norm(s_current) / s_norms[k+1-p_check]
+            r = np.linalg.norm(s_current) / s_norms[k + 1 - p_check]
             if np.abs(r - 1) < 0.1:
                 k0 = k + 1
                 norm_test = True
-                m_upper = truncation_m(k0, eps, s_norms[k+1-p_check], v)
+                m_upper = truncation_m(k0, eps, s_norms[k + 1 - p_check], v)
                 if verbose:
                     print('r={}, m_upper_new={}'.format(r, m_upper))
                     print('k={}'.format(k))
@@ -206,33 +204,36 @@ def chebyshev(A, v, tau, eps, p_check, verbose=False):
         v_new, v_old = v_old, v_new
     return s_current
 
+
 def chebs_real(m, l1, ln, tau):
     # first m chebyshev coefficients
     # first find the needed Bessel function values by backwards recursion
     bessels = np.zeros(m + 1, dtype=np.complex128)
     bessels[m] = iv(m, tau * l1)
     bessels[m - 1] = iv(m - 1, tau * l1)
-    for i in range(m-2, -1, -1):
+    for i in range(m - 2, -1, -1):
         bessels[i] = iv(i, tau * l1)
-        #bessels[i] = 2*(i+1) / (-1j*tau * l1) * bessels[i + 1] + bessels[i + 2]
+        # bessels[i] = 2*(i+1) / (-1j*tau * l1) * bessels[i + 1] + bessels[i + 2]
     # Now convert to Chebyshev coefficient with exponential prefactor:
     bessels *= 2 * np.exp(-tau * ln)
     bessels[0] *= 0.5
     return bessels
 
+
 def chebs_imag(m, l1, ln, tau):
     # first m chebyshev coefficients
     # first find the needed Bessel function values by backwards recursion
     bessels = np.zeros(m + 1, dtype=np.complex128)
-    bessels[m] = jv(m, tau * l1)*(1j)**(-m)
-    bessels[m - 1] = jv(m - 1, tau * l1)*(1j)**(-(m-1))
-    for k in range(m-2, -1, -1):
-        #bessels[k] = (1j)**(-k)*jv(k, tau * l1)
-        bessels[k] = 2*(k+1) / (-1j*tau * l1) * bessels[k + 1] + bessels[k + 2]
+    bessels[m] = jv(m, tau * l1) * (1j) ** (-m)
+    bessels[m - 1] = jv(m - 1, tau * l1) * (1j) ** (-(m - 1))
+    for k in range(m - 2, -1, -1):
+        # bessels[k] = (1j)**(-k)*jv(k, tau * l1)
+        bessels[k] = 2 * (k + 1) / (-1j * tau * l1) * bessels[k + 1] + bessels[k + 2]
     # Now convert to Chebyshev coefficient with exponential prefactor:
-    bessels *= 2 * np.exp(1j*tau * ln)
+    bessels *= 2 * np.exp(1j * tau * ln)
     bessels[0] *= 0.5
     return bessels
+
 
 """print(chebs_real(5, .8, 2., -1j*1.2))
 print(chebs_imag(5, .8, 2., 1.2))
@@ -321,42 +322,7 @@ def generate_time_evolved_states(graph, times, verbose=False, h=1):
         return states, states_cheb, states_cheb, z_mag, z_mag_cheb, z_mag_cheb
 
 
-def return_probability(graph, times, verbose=False, h=1, exact=True):
-    #For random product states in the computational basis, time evolve then compute
-    if verbose:
-        print('beginning')
 
-    for k in range(2**graph.n):
-        # Compute the total magnetization
-        z_mags_init = 2*(1/2-tools.int_to_nary(k, size=graph.n))
-        if verbose:
-            print(z_mags_init)
-        subspace = int(np.sum(z_mags_init))
-        if path.exists('heisenberg_' + str(graph.n)+'_'+str(subspace) + '.pickle'):
-            heisenberg = dill.load(open('heisenberg_' + str(graph.n)+'_'+str(subspace) + '.pickle', 'rb'))
-        else:
-            heisenberg = qsim.evolution.hamiltonian.HamiltonianHeisenberg(graph, subspace=subspace, energies=(1 / 4, 1 / 2))
-            dill.dump(heisenberg, open('heisenberg_' + str(graph.n)+'_'+str(subspace) + '.pickle', 'wb'))
-            if verbose:
-                print('initialized Hamiltonian')
-
-        # For every computational basis state,
-        dim = int(comb(graph.n, graph.n // 2+subspace))
-        hamiltonian = heisenberg.hamiltonian + disorder_hamiltonian(heisenberg.states, h=h / 2)
-
-        raise Exception
-        n_times = len(times)
-        # hamiltonian_exp = expm(-1j *hamiltonian * (times[1] - times[0]))
-        state = np.zeros((dim, 1))
-        state[-1, 0] = 1
-        states = np.zeros((dim, n_times), dtype=np.complex128)
-        states[..., 0] = state.flatten()
-        for i in range(n_times - 1):
-            if verbose:
-                print(i)
-            states[..., i + 1] = expm_multiply(-1j * hamiltonian * (times[i + 1] - times[i]), states[..., i])
-        z_mags = ((np.abs(states) ** 2).T @ (heisenberg.states - 1 / 2) * 2).real / 2
-        czz = z_mags*z_mags_init
 
 
 def magnetization(graph, h=1):
@@ -415,3 +381,59 @@ state = matvec_heisenberg(heisenberg, disorder, state)
 print(state)
 print(time.time()-t0)
 """
+
+
+def return_probability(graph, times, verbose=False, h=1, exact=True):
+    # For random product states in the computational basis, time evolve then compute
+    if verbose:
+        print('beginning')
+    czz_tot = np.zeros((len(times), graph.n))
+    num = 0
+    for _ in range(1):
+        for k in range(2 ** graph.n):
+            print(k)
+            # Compute the total magnetization
+            z_mags_init = 2 * (1 / 2 - tools.int_to_nary(k, size=graph.n))
+
+            if np.sum(z_mags_init) == 0:
+                num += 1
+                if verbose:
+                    print(z_mags_init)
+                subspace = np.sum(z_mags_init)
+                if path.exists('heisenberg_' + str(graph.n) + '_' + str(subspace) + '.pickle'):
+                    heisenberg = dill.load(open('heisenberg_' + str(graph.n) + '_' + str(subspace) + '.pickle', 'rb'))
+                else:
+                    heisenberg = qsim.evolution.hamiltonian.HamiltonianHeisenberg(graph, subspace=subspace,
+                                                                                  energies=(1 / 4, 1 / 2))
+                    dill.dump(heisenberg, open('heisenberg_' + str(graph.n) + '_' + str(subspace) + '.pickle', 'wb'))
+                    if verbose:
+                        print('initialized Hamiltonian')
+
+                # For every computational basis state,
+                dim = int(comb(graph.n, int((graph.n + subspace) / 2)))
+                print(dim, subspace)
+                hamiltonian = heisenberg.hamiltonian + disorder_hamiltonian(heisenberg.states, h=h)
+
+                n_times = len(times)
+                # hamiltonian_exp = expm(-1j *hamiltonian * (times[1] - times[0]))
+                # print(2*(1-heisenberg.states-1/2),z_mags_init)
+                ind = np.argwhere(np.sum(np.abs(2 * (1 - heisenberg.states - 1 / 2) - z_mags_init), axis=1) == 0)[0, 0]
+                # print(ind)
+                state = np.zeros((dim, 1))
+                state[ind, 0] = 1
+                states = np.zeros((dim, n_times), dtype=np.complex128)
+                states[:, 0] = state.flatten()
+                for i in range(n_times - 1):
+                    if verbose:
+                        print(i)
+                    states[..., i+1] = expm_multiply(-1j * hamiltonian * (times[i + 1] - times[i]), states[..., i])
+                z_mags = ((np.abs(states) ** 2).T @ (1 - heisenberg.states - 1 / 2) * 2).real
+                # print(z_mags_init, z_mags, z_mags*z_mags_init/4)
+                czz = z_mags * z_mags_init
+                czz_tot = czz_tot + czz
+    print(num)
+    return czz_tot / num
+
+
+print(10 ** np.linspace(0, 3, 5))
+print(np.mean(return_probability(line_graph(6), np.concatenate([[0], 10 ** np.linspace(0, 3, 10)]), h=1), axis=1))
