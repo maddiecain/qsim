@@ -5,15 +5,17 @@ import matplotlib.pyplot as plt
 import networkx as nx
 from networkx.algorithms import approximation
 from itertools import tee, product
+from collections import deque
+from itertools import chain, islice
 
 """Class for performing basic graph Monte Carlo operations on networkx Graphs. Future versions of this code
 may subclass nx.Graph."""
 
 
 class Graph(object):
-    def __init__(self, graph: nx.Graph, IS=True):
+    def __init__(self, graph: nx.Graph, IS=True, generate_mixer=False):
         # Set default weights to one
-
+        self.generate_mixer = generate_mixer
         for edge in graph.edges:
             if not ('weight' in graph.edges[edge]):
                 graph.edges[edge]['weight'] = 1
@@ -37,13 +39,152 @@ class Graph(object):
         if IS:
             self.generate_independent_sets()
 
+    def enumerate_all_cliques(self, complement):
+        """Returns all cliques in an undirected graph.
+
+        This method returns cliques of size (cardinality)
+        k = 1, 2, 3, ..., maxDegree - 1.
+
+        Where maxDegree is the maximal degree of any node in the graph.
+
+        Parameters
+        ----------
+        G: undirected graph
+
+        Returns
+        -------
+        generator of lists: generator of list for each clique.
+
+        Notes
+        -----
+        To obtain a list of all cliques, use
+        :samp:`list(enumerate_all_cliques(G))`.
+
+        Based on the algorithm published by Zhang et al. (2005) [1]_
+        and adapted to output all cliques discovered.
+
+        This algorithm is not applicable on directed graphs.
+
+        This algorithm ignores self-loops and parallel edges as
+        clique is not conventionally defined with such edges.
+
+        There are often many cliques in graphs.
+        This algorithm however, hopefully, does not run out of memory
+        since it only keeps candidate sublists in memory and
+        continuously removes exhausted sublists.
+
+        References
+        ----------
+        .. [1] Yun Zhang, Abu-Khzam, F.N., Baldwin, N.E., Chesler, E.J.,
+               Langston, M.A., Samatova, N.F.,
+               Genome-Scale Computational Approaches to Memory-Intensive
+               Applications in Systems Biology.
+               Supercomputing, 2005. Proceedings of the ACM/IEEE SC 2005
+               Conference, pp. 12, 12-18 Nov. 2005.
+               doi: 10.1109/SC.2005.29.
+               http://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=1559964&isnumber=33129
+        """
+        index = {}
+        nbrs = {}
+        for u in complement:
+            index[u] = len(index)
+            # Neighbors of u that appear after u in the iteration order of G.
+            nbrs[u] = {v for v in complement[u] if v not in index}
+        queue = deque(([u], sorted(nbrs[u], key=index.__getitem__)) for u in complement)
+        # Loop invariants:
+        # 1. len(base) is nondecreasing.
+        # 2. (base + cnbrs) is sorted with respect to the iteration order of G.
+        # 3. cnbrs is a set of common neighbors of nodes in base.
+        while queue:
+            base, cnbrs = map(list, queue.popleft())
+            yield base
+            for i, u in enumerate(cnbrs):
+                # Use generators to reduce memory consumption.
+                queue.append((chain(base, [u]), filter(nbrs[u].__contains__, islice(cnbrs, i + 1, None))))
+
     def generate_independent_sets(self):
+        def return_neighbors(complement):
+            """Returns all cliques in an undirected graph.
+
+            This method returns cliques of size (cardinality)
+            k = 1, 2, 3, ..., maxDegree - 1.
+
+            Where maxDegree is the maximal degree of any node in the graph.
+
+            Parameters
+            ----------
+            G: undirected graph
+
+            Returns
+            -------
+            generator of lists: generator of list for each clique.
+
+            Notes
+            -----
+            To obtain a list of all cliques, use
+            :samp:`list(enumerate_all_cliques(G))`.
+
+            Based on the algorithm published by Zhang et al. (2005) [1]_
+            and adapted to output all cliques discovered.
+
+            This algorithm is not applicable on directed graphs.
+
+            This algorithm ignores self-loops and parallel edges as
+            clique is not conventionally defined with such edges.
+
+            There are often many cliques in graphs.
+            This algorithm however, hopefully, does not run out of memory
+            since it only keeps candidate sublists in memory and
+            continuously removes exhausted sublists.
+
+            References
+            ----------
+            .. [1] Yun Zhang, Abu-Khzam, F.N., Baldwin, N.E., Chesler, E.J.,
+                   Langston, M.A., Samatova, N.F.,
+                   Genome-Scale Computational Approaches to Memory-Intensive
+                   Applications in Systems Biology.
+                   Supercomputing, 2005. Proceedings of the ACM/IEEE SC 2005
+                   Conference, pp. 12, 12-18 Nov. 2005.
+                   doi: 10.1109/SC.2005.29.
+                   http://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=1559964&isnumber=33129
+            """
+            index = {}
+            nbrs = {}
+            num = 0
+            all_nbrs = {}
+            for u in complement:
+                index[u] = len(index)
+                # Neighbors of u that appear after u in the iteration order of G.
+                nbrs[u] = {v for v in complement[u]}  # if v not in index}
+                all_nbrs[u] = {v for v in complement[u]}
+            queue = deque(([u], sorted(nbrs[u], key=index.__getitem__)) for u in complement)
+            # Loop invariants:
+            # 1. len(base) is nondecreasing.
+            # 2. (base + cnbrs) is sorted with respect to the iteration order of G.
+            # 3. cnbrs is a set of common neighbors of nodes in base.
+            num = 0
+            print(queue)
+            while queue:
+                base, cnbrs = map(list, queue.popleft())
+                print(base, cnbrs)
+                if all(base[i] <= base[i + 1] for i in range(len(base) - 1)):
+                    yield base
+                    num += 1
+                    for i, u in enumerate(cnbrs):
+                        # print(nbrs[u])
+                        # Use generators to reduce memory consumption.
+                        # print(all_nbrs[u])
+                        queue.append((chain(base, [u]), filter(nbrs[u].__contains__, islice(cnbrs, i + 1, None))))
+                else:
+                    print('hi')
+            print(num)
+
         # Construct generator containing independent sets
         # Don't generate anything that depends on the entire Hilbert space as to save space
         # Generate complement graph
         complement = nx.complement(self.graph)
         # These are your independent sets of the original graphs, ordered by node and size
-        independent_sets, backup = tee(nx.algorithms.clique.enumerate_all_cliques(complement))
+        independent_sets, backup = tee(self.enumerate_all_cliques(complement))
         self.num_independent_sets = sum(1 for _ in backup) + 1  # We add one to include the empty set
         # Generate a list of integers corresponding to the independent sets in binary
         indices = np.zeros((self.num_independent_sets, self.n), dtype=int)
@@ -51,8 +192,15 @@ class Graph(object):
         indices[-1, ...] = np.ones(self.n)
         k = self.num_independent_sets - 2
         self.mis_size = 0
-        # All spins down should be at the end
+        if self.generate_mixer:
+            independent_sets_dict = {(): (self.num_independent_sets-1, [])}
         for i in independent_sets:
+            if self.generate_mixer:
+                independent_sets_dict[tuple(i)] = (k, [])
+                for (j, node) in enumerate(i):
+                    i_removed = i.copy()
+                    i_removed.pop(j)
+                    independent_sets_dict[tuple(i_removed)][1].append(k)
             nary = np.ones(self.n)
             for node in i:
                 nary[node] = 0
@@ -60,6 +208,56 @@ class Graph(object):
             if len(i) > self.mis_size:
                 self.mis_size = len(i)
             k -= 1
+        if self.generate_mixer:
+            self.independent_sets_dict = independent_sets_dict
+        # All spins down should be at the end
+
+        """for i in range(num_IS):
+            for j in range(graph.n):
+                if IS[i, j] == self.transition[0]:
+                    # Flip spin at this location
+                    # Get binary representation
+                    temp = IS[i, ...].copy()
+                    temp[j] = self.transition[1]
+                    where_matched = (np.argwhere(np.sum(np.abs(IS - temp), axis=1) == 0).flatten())
+                    if len(where_matched) > 0:
+                        # This is a valid spin flip
+                        rows[num_terms] = where_matched[0]
+                        columns[num_terms] = i
+                        if self.pauli == 'X':
+                            entries[num_terms] = 1
+                        elif self.pauli == 'Y':
+                            entries[num_terms] = -1j
+                        num_terms += 1
+        # Cut off the excess in the arrays
+        columns = columns[:2 * num_terms]
+        rows = rows[:2 * num_terms]
+        entries = entries[:2 * num_terms]
+        # Populate the second half of the entries according to self.pauli
+        if self.pauli == 'X':
+            columns[num_terms:2 * num_terms] = rows[:num_terms]
+            rows[num_terms:2 * num_terms] = columns[:num_terms]
+            entries[num_terms:2 * num_terms] = entries[:num_terms]
+        elif self.pauli == 'Y':
+            columns[num_terms:2 * num_terms] = rows[:num_terms]
+            rows[num_terms:2 * num_terms] = columns[:num_terms]
+            entries[num_terms:2 * num_terms] = -1 * entries[:num_terms]
+        # Now, construct the Hamiltonian
+        self._csc_hamiltonian = sparse.csc_matrix((entries, (rows, columns)), shape=(num_IS, num_IS))
+        self._hamiltonian = self._csc_hamiltonian"""
+        """rows = np.zeros(self.n * self.num_independent_sets, dtype=int)
+        columns = np.zeros(self.n * self.num_independent_sets, dtype=int)
+        entries = np.zeros(self.n * self.num_independent_sets, dtype=int)
+        num_terms = 0
+        for (i, nbrs) in independent_sets:
+            nary = np.ones(self.n)
+            for node in i:
+                nary[node] = 0
+            indices[k, ...] = nary
+            if len(i) > self.mis_size:
+                self.mis_size = len(i)
+            k -= 1"""
+
         self.degeneracy = len(np.argwhere(self.n - np.sum(indices, axis=1) == self.mis_size))
         self.independent_sets = indices
         return
@@ -261,7 +459,7 @@ class GraphMonteCarlo(object):
         return nx.algorithms.approximation.maximum_independent_set(self.graph)
 
 
-def line_graph(n, IS=True):
+def line_graph(n, IS=True, generate_mixer=False):
     g = nx.Graph()
     g.add_nodes_from(np.arange(0, n), weight=1)
     if n == 1:
@@ -269,10 +467,10 @@ def line_graph(n, IS=True):
     else:
         for i in range(n - 1):
             g.add_edge(i, i + 1, weight=1)
-    return Graph(g, IS=IS)
+    return Graph(g, IS=IS, generate_mixer=generate_mixer)
 
 
-def ring_graph(n, node_weight=1, edge_weight=1, IS=True):
+def ring_graph(n, node_weight=1, edge_weight=1, IS=True, generate_mixer=False):
     g = nx.Graph()
     g.add_nodes_from(np.arange(0, n), weight=node_weight)
     if n == 1:
@@ -281,14 +479,14 @@ def ring_graph(n, node_weight=1, edge_weight=1, IS=True):
         for i in range(n - 1):
             g.add_edge(i, i + 1, weight=edge_weight)
         g.add_edge(0, n - 1, weight=edge_weight)
-    return Graph(g, IS=IS)
+    return Graph(g, IS=IS, generate_mixer=generate_mixer)
 
 
-def degree_fails_graph(return_mis=False, IS=True):
+def degree_fails_graph(return_mis=False, IS=True, generate_mixer=False):
     g = nx.Graph()
     g.add_weighted_edges_from(
         [(0, 1, 1), (0, 4, 1), (0, 5, 1), (4, 5, 1), (1, 4, 1), (1, 3, 1), (2, 4, 1)])
-    return Graph(g, IS=IS)
+    return Graph(g, IS=IS, generate_mixer=generate_mixer)
 
 
 def IS_projector(graph, code):
@@ -326,7 +524,7 @@ def IS_projector(graph, code):
         return np.array([np.diagonal(proj)]).T
 
 
-def grid_graph(n, m, periodic=False, nn=False, IS=True):
+def grid_graph(n, m, periodic=False, nn=False, IS=True, generate_mixer=False):
     graph = nx.grid_2d_graph(n, m, periodic=periodic)
     nodes = graph.nodes
     if nn:
@@ -343,10 +541,11 @@ def grid_graph(n, m, periodic=False, nn=False, IS=True):
     new_nodes = list(range(len(nodes)))
     mapping = dict(zip(nodes, new_nodes))
     nx.relabel_nodes(graph, mapping, copy=False)
-    return Graph(graph, IS=IS)
+    return Graph(graph, IS=IS, generate_mixer=generate_mixer)
 
 
-def unit_disk_grid_graph(grid, radius=np.sqrt(2) + 1e-5, visualize=False, periodic=False, IS=True):
+def unit_disk_grid_graph(grid, radius=np.sqrt(2) + 1e-5, visualize=False, periodic=False, IS=True,
+                         generate_mixer=False):
     x = grid.shape[1]
     y = grid.shape[0]
 
@@ -392,14 +591,15 @@ def unit_disk_grid_graph(grid, radius=np.sqrt(2) + 1e-5, visualize=False, period
         nx.draw_networkx_edges(g, pos=pos, edge_color='black')
         plt.axis('off')
         plt.show()
-    g = Graph(g, IS=IS)
+    g = Graph(g, IS=IS, generate_mixer=generate_mixer)
     g.positions = grid
     g.radius = radius
     g.periodic = periodic
     return g
 
 
-def unit_disk_grid_graph_rydberg(grid, radius=np.sqrt(2) + 1e-5, B=863300 / (4.47) ** 6, visualize=False, IS=True):
+def unit_disk_grid_graph_rydberg(grid, radius=np.sqrt(2) + 1e-5, B=863300 / (4.47) ** 6, visualize=False, IS=True,
+                                 generate_mixer=False):
     y, x = grid.shape
 
     def neighbors_from_geometry(n):
@@ -441,7 +641,7 @@ def unit_disk_grid_graph_rydberg(grid, radius=np.sqrt(2) + 1e-5, B=863300 / (4.4
         nx.draw_networkx_edges(g, pos=pos, edge_color='black')
         plt.axis('off')
         plt.show()
-    g = Graph(g, IS=IS)
+    g = Graph(g, IS=IS, generate_mixer=generate_mixer)
     g.positions = nodes
     g.radius = radius
     g.B = B
@@ -449,7 +649,7 @@ def unit_disk_grid_graph_rydberg(grid, radius=np.sqrt(2) + 1e-5, B=863300 / (4.4
 
 
 def rydberg_graph(points, B=863300 / 4.47 ** 6, alpha=6, threshold=1e-8, label_node_by_coords=False,
-                  visualize=False, IS=True, periodic=False):
+                  visualize=False, IS=True, periodic=False, generate_mixer=False):
     """ Create a Graph object from xy-coordinates
     where the edge weights correspond to
             B / ||r_i - r_j||^alpha
@@ -503,14 +703,14 @@ def rydberg_graph(points, B=863300 / 4.47 ** 6, alpha=6, threshold=1e-8, label_n
         nx.draw_networkx(graph, pos=pos,
                          labels={}, node_size=20, node_color='r')
         plt.show()
-    graph = Graph(graph, IS=IS)
+    graph = Graph(graph, IS=IS, generate_mixer=generate_mixer)
     graph.positions = points
     graph.B = B
     graph.periodic = periodic
     return graph
 
 
-def unit_disk_graph(points, radius=1 + 1e-5, periodic=False, visualize=False, IS=True):
+def unit_disk_graph(points, radius=1 + 1e-5, periodic=False, visualize=False, IS=True, generate_mixer=False):
     nodes = np.arange(points.shape[0])
     adjacency_matrix = np.zeros((points.shape[0], points.shape[0]))
     for n1 in nodes:
@@ -524,12 +724,12 @@ def unit_disk_graph(points, radius=1 + 1e-5, periodic=False, visualize=False, IS
         pos = {nodes[i]: points[i] for i in range(len(nodes))}
         nx.draw(graph, pos=pos)
         plt.show()
-    graph = Graph(graph, IS=IS)
+    graph = Graph(graph, IS=IS, generate_mixer=generate_mixer)
     graph.positions = nodes
     return graph
 
 
-def branching_tree_from_edge(n_branches, visualize=True, IS=True):
+def branching_tree_from_edge(n_branches, visualize=True, IS=True, generate_mixer=False):
     graph = nx.Graph()
     graph.add_edge(0, 1)
     last_layer = [0, 1]
@@ -545,4 +745,4 @@ def branching_tree_from_edge(n_branches, visualize=True, IS=True):
     if visualize:
         nx.draw(graph, with_labels=True)
         plt.show()
-    return Graph(graph, IS=IS)
+    return Graph(graph, IS=IS, generate_mixer=generate_mixer)

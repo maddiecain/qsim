@@ -87,9 +87,8 @@ class SimulateAdiabatic(object):
 
     def run(self, time, schedule, num=None, initial_state=None, full_output=True, method='RK45', verbose=False,
             iterations=None):
-        if method == 'odeint' or method == 'trotterize' and num is None:
+        if (method == 'odeint' or method == 'trotterize') and num is None:
             num = self._num_from_time(time, method=method)
-
         if initial_state is None:
             # Begin with all qudits in the ground s
             initial_state = State(np.zeros((self.cost_hamiltonian.hamiltonian.shape[0], 1)), code=self.code,

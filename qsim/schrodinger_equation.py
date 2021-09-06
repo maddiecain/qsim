@@ -76,7 +76,7 @@ class SchrodingerEquation(object):
                 return z, infodict
             else:
                 if times is None:
-                    times = np.linspace(int(t0), int(tf), num=int(num))
+                    times = np.linspace(t0, tf, num=int(num))
                 norms = np.zeros(len(times))
                 s = state_asarray.copy()
                 for (i, t) in zip(range(len(times)), times):

@@ -435,5 +435,5 @@ def return_probability(graph, times, verbose=False, h=1, exact=True):
     return czz_tot / num
 
 
-print(10 ** np.linspace(0, 3, 5))
-print(np.mean(return_probability(line_graph(6), np.concatenate([[0], 10 ** np.linspace(0, 3, 10)]), h=1), axis=1))
+#print(10 ** np.linspace(0, 3, 5))
+#print(np.mean(return_probability(line_graph(6), np.concatenate([[0], 10 ** np.linspace(0, 3, 10)]), h=1), axis=1))
