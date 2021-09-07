@@ -29,12 +29,12 @@ def loadfile(graph_index, size):
     return graph_data
 
 
-def find_ratio(tails_graph, graph, tf):
+def find_ratio(tails_graph, graph, tf, graph_index=None, size=None):
     cost = hamiltonian.HamiltonianMIS(graph, IS_subspace=True)
-    #print('Starting driver')
+    # print('Starting driver')
     driver = hamiltonian.HamiltonianDriver(IS_subspace=True, graph=graph)
-    #print('Starting rydberg')
-    rydberg = hamiltonian.HamiltonianRydberg(tails_graph, graph, IS_subspace=True, energies=(2*np.pi,))
+    # print('Starting rydberg')
+    rydberg = hamiltonian.HamiltonianRydberg(tails_graph, graph, IS_subspace=True, energies=(2 * np.pi,))
     pulse = np.loadtxt('for_AWG_{}.000000.txt'.format(6))
     t_pulse_max = np.max(pulse[:, 0]) - 2 * 0.311
 
@@ -50,6 +50,19 @@ def find_ratio(tails_graph, graph, tf):
                             (1 + np.e ** (-k * (1 / 2 - (1 - a)))) ** b) + 1)
         cost.energies = (2 * np.pi * (-(11 + 15) / T * t + 15),)
         driver.energies = (2 * np.pi * 2 * amplitude,)
+
+    def schedule_old(t, T):
+        # Linear ramp on the detuning, experiment-like ramp on the driver
+        k = 50
+        a = .95
+        b = 3.1
+        x = t / T
+        amplitude = (
+                            -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (1 - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                            (1 + np.e ** (-k * (1 / 2 - (1 - a)))) ** b) + 1)
+        cost.energies = (-2*np.pi*11*2*(1/2-t/T))#(2 * np.pi * (-(11 + 15) / T * t + 15),)
+        driver.energies = (2*np.pi*2*amplitude,)#(2 * np.pi * 2 * amplitude,)
 
     def schedule_exp_optimized(t, T):
         if t < .311:
@@ -74,6 +87,7 @@ def find_ratio(tails_graph, graph, tf):
         else:
             driver.energies = (2 * np.pi * 2 * (T - t) / .311,)
             cost.energies = (-2 * np.pi * 11,)
+
     # print(t, cost.energies)
     # Uncomment this to print the schedule at t=0
     # schedule(0, 1)
@@ -82,15 +96,19 @@ def find_ratio(tails_graph, graph, tf):
 
     ad = SimulateAdiabatic(graph=graph, hamiltonian=[cost, driver, rydberg], cost_hamiltonian=cost,
                            IS_subspace=True)
-    #print('Starting evolution')
+    # print('Starting evolution')
     ars = []
+    probs = []
     for i in range(len(tf)):
-        states, data = ad.run(tf[i], schedule_exp_optimized, num=int(200 * tf[i]), method='trotterize', full_output=False)
+        states, data = ad.run(tf[i], schedule_old, num=int(10 * tf[i]), method='odeint', full_output=False)
         cost.energies = (1,)
         ar = cost.approximation_ratio(states[-1])
-        print(tf[i], ar)
+        prob = cost.optimum_overlap(states[-1])
+        np.savez_compressed('{}x{}_{}_{}.npz'.format(size, size, graph_index, i), state=states[-1])
+        print(tf[i], ar, prob)
         ars.append(ar)
-    return ars
+        probs.append(prob)
+    return ars, probs
 
 
 def visualize_low_energy_subspace(graph, k=5):
@@ -183,7 +201,7 @@ def find_gap(graph, k=2):
                     (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
                             (1 + np.e ** (-k * (1 / 2 - (1 - a)))) ** b) + 1)
         cost.energies = (11 * 2 * (1 / 2 - x),)
-        driver.energies = (2*amplitude,)
+        driver.energies = (2 * amplitude,)
 
     def gap(t):
         t = t[0]
@@ -249,24 +267,27 @@ def collect_gap_statistics(size):
 if __name__ == '__main__':
     # Evolve
     import sys
-    tf = (2**np.linspace(-2.5, 2, 7)+2*.311)#*(2*np.pi)
+
+    n_points = 10
+    tf = 2 ** np.linspace(-2.5, 4.5 / 6 * (n_points - 1) - 2.5, n_points) + .311 * 2
 
     index = int(sys.argv[1])
-    #time_index = index % len(tf)
-    #index = index #/ len(tf)
-    size = 7
+    # time_index = index % len(tf)
+    # index = index #/ len(tf)
+    size = 5
     size_indices = np.array([5, 6, 7, 8, 9, 10])
     size_index = np.argwhere(size == size_indices)[0, 0]
-    #xls = pd.ExcelFile('MIS_degeneracy_ratio.xlsx')
-    #graph_index = (pd.read_excel(xls, 'Sheet1').to_numpy()[0:20, size_index]).astype(int)
-    graph_indices = np.array([189, 623, 354,  40, 323, 173, 661, 345, 813,  35, 162, 965, 336,
-       667, 870,   1, 156, 901, 576, 346])
-    graph_index = graph_indices[index]
+    xls = pd.ExcelFile('MIS_degeneracy_ratio.xlsx')
+    graph_index = (pd.read_excel(xls, 'Sheet1').to_numpy()[index, size_index]).astype(int)
+    #graph_indices = np.array([189, 623, 354, 40, 323, 173, 661, 345, 813, 35, 162, 965, 336,
+    #                          667, 870, 1, 156, 901, 576, 346])
+    #graph_index = graph_indices[index]
 
     graph_data = loadfile(graph_index, size)
     grid = graph_data['graph_mask']
+    # grid = np.ones((1, 10))
     graph = unit_disk_grid_graph(grid, periodic=False, visualize=False, generate_mixer=True)
     tails_graph = rydberg_graph(grid, visualize=False)
-    ratio = find_ratio(tails_graph, graph, tf)
+    ratio, probs = find_ratio(tails_graph, graph, tf, graph_index=graph_index, size=size)
     print(ratio)
-
+    print(probs)

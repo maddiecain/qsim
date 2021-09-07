@@ -65,6 +65,17 @@ def find_ratio(tails_graph, graph, tf):
     plt.legend()
     plt.show()
 
+
+import matplotlib.pyplot as plt
+from scipy import interpolate
+x = np.arange(0, 10)
+y = np.exp(-x/3.0)
+f = interpolate.interp1d(x, y, kind='cubic')
+xnew = np.arange(0, 9, 0.1)
+ynew = f(xnew)   # use interpolation function returned by `interp1d`
+plt.plot(x, y, 'o', xnew, ynew, '-')
+plt.show()
+
 fig, ax = plt.subplots(1, 2, sharey=True, sharex=True)
 times_exp = 2 ** np.linspace(-2.5, 2, 7)  # + .311 * 2
 pulse = np.loadtxt('for_AWG_0.000000.txt')
