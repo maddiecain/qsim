@@ -31,10 +31,12 @@ def loadfile(graph_index, size):
 
 def find_ratio(tails_graph, graph, tf):
     cost = hamiltonian.HamiltonianMIS(graph, IS_subspace=True)
-    print('Starting driver')
+    #print('Starting driver')
     driver = hamiltonian.HamiltonianDriver(IS_subspace=True, graph=graph)
-    print('Starting rydberg')
+    #print('Starting rydberg')
     rydberg = hamiltonian.HamiltonianRydberg(tails_graph, graph, IS_subspace=True, energies=(2*np.pi,))
+    pulse = np.loadtxt('for_AWG_{}.000000.txt'.format(6))
+    t_pulse_max = np.max(pulse[:, 0]) - 2 * 0.311
 
     def schedule(t, T):
         # Linear ramp on the detuning, experiment-like ramp on the driver
@@ -49,11 +51,18 @@ def find_ratio(tails_graph, graph, tf):
         cost.energies = (2 * np.pi * (-(11 + 15) / T * t + 15),)
         driver.energies = (2 * np.pi * 2 * amplitude,)
 
-
-    def schedule_exp_optimized(t, T, pulse=None):
-        T=T-2*0.311
-        driver.energies = (2 * np.pi * np.interp(t, pulse[:, 0], pulse[:, 1] / 2),)
-        cost.energies = (2 * np.pi * np.interp(t, pulse[:, 0], -pulse[:, 2]),)
+    def schedule_exp_optimized(t, T):
+        if t < .311:
+            driver.energies = (2 * np.pi * 2 * t / .311,)
+            cost.energies = (2 * np.pi * 15,)
+        elif .311 <= t <= T - .331:
+            t_pulse = (t - 0.311) / (T - 2 * 0.311) * t_pulse_max + 0.311
+            driver.energies = (2 * np.pi * np.interp(t_pulse, pulse[:, 0], pulse[:, 1] / 2),)
+            cost.energies = (2 * np.pi * np.interp(t_pulse, pulse[:, 0], -pulse[:, 2]),)
+        else:
+            driver.energies = (2 * np.pi * 2 * (T - t) / .311,)
+            cost.energies = (-2 * np.pi * 11,)
+        # print(t, cost.energies)
 
     def schedule_exp_linear(t, T):
         if t < .311:
@@ -65,7 +74,7 @@ def find_ratio(tails_graph, graph, tf):
         else:
             driver.energies = (2 * np.pi * 2 * (T - t) / .311,)
             cost.energies = (-2 * np.pi * 11,)
-        # print(t, cost.energies)
+    # print(t, cost.energies)
     # Uncomment this to print the schedule at t=0
     # schedule(0, 1)
     # print(cost.hamiltonian*2*np.pi)
@@ -73,13 +82,13 @@ def find_ratio(tails_graph, graph, tf):
 
     ad = SimulateAdiabatic(graph=graph, hamiltonian=[cost, driver, rydberg], cost_hamiltonian=cost,
                            IS_subspace=True)
-    print('Starting evolution')
+    #print('Starting evolution')
     ars = []
     for i in range(len(tf)):
-        states, data = ad.run(tf[i], schedule_exp_linear, num=int(200 * tf[i]), method='trotterize', full_output=False)
+        states, data = ad.run(tf[i], schedule_exp_optimized, num=int(200 * tf[i]), method='trotterize', full_output=False)
         cost.energies = (1,)
         ar = cost.approximation_ratio(states[-1])
-        print(i, tf[i], ar)
+        print(tf[i], ar)
         ars.append(ar)
     return ars
 
@@ -239,20 +248,25 @@ def collect_gap_statistics(size):
 
 if __name__ == '__main__':
     # Evolve
-    # import sys
-    # index = int(sys.argv[1])
-    index = 0
+    import sys
+    tf = (2**np.linspace(-2.5, 2, 7)+2*.311)#*(2*np.pi)
+
+    index = int(sys.argv[1])
+    #time_index = index % len(tf)
+    #index = index #/ len(tf)
     size = 7
     size_indices = np.array([5, 6, 7, 8, 9, 10])
     size_index = np.argwhere(size == size_indices)[0, 0]
-    xls = pd.ExcelFile('MIS_degeneracy_ratio.xlsx')
-    graph_index = int(pd.read_excel(xls, 'Sheet1').to_numpy()[index, size_index])
-    print(graph_index,)
+    #xls = pd.ExcelFile('MIS_degeneracy_ratio.xlsx')
+    #graph_index = (pd.read_excel(xls, 'Sheet1').to_numpy()[0:20, size_index]).astype(int)
+    graph_indices = np.array([189, 623, 354,  40, 323, 173, 661, 345, 813,  35, 162, 965, 336,
+       667, 870,   1, 156, 901, 576, 346])
+    graph_index = graph_indices[index]
 
     graph_data = loadfile(graph_index, size)
     grid = graph_data['graph_mask']
     graph = unit_disk_grid_graph(grid, periodic=False, visualize=False, generate_mixer=True)
-    tails_graph = rydberg_graph(grid)
-    tf = (2**np.linspace(-2.5, 2, 7)+2*.311)#*(2*np.pi)
+    tails_graph = rydberg_graph(grid, visualize=False)
     ratio = find_ratio(tails_graph, graph, tf)
     print(ratio)
+
