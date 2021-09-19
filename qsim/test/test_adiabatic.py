@@ -59,12 +59,13 @@ class TestAdiabatic(unittest.TestCase):
                                                         plot=False, verbose=True, method='RK45')
         # Now test in the IS subspace
         self.assertTrue(np.allclose(res_trotterize[0]['trotterize']['optimum_overlap'], res_RK45[0]['RK45']['optimum_overlap'], atol=1e-2))
+
         simulation = adiabatic_simulation(sample_graph(), IS_subspace=True)
-        res_trotterize = simulation.performance_vs_total_time(np.arange(1, 4, 1) * 10, metric='optimum_overlap',
+        res_trotterize = simulation.performance_vs_total_time(np.arange(1, 4, 1), metric='optimum_overlap',
                                                               schedule=lambda t, tf:
                                                               simulation.linear_schedule(t, tf, coefficients=[10, 10]),
                                                               plot=False, verbose=True, method='trotterize')
-        res_RK45 = simulation.performance_vs_total_time(np.arange(1, 4, 1) * 10, metric='optimum_overlap',
+        res_RK45 = simulation.performance_vs_total_time(np.arange(1, 4, 1), metric='optimum_overlap',
                                                         schedule=lambda t, tf:
                                                         simulation.linear_schedule(t, tf, coefficients=[10, 10]),
                                                         plot=False, verbose=True, method='RK45')

@@ -66,7 +66,7 @@ def find_ratio(tails_graph, graph, tf):
     plt.show()
 
 
-import matplotlib.pyplot as plt
+"""import matplotlib.pyplot as plt
 from scipy import interpolate
 x = np.arange(0, 10)
 y = np.exp(-x/3.0)
@@ -74,7 +74,7 @@ f = interpolate.interp1d(x, y, kind='cubic')
 xnew = np.arange(0, 9, 0.1)
 ynew = f(xnew)   # use interpolation function returned by `interp1d`
 plt.plot(x, y, 'o', xnew, ynew, '-')
-plt.show()
+plt.show()"""
 
 fig, ax = plt.subplots(1, 2, sharey=True, sharex=True)
 times_exp = 2 ** np.linspace(-2.5, 2, 7)  # + .311 * 2
@@ -109,17 +109,14 @@ ratios_line_rydberg_23 = np.array([0.6876706, 0.8932507, 0.9284184, 0.94726082, 
 # Correct pulse sequences
 #ratios_21_optimized = np.array([0.4205557, 0.64163789, 0.7773311, 0.86705929, 0.91011691, 0.93389629, 0.95154214])
 #ratios_23_optimized = np.array([0.42055570, 0.64163789, 0.77733110, 0.8653093, 0.90879235, 0.93345944, 0.95187553])
-ratios_25_optimized = np.array([0.51864428, 0.74789354, 0.86540587, 0.93852973, 0.97278725, 0.99621505, 0.99637481])
+ratios_25_optimized = np.array([0.51822188, 0.68314167, 0.72179356, 0.93852973, 0.97278725, 0.99621505, 0.99637481])
 ratios_21_linear = np.array([0.72038517, 0.83105992, 0.87525200, 0.90675623, 0.92993901, 0.94761466, 0.96546305])
-ratios_25_linear = np.array([0.72285420, 0.83334918, 0.87705373, 0.90805359, 0.93082555, 0.94722681, 0.96189619])
+ratios_25_linear = np.array([0.75213125, 0.84162357, 0.87867744, 0.90693964, 0.92870327, 0.94477846, 0.96189619])
 ratios_25_linear_smooth = np.array([0.87682821, 0.89961852, 0.91698225, 0.93134324, 0.94238466, 0.95329563, 0.96483817])
 ratios_exp_optimized = np.array([0.42818704, 0.2531182, 0.14880018, 0.09479478, 0.07501056,
                                  0.07799798, 0.08966179])
 ratios_exp_linear = np.array([0.2331565, 0.17754241, 0.13804714, 0.11148272, 0.09503807,
                               0.09020094, 0.08277972])
-
-ratios_27_optimized = np.array([0.52021872, 0.74954731, 0.86670179, 0.93909762, 0.96994163, 0.99530984, 0.99678150])
-ratios_29_optimized = np.array([0.52158324, 0.75098058, 0.86782495, 0.93964521])
 
 # plt.scatter(times, 1 - ratios_line_21, marker='.', color='purple', label=r'$n=21$ line')
 # plt.scatter(times, 1 - ratios_line_23, marker='.', color='orange', label=r'$n=23$ line')
@@ -130,8 +127,8 @@ ratios_29_optimized = np.array([0.52158324, 0.75098058, 0.86782495, 0.93964521])
 # plt.scatter(times_exp, 1 - ratios_21_optimized, color='orange', label=r'$n=21$ optimized')
 # plt.scatter(times_exp, 1 - ratios_23_optimized, color='red', label=r'$n=23$ optimized')
 ax[0].scatter(times_exp, 1 - ratios_25_optimized, color='red', label=r'$n=25$ optimized')
-ax[0].scatter(times_exp, 1 - ratios_27_optimized, color='red', label=r'$n=27$ optimized', marker='^')
-ax[0].scatter(times_exp[:len(ratios_29_optimized)], 1 - ratios_29_optimized, color='red', label=r'$n=29$ optimized', marker='v')
+#ax[0].scatter(times_exp, 1 - ratios_27_optimized, color='red', label=r'$n=27$ optimized', marker='^')
+#ax[0].scatter(times_exp[:len(ratios_29_optimized)], 1 - ratios_29_optimized, color='red', label=r'$n=29$ optimized', marker='v')
 
 # plt.scatter(times_exp, 1 - ratios_21_linear, color='orange', marker='*', label=r'$n=21$ linear')
 # plt.scatter(times_exp, 1 - ratios_23_linear, color='red', marker='*', label=r'$n=23$ linear')

@@ -37,13 +37,13 @@ class TestHamiltonian(unittest.TestCase):
         self.assertTrue(hq.hamiltonian[-1, -1] == 0)
         self.assertTrue(hq.hamiltonian[2, 2] == -595)
 
-        psi0 = State(np.zeros((2 ** hq.N, 1)))
+        psi0 = State(np.zeros((2 ** g.n, 1)))
         psi0[-1, -1] = 1
         psi1 = State(tools.outer_product(psi0, psi0))
         self.assertTrue(hq.cost_function(psi1) == 0)
         self.assertTrue(hq.cost_function(psi0) == 0)
         self.assertTrue(hq.optimum_overlap(psi0) == 0)
-        psi2 = State(np.zeros((2 ** hq.N, 1)))
+        psi2 = State(np.zeros((2 **g.n, 1)))
         psi2[27, -1] = 1
         self.assertTrue(hq.optimum_overlap(psi2) == 1)
         self.assertTrue(hq.cost_function(psi2) == 2)
@@ -58,7 +58,7 @@ class TestHamiltonian(unittest.TestCase):
         self.assertTrue(hr.hamiltonian[-1, -1] == 0)
         self.assertTrue(hr.hamiltonian[6, 6] == -595)
 
-        psi0 = State(np.zeros((rydberg.d ** hr.N, 1)))
+        psi0 = State(np.zeros((rydberg.d ** g.n, 1)))
         psi0[-1, -1] = 1
         psi1 = State(tools.outer_product(psi0, psi0))
         self.assertTrue(hr.cost_function(psi1) == 0)

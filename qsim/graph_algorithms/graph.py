@@ -3,19 +3,35 @@ from qsim.tools import tools
 from qsim.codes import qubit
 import matplotlib.pyplot as plt
 import networkx as nx
-from networkx.algorithms import approximation
 from itertools import tee, product
 from collections import deque
 from itertools import chain, islice
 
-"""Class for performing basic graph Monte Carlo operations on networkx Graphs. Future versions of this code
-may subclass nx.Graph."""
+
+def enumerate_independent_sets(graph):
+    graph = nx.complement(graph)
+    index = {}
+    nbrs = {}
+    for u in graph:
+        index[u] = len(index)
+        # Neighbors of u that appear after u in the iteration order of G.
+        nbrs[u] = {v for v in graph[u] if v not in index}
+    queue = deque(([u], sorted(nbrs[u], key=index.__getitem__)) for u in graph)
+    # Loop invariants:
+    # 1. len(base) is nondecreasing.
+    # 2. (base + cnbrs) is sorted with respect to the iteration order of G.
+    # 3. cnbrs is a set of common neighbors of nodes in base.
+    while queue:
+        base, cnbrs = map(list, queue.popleft())
+        yield base
+        for i, u in enumerate(cnbrs):
+            # Use generators to reduce memory consumption.
+            queue.append((chain(base, [u]), filter(nbrs[u].__contains__, islice(cnbrs, i + 1, None))))
 
 
 class Graph(object):
-    def __init__(self, graph: nx.Graph, IS=True, generate_mixer=False):
-        # Set default weights to one
-        self.generate_mixer = generate_mixer
+    def __init__(self, graph: nx.Graph):
+        # Initialize edge and node weights to one
         for edge in graph.edges:
             if not ('weight' in graph.edges[edge]):
                 graph.edges[edge]['weight'] = 1
@@ -28,250 +44,57 @@ class Graph(object):
         self.n = self.nodes.size
         self.edges = np.array([m for m in self.graph.edges])
         self.m = self.edges.size
-        # TODO: figure out if you really want to store the binary data, or that of a designated code
-        # Initialize attributes to be set in self.generate_independent_sets()
-
-        self.num_independent_sets = None
+        # Initialize attributes to be set in self.generate_independent_sets() or when generating mixer and
+        # driver Hamiltonians.
+        num_independent_sets = 1
+        mis_size = 0
+        degeneracy = 0
+        for independent_set in enumerate_independent_sets(graph):
+            num_independent_sets += 1
+            length = len(independent_set)
+            if length > mis_size:
+                mis_size = length
+                degeneracy = 1
+            if length == mis_size:
+                degeneracy += 1
+        self.num_independent_sets = num_independent_sets
+        self.mis_size = mis_size
+        self.degeneracy = degeneracy
         self.independent_sets = None
-        self.binary_to_index = None
-        self.mis_size = None
-        self.degeneracy = None
-        if IS:
-            self.generate_independent_sets()
-
-    def enumerate_all_cliques(self, complement):
-        """Returns all cliques in an undirected graph.
-
-        This method returns cliques of size (cardinality)
-        k = 1, 2, 3, ..., maxDegree - 1.
-
-        Where maxDegree is the maximal degree of any node in the graph.
-
-        Parameters
-        ----------
-        G: undirected graph
-
-        Returns
-        -------
-        generator of lists: generator of list for each clique.
-
-        Notes
-        -----
-        To obtain a list of all cliques, use
-        :samp:`list(enumerate_all_cliques(G))`.
-
-        Based on the algorithm published by Zhang et al. (2005) [1]_
-        and adapted to output all cliques discovered.
-
-        This algorithm is not applicable on directed graphs.
-
-        This algorithm ignores self-loops and parallel edges as
-        clique is not conventionally defined with such edges.
-
-        There are often many cliques in graphs.
-        This algorithm however, hopefully, does not run out of memory
-        since it only keeps candidate sublists in memory and
-        continuously removes exhausted sublists.
-
-        References
-        ----------
-        .. [1] Yun Zhang, Abu-Khzam, F.N., Baldwin, N.E., Chesler, E.J.,
-               Langston, M.A., Samatova, N.F.,
-               Genome-Scale Computational Approaches to Memory-Intensive
-               Applications in Systems Biology.
-               Supercomputing, 2005. Proceedings of the ACM/IEEE SC 2005
-               Conference, pp. 12, 12-18 Nov. 2005.
-               doi: 10.1109/SC.2005.29.
-               http://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=1559964&isnumber=33129
-        """
-        index = {}
-        nbrs = {}
-        for u in complement:
-            index[u] = len(index)
-            # Neighbors of u that appear after u in the iteration order of G.
-            nbrs[u] = {v for v in complement[u] if v not in index}
-        queue = deque(([u], sorted(nbrs[u], key=index.__getitem__)) for u in complement)
-        # Loop invariants:
-        # 1. len(base) is nondecreasing.
-        # 2. (base + cnbrs) is sorted with respect to the iteration order of G.
-        # 3. cnbrs is a set of common neighbors of nodes in base.
-        while queue:
-            base, cnbrs = map(list, queue.popleft())
-            yield base
-            for i, u in enumerate(cnbrs):
-                # Use generators to reduce memory consumption.
-                queue.append((chain(base, [u]), filter(nbrs[u].__contains__, islice(cnbrs, i + 1, None))))
 
     def generate_independent_sets(self):
-        def return_neighbors(complement):
-            """Returns all cliques in an undirected graph.
-
-            This method returns cliques of size (cardinality)
-            k = 1, 2, 3, ..., maxDegree - 1.
-
-            Where maxDegree is the maximal degree of any node in the graph.
-
-            Parameters
-            ----------
-            G: undirected graph
-
-            Returns
-            -------
-            generator of lists: generator of list for each clique.
-
-            Notes
-            -----
-            To obtain a list of all cliques, use
-            :samp:`list(enumerate_all_cliques(G))`.
-
-            Based on the algorithm published by Zhang et al. (2005) [1]_
-            and adapted to output all cliques discovered.
-
-            This algorithm is not applicable on directed graphs.
-
-            This algorithm ignores self-loops and parallel edges as
-            clique is not conventionally defined with such edges.
-
-            There are often many cliques in graphs.
-            This algorithm however, hopefully, does not run out of memory
-            since it only keeps candidate sublists in memory and
-            continuously removes exhausted sublists.
-
-            References
-            ----------
-            .. [1] Yun Zhang, Abu-Khzam, F.N., Baldwin, N.E., Chesler, E.J.,
-                   Langston, M.A., Samatova, N.F.,
-                   Genome-Scale Computational Approaches to Memory-Intensive
-                   Applications in Systems Biology.
-                   Supercomputing, 2005. Proceedings of the ACM/IEEE SC 2005
-                   Conference, pp. 12, 12-18 Nov. 2005.
-                   doi: 10.1109/SC.2005.29.
-                   http://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=1559964&isnumber=33129
-            """
-            index = {}
-            nbrs = {}
-            num = 0
-            all_nbrs = {}
-            for u in complement:
-                index[u] = len(index)
-                # Neighbors of u that appear after u in the iteration order of G.
-                nbrs[u] = {v for v in complement[u]}  # if v not in index}
-                all_nbrs[u] = {v for v in complement[u]}
-            queue = deque(([u], sorted(nbrs[u], key=index.__getitem__)) for u in complement)
-            # Loop invariants:
-            # 1. len(base) is nondecreasing.
-            # 2. (base + cnbrs) is sorted with respect to the iteration order of G.
-            # 3. cnbrs is a set of common neighbors of nodes in base.
-            num = 0
-            print(queue)
-            while queue:
-                base, cnbrs = map(list, queue.popleft())
-                print(base, cnbrs)
-                if all(base[i] <= base[i + 1] for i in range(len(base) - 1)):
-                    yield base
-                    num += 1
-                    for i, u in enumerate(cnbrs):
-                        # print(nbrs[u])
-                        # Use generators to reduce memory consumption.
-                        # print(all_nbrs[u])
-                        queue.append((chain(base, [u]), filter(nbrs[u].__contains__, islice(cnbrs, i + 1, None))))
-                else:
-                    print('hi')
-            print(num)
-
+        # Generate a list of integers corresponding to the independent sets in binary
         # Construct generator containing independent sets
         # Don't generate anything that depends on the entire Hilbert space as to save space
         # Generate complement graph
-        complement = nx.complement(self.graph)
         # These are your independent sets of the original graphs, ordered by node and size
-        independent_sets, backup = tee(self.enumerate_all_cliques(complement))
-        self.num_independent_sets = sum(1 for _ in backup) + 1  # We add one to include the empty set
+        independent_sets, backup = tee(enumerate_independent_sets(self.graph))
         # Generate a list of integers corresponding to the independent sets in binary
         indices = np.zeros((self.num_independent_sets, self.n), dtype=int)
         # All ones
         indices[-1, ...] = np.ones(self.n)
         k = self.num_independent_sets - 2
-        self.mis_size = 0
-        if self.generate_mixer:
-            independent_sets_dict = {(): (self.num_independent_sets-1, [])}
         for i in independent_sets:
-            if self.generate_mixer:
-                independent_sets_dict[tuple(i)] = (k, [])
-                for (j, node) in enumerate(i):
-                    i_removed = i.copy()
-                    i_removed.pop(j)
-                    independent_sets_dict[tuple(i_removed)][1].append(k)
             nary = np.ones(self.n)
             for node in i:
                 nary[node] = 0
             indices[k, ...] = nary
-            if len(i) > self.mis_size:
-                self.mis_size = len(i)
             k -= 1
-        if self.generate_mixer:
-            self.independent_sets_dict = independent_sets_dict
-        # All spins down should be at the end
-
-        """for i in range(num_IS):
-            for j in range(graph.n):
-                if IS[i, j] == self.transition[0]:
-                    # Flip spin at this location
-                    # Get binary representation
-                    temp = IS[i, ...].copy()
-                    temp[j] = self.transition[1]
-                    where_matched = (np.argwhere(np.sum(np.abs(IS - temp), axis=1) == 0).flatten())
-                    if len(where_matched) > 0:
-                        # This is a valid spin flip
-                        rows[num_terms] = where_matched[0]
-                        columns[num_terms] = i
-                        if self.pauli == 'X':
-                            entries[num_terms] = 1
-                        elif self.pauli == 'Y':
-                            entries[num_terms] = -1j
-                        num_terms += 1
-        # Cut off the excess in the arrays
-        columns = columns[:2 * num_terms]
-        rows = rows[:2 * num_terms]
-        entries = entries[:2 * num_terms]
-        # Populate the second half of the entries according to self.pauli
-        if self.pauli == 'X':
-            columns[num_terms:2 * num_terms] = rows[:num_terms]
-            rows[num_terms:2 * num_terms] = columns[:num_terms]
-            entries[num_terms:2 * num_terms] = entries[:num_terms]
-        elif self.pauli == 'Y':
-            columns[num_terms:2 * num_terms] = rows[:num_terms]
-            rows[num_terms:2 * num_terms] = columns[:num_terms]
-            entries[num_terms:2 * num_terms] = -1 * entries[:num_terms]
-        # Now, construct the Hamiltonian
-        self._csc_hamiltonian = sparse.csc_matrix((entries, (rows, columns)), shape=(num_IS, num_IS))
-        self._hamiltonian = self._csc_hamiltonian"""
-        """rows = np.zeros(self.n * self.num_independent_sets, dtype=int)
-        columns = np.zeros(self.n * self.num_independent_sets, dtype=int)
-        entries = np.zeros(self.n * self.num_independent_sets, dtype=int)
-        num_terms = 0
-        for (i, nbrs) in independent_sets:
-            nary = np.ones(self.n)
-            for node in i:
-                nary[node] = 0
-            indices[k, ...] = nary
-            if len(i) > self.mis_size:
-                self.mis_size = len(i)
-            k -= 1"""
-
-        self.degeneracy = len(np.argwhere(self.n - np.sum(indices, axis=1) == self.mis_size))
         self.independent_sets = indices
-        return
+        return indices, self.num_independent_sets
 
-    def independent_sets_qudit(self, code):
+    def generate_independent_sets_qudit(self, code):
         assert code is not qubit
+        if self.independent_sets is None:
+            self.generate_independent_sets()
         # You do NOT need to count the number in ground, this is just n-# excited
         # Count the number of elements in the ground space and map to their representation in ternary
         # Determine how large to make the array
         num_IS = np.sum((code.d - 1) ** np.sum(self.independent_sets, axis=1))
         # Now, we need to generate a way to map between the restricted indices and the original
         # indices
-        IS = np.zeros((num_IS, self.n))
-        IS[-1, ...] = np.ones(self.n)
+        indices = np.zeros((num_IS, self.n))
+        indices[-1, ...] = np.ones(self.n)
         counter = 0
         for i in self.independent_sets:
             # Generate binary representation of IS
@@ -287,206 +110,39 @@ class Graph(object):
                     if not np.any(where_excited == k):
                         bit_string[k] = j[ind]
                         ind += 1
-                IS[counter, :] = bit_string
+                indices[counter, :] = bit_string
                 counter += 1
-        return IS, num_IS
+        return indices, num_IS
 
 
-class GraphMonteCarlo(object):
-    def __init__(self, graph: nx.Graph):
-        self.graph = graph
-        # Nodes are assumed to be integers from zero to # nodes - 1
-        self.nodes = np.array([n for n in self.graph], dtype=int)
-        self.n = self.nodes.size
-        self.edges = np.array([m for m in self.graph.edges])
-        self.m = self.edges.size
-
-    def random_node(self):
-        """Return a random node"""
-        return np.random.randint(0, self.n)
-
-    def random_edge(self):
-        """Return a random edge"""
-        return self.edges[np.random.randint(0, self.m)]
-
-    def raised_neighbors(self, configuration: np.array, i):
-        """Returns the raised neighbors of node i."""
-        raised = []
-        for neighbor in self.graph.neighbors(i):
-            if configuration[neighbor] == 1:
-                raised.append(neighbor)
-        return raised
-
-    def free_node(self, configuration: np.array, i, ignore=None):
-        """Checks if node i is free, ignoring some neighbors if indicated. If free, return True; otherwise,
-        return False. ignore is assumed to be a list of nodes."""
-        if ignore is None:
-            ignore = []
-        if configuration[i] == 0:
-            for neighbor in list(self.graph.neighbors(i)):
-                if neighbor not in ignore:
-                    if self.configuration[neighbor] == 1:
-                        return False
-            return True
-        return False
-
-    def free_nodes(self, configuration: np.array, ignore=None):
-        """Return the free nodes in the graph."""
-        free = []
-        for j in range(self.n):
-            if self.free_node(configuration, j, ignore=ignore):
-                free.append(j)
-        return free
-
-    def raise_node(self, configuration: np.array, i, ignore=None):
-        """Check if node i is free. If it is, change its value to 1 with probability p. Return True if the node has
-        been raised."""
-        if configuration[i] == 1:
-            # Already raised
-            return True
-        else:
-            if self.free_node(configuration, i, ignore=ignore):
-                configuration[i] = 1
-                return True
-            return False
-
-    def flip_flop(self, configuration: np.array, i):
-        """If i is spin up, flip it if there exists a neighbor of i chosen at random satisfying the condition that
-        the node is free if i is ignored. If i is spin down, and there is exactly one neighbor of i that is spin up,
-        swap the two. Return True if a flip flop has taken place, and False otherwise."""
-        if self.configuration[i] == 1:
-            shuffed_neighbors = np.array(self.graph.neighbors(i))
-            np.random.shuffle(shuffed_neighbors)
-            for neighbor in shuffed_neighbors:
-                if self.free_node(configuration, neighbor, ignore=[i]):
-                    configuration[i] = 0
-                    configuration[neighbor] = 1
-                    return True
-        elif configuration[i] == 0:
-            raised_neighbors = self.raised_neighbors(configuration, i)
-            if len(raised_neighbors) == 1:
-                configuration[i] = 1
-                configuration[raised_neighbors[0]] = 0
-                return True
-        return False
-
-    def spin_exchange(self, configuration: np.array, i):
-        """Returns True if and only if a node i can spin exchange."""
-        if configuration[i] == 1:
-            for neighbor in self.graph.neighbors(i):
-                if self.free_node(configuration, neighbor, ignore=[i]):
-                    return True
-        elif configuration[i] == 0:
-            raised_neighbors = self.raised_neighbors(configuration, i)
-            if len(raised_neighbors) == 1:
-                return True
-        return False
-
-    def spin_exchanges(self, configuration: np.array):
-        """Returns a list of pairs of nodes which can spin exchange."""
-        exchanges = []
-        for i in self.nodes:
-            if configuration[i] == 1:
-                for neighbor in self.graph.neighbors(i):
-                    if self.free_node(configuration, neighbor, ignore=[i]):
-                        exchanges.append((i, neighbor))
-        return exchanges
-
-    def random_spin_exchange(self, configuration: np.array):
-        """Spin exchange on a random spin pair eligible to spin exchange."""
-        exchanges = self.spin_exchanges(configuration)
-        to_exchange = exchanges[np.random.randint(0, len(exchanges))]
-        # Perform the spin exchange
-        configuration[[to_exchange[0], to_exchange[1]]] = configuration[[to_exchange[1], to_exchange[0]]]
-        return configuration
-
-    def random_raise(self, configuration: np.array):
-        """Raise a random free node"""
-        free_nodes = self.free_nodes(configuration)
-        to_raise = free_nodes[np.random.randint(0, len(free_nodes))]
-        configuration[to_raise] = 1
-        return configuration
-
-    def spin_exchange_monte_carlo(self, t0, tf, num=50, rates=None, configuration=None):
-        """Run a Monte Carlo algorithm for time tf-t0 with given spin exchange and greedy spin raise rates."""
-        # TODO: generalize this for general Monte Carlo operations
-        if configuration is None:
-            configuration = np.zeros(self.n, dtype=int)
-        if rates is None:
-            rates = [1, 1]
-        times = np.linspace(t0, tf, num=num)
-        dt = (tf - t0) / num
-        outputs = np.zeros((times.shape[0], configuration.shape[0], 1), dtype=np.complex128)
-        for (j, time) in zip(range(times.shape[0]), times):
-            if j == 0:
-                outputs[0, :] = np.array([configuration.copy()]).T
-            if j != 0:
-                # Compute the probability that something happens
-                # Probability of spin exchange
-                probability_exchange = dt * rates[0] * len(
-                    self.spin_exchanges(configuration))  # TODO: figure out if this is over 2
-                # Probability of raising
-                probability_raise = dt * rates[1] * len(self.free_nodes(configuration))
-                probability = probability_exchange + probability_raise
-                if np.random.uniform() < probability:
-                    if np.random.uniform(0, probability) < probability_exchange:
-                        # Do a spin exchange
-                        configuration = self.random_spin_exchange(configuration)
-                    else:
-                        # Raise a node
-                        configuration = self.random_raise(configuration)
-                outputs[j, :] = np.array([configuration.copy()]).T
-        return outputs
-
-    def draw_configuration(self, configuration):
-        """Spin up is white, spin down is black."""
-        # First, color the nodes
-        color_map = []
-        for node in self.graph:
-            if configuration[node] == 1:
-                color_map.append('teal')
-            if configuration[node] == 0:
-                color_map.append('black')
-        nx.draw_circular(self.graph, node_color=color_map)
-        plt.show()
-
-    def configuration_weight(self, configuration):
-        weight = np.sum(configuration)
-        print('Configuration weight: ' + str(weight))
-        return weight
-
-    def nx_mis(self):
-        return nx.algorithms.approximation.maximum_independent_set(self.graph)
-
-
-def line_graph(n, IS=True, generate_mixer=False):
-    g = nx.Graph()
-    g.add_nodes_from(np.arange(0, n), weight=1)
+def line_graph(n):
+    graph = nx.Graph()
+    graph.add_nodes_from(np.arange(0, n), weight=1)
     if n == 1:
-        return Graph(g)
+        return Graph(graph)
     else:
         for i in range(n - 1):
-            g.add_edge(i, i + 1, weight=1)
-    return Graph(g, IS=IS, generate_mixer=generate_mixer)
+            graph.add_edge(i, i + 1, weight=1)
+    return Graph(graph)
 
 
-def ring_graph(n, node_weight=1, edge_weight=1, IS=True, generate_mixer=False):
-    g = nx.Graph()
-    g.add_nodes_from(np.arange(0, n), weight=node_weight)
+def ring_graph(n):
+    graph = nx.Graph()
+    graph.add_nodes_from(np.arange(0, n))
     if n == 1:
-        return nx.trivial_graph()
+        return Graph(graph)
     else:
         for i in range(n - 1):
-            g.add_edge(i, i + 1, weight=edge_weight)
-        g.add_edge(0, n - 1, weight=edge_weight)
-    return Graph(g, IS=IS, generate_mixer=generate_mixer)
+            graph.add_edge(i, i + 1)
+        graph.add_edge(0, n - 1)
+    return Graph(graph)
 
 
-def degree_fails_graph(return_mis=False, IS=True, generate_mixer=False):
-    g = nx.Graph()
-    g.add_weighted_edges_from(
+def degree_fails_graph():
+    graph = nx.Graph()
+    graph.add_weighted_edges_from(
         [(0, 1, 1), (0, 4, 1), (0, 5, 1), (4, 5, 1), (1, 4, 1), (1, 3, 1), (2, 4, 1)])
-    return Graph(g, IS=IS, generate_mixer=generate_mixer)
+    return Graph(graph)
 
 
 def IS_projector(graph, code):
@@ -524,28 +180,7 @@ def IS_projector(graph, code):
         return np.array([np.diagonal(proj)]).T
 
 
-def grid_graph(n, m, periodic=False, nn=False, IS=True, generate_mixer=False):
-    graph = nx.grid_2d_graph(n, m, periodic=periodic)
-    nodes = graph.nodes
-    if nn:
-        if not periodic:
-            for i in range(n - 1):
-                for j in range(m - 1):
-                    graph.add_edge((i, j), (i + 1, j + 1), weight=1)
-                    graph.add_edge((i + 1, j), (i, j + 1), weight=1)
-        else:
-            for i in range(n):
-                for j in range(m):
-                    graph.add_edge((i, j), ((i + 1) % n, (j + 1) % m), weight=1)
-                    graph.add_edge(((i + 1) % n, j), (i, (j + 1) % m), weight=1)
-    new_nodes = list(range(len(nodes)))
-    mapping = dict(zip(nodes, new_nodes))
-    nx.relabel_nodes(graph, mapping, copy=False)
-    return Graph(graph, IS=IS, generate_mixer=generate_mixer)
-
-
-def unit_disk_grid_graph(grid, radius=np.sqrt(2) + 1e-5, visualize=False, periodic=False, IS=True,
-                         generate_mixer=False):
+def unit_disk_grid_graph(grid, radius=np.sqrt(2) + 1e-5, periodic=False, visualize=False):
     x = grid.shape[1]
     y = grid.shape[0]
 
@@ -565,7 +200,6 @@ def unit_disk_grid_graph(grid, radius=np.sqrt(2) + 1e-5, visualize=False, period
             a = a + b
             b = np.sqrt((np.abs(grid_x - n[1]) - x) ** 2 + (np.abs(grid_y - n[0]) - y) ** 2) <= radius
             a = a + b
-        # TODO: add an option for periodic boundary conditions
         # Remove the node itself
         a[n[0], n[1]] = 0
         # a is 1 if  within a unit distance of (i, j) and a node is at that location, and zero otherwise
@@ -574,32 +208,31 @@ def unit_disk_grid_graph(grid, radius=np.sqrt(2) + 1e-5, visualize=False, period
 
     nodes_geometric = np.argwhere(grid != 0)
     nodes = list(range(len(nodes_geometric)))
-    g = nx.Graph()
-    g.add_nodes_from(nodes)
+    graph = nx.Graph()
+    graph.add_nodes_from(nodes)
     j = 0
     for node in nodes_geometric:
         neighbors = neighbors_from_geometry(node)
         neighbors = [np.argwhere(np.all(nodes_geometric == i, axis=1))[0, 0] for i in neighbors]
         for neighbor in neighbors:
-            g.add_edge(j, neighbor)
+            graph.add_edge(j, neighbor)
         j += 1
 
     if visualize:
         pos = {nodes[i]: nodes_geometric[i] for i in range(len(nodes))}
-        nx.draw_networkx_nodes(g, pos=pos, node_color='cornflowerblue', node_size=40,
+        nx.draw_networkx_nodes(graph, pos=pos, node_color='cornflowerblue', node_size=40,
                                edgecolors='black')  # edgecolors='black',
-        nx.draw_networkx_edges(g, pos=pos, edge_color='black')
+        nx.draw_networkx_edges(graph, pos=pos, edge_color='black')
         plt.axis('off')
         plt.show()
-    g = Graph(g, IS=IS, generate_mixer=generate_mixer)
-    g.positions = grid
-    g.radius = radius
-    g.periodic = periodic
-    return g
+    graph = Graph(graph)
+    graph.positions = grid
+    graph.radius = radius
+    graph.periodic = periodic
+    return graph
 
 
-def unit_disk_grid_graph_rydberg(grid, radius=np.sqrt(2) + 1e-5, B=863300 / (4.47) ** 6, visualize=False, IS=True,
-                                 generate_mixer=False):
+def unit_disk_grid_graph_rydberg(grid, radius=np.sqrt(2) + 1e-5, B=863300 / 4.47 ** 6, visualize=False):
     y, x = grid.shape
 
     def neighbors_from_geometry(n):
@@ -620,8 +253,8 @@ def unit_disk_grid_graph_rydberg(grid, radius=np.sqrt(2) + 1e-5, B=863300 / (4.4
 
     nodes_geometric = np.argwhere(grid != 0)
     nodes = list(range(len(nodes_geometric)))
-    g = nx.Graph()
-    g.add_nodes_from(nodes)
+    graph = nx.Graph()
+    graph.add_nodes_from(nodes)
     j = 0
     for node in nodes_geometric:
         neighbors = neighbors_from_geometry(node)
@@ -629,27 +262,27 @@ def unit_disk_grid_graph_rydberg(grid, radius=np.sqrt(2) + 1e-5, B=863300 / (4.4
         neighbors = [np.argwhere(np.all(nodes_geometric == i, axis=1))[0, 0] for i in neighbors]
         i = 0
         for neighbor in neighbors:
-            g.add_edge(j, neighbor, weight=B / (
+            graph.add_edge(j, neighbor, weight=B / (
                 np.sqrt((node[0] - neighbors_geometric[i][0]) ** 2 + (node[1] - neighbors_geometric[i][1]) ** 2)) ** 6)
             i += 1
         j += 1
 
     if visualize:
         pos = {nodes[i]: nodes_geometric[i] for i in range(len(nodes))}
-        nx.draw_networkx_nodes(g, pos=pos, node_color='cornflowerblue', node_size=40,
+        nx.draw_networkx_nodes(graph, pos=pos, node_color='cornflowerblue', node_size=40,
                                edgecolors='black')  # edgecolors='black',
-        nx.draw_networkx_edges(g, pos=pos, edge_color='black')
+        nx.draw_networkx_edges(graph, pos=pos, edge_color='black')
         plt.axis('off')
         plt.show()
-    g = Graph(g, IS=IS, generate_mixer=generate_mixer)
-    g.positions = nodes
-    g.radius = radius
-    g.B = B
-    return g
+    graph = Graph(graph)
+    graph.positions = nodes
+    graph.radius = radius
+    graph.B = B
+    return graph
 
 
-def rydberg_graph(points, B=863300 / 4.47 ** 6, alpha=6, threshold=1e-8, label_node_by_coords=False,
-                  visualize=False, IS=True, periodic=False, generate_mixer=False):
+def rydberg_graph(points, B=863300 / 4.47 ** 6, alpha=6, threshold=1e-8, label_node_by_coords=False, periodic=False,
+                  visualize=False):
     """ Create a Graph object from xy-coordinates
     where the edge weights correspond to
             B / ||r_i - r_j||^alpha
@@ -703,14 +336,14 @@ def rydberg_graph(points, B=863300 / 4.47 ** 6, alpha=6, threshold=1e-8, label_n
         nx.draw_networkx(graph, pos=pos,
                          labels={}, node_size=20, node_color='r')
         plt.show()
-    graph = Graph(graph, IS=IS, generate_mixer=generate_mixer)
+    graph = Graph(graph)
     graph.positions = points
     graph.B = B
     graph.periodic = periodic
     return graph
 
 
-def unit_disk_graph(points, radius=1 + 1e-5, periodic=False, visualize=False, IS=True, generate_mixer=False):
+def unit_disk_graph(points, radius=1 + 1e-5, visualize=False):
     nodes = np.arange(points.shape[0])
     adjacency_matrix = np.zeros((points.shape[0], points.shape[0]))
     for n1 in nodes:
@@ -724,12 +357,12 @@ def unit_disk_graph(points, radius=1 + 1e-5, periodic=False, visualize=False, IS
         pos = {nodes[i]: points[i] for i in range(len(nodes))}
         nx.draw(graph, pos=pos)
         plt.show()
-    graph = Graph(graph, IS=IS, generate_mixer=generate_mixer)
+    graph = Graph(graph)
     graph.positions = nodes
     return graph
 
 
-def branching_tree_from_edge(n_branches, visualize=True, IS=True, generate_mixer=False):
+def branching_tree_from_edge(n_branches, visualize=True):
     graph = nx.Graph()
     graph.add_edge(0, 1)
     last_layer = [0, 1]
@@ -745,4 +378,4 @@ def branching_tree_from_edge(n_branches, visualize=True, IS=True, generate_mixer
     if visualize:
         nx.draw(graph, with_labels=True)
         plt.show()
-    return Graph(graph, IS=IS, generate_mixer=generate_mixer)
+    return Graph(graph)

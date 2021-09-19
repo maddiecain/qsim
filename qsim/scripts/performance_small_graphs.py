@@ -36,7 +36,7 @@ def find_ratio(tails_graph, graph, tf, graph_index=None, size=None):
     # print('Starting rydberg')
     rydberg = hamiltonian.HamiltonianRydberg(tails_graph, graph, IS_subspace=True, energies=(2 * np.pi,))
     pulse = np.loadtxt('for_AWG_{}.000000.txt'.format(6))
-    t_pulse_max = np.max(pulse[:, 0]) - 2 * 0.311
+    t_pulse_max = np.max(pulse[:, 0]) - 2 * 0.312
 
     def schedule(t, T):
         # Linear ramp on the detuning, experiment-like ramp on the driver
@@ -61,31 +61,31 @@ def find_ratio(tails_graph, graph, tf, graph_index=None, size=None):
                             -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (1 - a)))) ** b + 1) / \
                     (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
                             (1 + np.e ** (-k * (1 / 2 - (1 - a)))) ** b) + 1)
-        cost.energies = (-2*np.pi*11*2*(1/2-t/T))#(2 * np.pi * (-(11 + 15) / T * t + 15),)
+        cost.energies = (-2*np.pi*11*2*(1/2-t/T),)#(2 * np.pi * (-(11 + 15) / T * t + 15),)
         driver.energies = (2*np.pi*2*amplitude,)#(2 * np.pi * 2 * amplitude,)
 
     def schedule_exp_optimized(t, T):
-        if t < .311:
-            driver.energies = (2 * np.pi * 2 * t / .311,)
+        if t < .312:
+            driver.energies = (2 * np.pi * 2 * t / .312,)
             cost.energies = (2 * np.pi * 15,)
-        elif .311 <= t <= T - .331:
-            t_pulse = (t - 0.311) / (T - 2 * 0.311) * t_pulse_max + 0.311
+        elif .312 <= t <= T - .312:
+            t_pulse = (t - 0.312) / (T - 2 * 0.312) * t_pulse_max + 0.312
             driver.energies = (2 * np.pi * np.interp(t_pulse, pulse[:, 0], pulse[:, 1] / 2),)
             cost.energies = (2 * np.pi * np.interp(t_pulse, pulse[:, 0], -pulse[:, 2]),)
         else:
-            driver.energies = (2 * np.pi * 2 * (T - t) / .311,)
+            driver.energies = (2 * np.pi * 2 * (T - t) / .312,)
             cost.energies = (-2 * np.pi * 11,)
         # print(t, cost.energies)
 
     def schedule_exp_linear(t, T):
-        if t < .311:
-            driver.energies = (2 * np.pi * 2 * t / .311,)
+        if t < .312:
+            driver.energies = (2 * np.pi * 2 * t / .312,)
             cost.energies = (2 * np.pi * 15,)
-        elif .311 <= t <= T - .331:
+        elif .312 <= t <= T - .312:
             driver.energies = (2 * np.pi * 2,)
-            cost.energies = (2 * np.pi * (-(11 + 15) / (T - 2 * .311) * (t - .311) + 15),)
+            cost.energies = (2 * np.pi * (-(11 + 15) / (T - 2 * .312) * (t - .312) + 15),)
         else:
-            driver.energies = (2 * np.pi * 2 * (T - t) / .311,)
+            driver.energies = (2 * np.pi * 2 * (T - t) / .312,)
             cost.energies = (-2 * np.pi * 11,)
 
     # print(t, cost.energies)
@@ -93,39 +93,36 @@ def find_ratio(tails_graph, graph, tf, graph_index=None, size=None):
     # schedule(0, 1)
     # print(cost.hamiltonian*2*np.pi)
     # print(driver.hamiltonian)
-
     ad = SimulateAdiabatic(graph=graph, hamiltonian=[cost, driver, rydberg], cost_hamiltonian=cost,
                            IS_subspace=True)
     # print('Starting evolution')
     ars = []
     probs = []
     for i in range(len(tf)):
-        states, data = ad.run(tf[i], schedule_old, num=int(10 * tf[i]), method='odeint', full_output=False)
+        states, data = ad.run(tf[i], schedule_exp_linear, num=int(10 * tf[i]), method='odeint', full_output=False)
         cost.energies = (1,)
         ar = cost.approximation_ratio(states[-1])
         prob = cost.optimum_overlap(states[-1])
-        np.savez_compressed('{}x{}_{}_{}.npz'.format(size, size, graph_index, i), state=states[-1])
+        #np.savez_compressed('{}x{}_{}_{}_opt.npz'.format(size, size, graph_index, i), state=states[-1])
         print(tf[i], ar, prob)
-        ars.append(ar)
-        probs.append(prob)
+        #ars.append(ar)
+        #probs.append(prob)
     return ars, probs
 
 
-def visualize_low_energy_subspace(graph, k=5):
-    print('initializing')
+def visualize_low_energy_subspace(graph, tails_graph, k=5):
+    n_points = 7
+    times_exp = 2 ** np.linspace(-2.5, 4.5 / 6 * (n_points - 1) - 2.5, n_points) + .312 * 2
+    t_max = times_exp[4]
     cost = hamiltonian.HamiltonianMIS(graph, IS_subspace=True)
-    print('finished MIS')
+    # print('Starting driver')
     driver = hamiltonian.HamiltonianDriver(IS_subspace=True, graph=graph)
-    print('finished driver')
-    # rydberg = hamiltonian.HamiltonianRydberg(tails_graph, graph, IS_subspace=True, energies=(1,))
-    grid = graph.positions
-
-    # random = hamiltonian.HamiltonianEnergyShift(IS_subspace=True, graph=graph, energies=(1e-6,))
-    # random._hamiltonian = scipy.sparse.csc_matrix(
-    #    (np.random.normal(loc=1e3, scale=1e3, size=graph.num_independent_sets), (np.arange(graph.num_independent_sets),
-    #                                                                             np.arange(
-    #                                                                                 graph.num_independent_sets))),
-    #    shape=(graph.num_independent_sets, graph.num_independent_sets))
+    # print('Starting rydberg')
+    if tails_graph is not None:
+        rydberg = hamiltonian.HamiltonianRydberg(tails_graph, graph, IS_subspace=True, energies=(2 * np.pi,))
+    pulse = np.loadtxt('for_AWG_{}.000000.txt'.format(6))
+    max_detuning = np.max(pulse[:, 2])
+    t_pulse_max = np.max(pulse[:, 0]) - 2 * 0.312
 
     def schedule(t, T):
         # Linear ramp on the detuning, experiment-like ramp on the driver
@@ -137,11 +134,53 @@ def visualize_low_energy_subspace(graph, k=5):
                             -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (1 - a)))) ** b + 1) / \
                     (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
                             (1 + np.e ** (-k * (1 / 2 - (1 - a)))) ** b) + 1)
-        cost.energies = (5 * 2 * (1 / 2 - x),)
-        driver.energies = (amplitude,)
+        cost.energies = (2 * np.pi * (-(11 + 15) / T * t + 15),)
+        driver.energies = (2 * np.pi * 2 * amplitude,)
+
+    def schedule_old(t, T):
+        # Linear ramp on the detuning, experiment-like ramp on the driver
+        k = 50
+        a = .95
+        b = 3.1
+        x = t / T
+        amplitude = (
+                            -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (1 - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                            (1 + np.e ** (-k * (1 / 2 - (1 - a)))) ** b) + 1)
+        cost.energies = (-2 * np.pi * 11 * 2 * (1 / 2 - t / T),)  # (2 * np.pi * (-(11 + 15) / T * t + 15),)
+        driver.energies = (2 * np.pi * 2 * amplitude,)  # (2 * np.pi * 2 * amplitude,)
+
+    def schedule_exp_optimized(t, T):
+        if t < .312:
+            driver.energies = (2 * np.pi * 2 * t / .312,)
+            cost.energies = (2 * np.pi * 15,)
+        elif .312 <= t <= T - .312:
+            t_pulse = (t - 0.312) / (T - 2 * 0.312) * t_pulse_max + 0.312
+            driver.energies = (2 * np.pi * np.interp(t_pulse, pulse[:, 0], pulse[:, 1] / 2),)
+            cost.energies = (2 * np.pi * np.interp(t_pulse, pulse[:, 0], -pulse[:, 2]),)
+        else:
+            driver.energies = (2 * np.pi * 2 * (T - t) / .312,)
+            cost.energies = (-2 * np.pi * max_detuning,)
+        # print(t, cost.energies)
+
+    def schedule_exp_linear(t, T):
+        if t < .312:
+            driver.energies = (2 * np.pi * 2 * t / .312,)
+            cost.energies = (2 * np.pi * 15,)
+        elif .312 <= t <= T - .312:
+            driver.energies = (2 * np.pi * 2,)
+            cost.energies = (2 * np.pi * (-(11 + 15) / (T - 2 * .312) * (t - .312) + 15),)
+        else:
+            driver.energies = (2 * np.pi * 2 * (T - t) / .312,)
+            cost.energies = (-2 * np.pi * 11,)
+
+    # print(t, cost.energies)
+    # Uncomment this to print the schedule at t=0
+    # schedule(0, 1)
+    # print(cost.hamiltonian*2*np.pi)
 
     def gap(t):
-        schedule(t, 1)
+        schedule_exp_linear(t, t_max)
         eigval, eigvec = eq.eig(which='S', k=k)
         return np.abs(eigval - eigval[0]), eigvec
 
@@ -149,17 +188,22 @@ def visualize_low_energy_subspace(graph, k=5):
     # schedule(0, 1)
     # print(cost.hamiltonian*2*np.pi)
     # print(driver.hamiltonian)
-    eq = schrodinger_equation.SchrodingerEquation(hamiltonians=[cost, driver])
+    if tails_graph is None:
+        eq = schrodinger_equation.SchrodingerEquation(hamiltonians=[cost, driver])
+
+    else:
+        eq = schrodinger_equation.SchrodingerEquation(hamiltonians=[cost, driver, rydberg])
+
     fig = plt.figure(tight_layout=True)
-    k_cutoff = 5
+    k_cutoff = 10
     gs = gridspec.GridSpec(k_cutoff, k_cutoff)
     ax = fig.add_subplot(gs[:, 0:k_cutoff - 1])
-    num = 50
+    num = 15
     print('beginning computation')
-    for (i, t) in enumerate(np.linspace(.5, .95, num)):
+    for (i, t) in enumerate(np.linspace(.55, .7, num)*t_max):
         print(i)
         g, eigvec = gap(t)
-        print(g)
+        print(t/t_max, g)
         if i == num - 1:
             probs = np.abs(eigvec) ** 2
             for l in range(k_cutoff):
@@ -170,9 +214,10 @@ def visualize_low_energy_subspace(graph, k=5):
                 ax_im = fig.add_subplot(gs[k_cutoff - l - 1, -1])
                 for j in range(probs.shape[1]):
                     layout_temp[layout == 0] = layout_temp[layout == 0] + (1 - graph.independent_sets[j]) * probs[l, j]
+
                 ax_im.imshow(layout_temp.reshape(grid.shape))
                 ax_im.set_axis_off()
-        ax.scatter(np.ones(len(g)) * t, g, s=5, color='navy')
+        ax.scatter(np.ones(len(g)) * t/t_max, g, s=3, color='navy')
         ax.set_xlabel(r'$t/T$')
         ax.set_ylabel(r'Eigenenergy ($\Omega_{\max} = 1$)')
     plt.show()
@@ -243,7 +288,7 @@ def collect_gap_statistics(size):
         graph_data = loadfile(graph_index, size)
         grid = graph_data['graph_mask']
         # We want to have the file of hardest graphs, then import them
-        graph = unit_disk_grid_graph(grid, periodic=False, generate_mixer=True)
+        graph = unit_disk_grid_graph(grid, periodic=False)
         raise Exception
         # print(np.arange(graph.num_independent_sets, 0, -1))
         # print(np.sum(2 ** np.arange(graph.n, 0, -1) * (1 - graph.independent_sets), axis=1))
@@ -264,12 +309,39 @@ def collect_gap_statistics(size):
         # visualize_low_energy_subspace(graph)
 
 
+
+
+
+size = 6
+index = 4
+size_indices = np.array([5, 6, 7, 8, 9, 10])
+size_index = np.argwhere(size == size_indices)[0, 0]
+xls = pd.ExcelFile('MIS_degeneracy_ratio.xlsx')
+# 33335
+graph_index = int(pd.read_excel(xls, 'Sheet1').to_numpy()[index, size_index])
+n_points = 7
+times_exp = 2 ** np.linspace(-2.5, 4.5 / 6 * (n_points - 1) - 2.5, n_points) + .312 * 2
+t_max = times_exp[6]
+graph_data = loadfile(graph_index, size)
+grid = graph_data['graph_mask']
+# We want to have the file of hardest graphs, then import them
+graph = unit_disk_grid_graph(grid, periodic=False)
+graph.generate_independent_sets()
+print(graph.independent_sets)
+print('degeneracy', graph.degeneracy)
+print('HS size', graph.num_independent_sets)
+
+#tails_graph = rydberg_graph(grid, visualize=False)
+#find_ratio(tails_graph, graph, [t_max])
+visualize_low_energy_subspace(graph, None, k=15)
+
+"""
 if __name__ == '__main__':
     # Evolve
     import sys
 
     n_points = 10
-    tf = 2 ** np.linspace(-2.5, 4.5 / 6 * (n_points - 1) - 2.5, n_points) + .311 * 2
+    tf = 2 ** np.linspace(-2.5, 4.5 / 6 * (n_points - 1) - 2.5, n_points) + .312 * 2
 
     index = int(sys.argv[1])
     # time_index = index % len(tf)
@@ -277,11 +349,11 @@ if __name__ == '__main__':
     size = 5
     size_indices = np.array([5, 6, 7, 8, 9, 10])
     size_index = np.argwhere(size == size_indices)[0, 0]
-    xls = pd.ExcelFile('MIS_degeneracy_ratio.xlsx')
-    graph_index = (pd.read_excel(xls, 'Sheet1').to_numpy()[index, size_index]).astype(int)
-    #graph_indices = np.array([189, 623, 354, 40, 323, 173, 661, 345, 813, 35, 162, 965, 336,
-    #                          667, 870, 1, 156, 901, 576, 346])
-    #graph_index = graph_indices[index]
+    #xls = pd.ExcelFile('MIS_degeneracy_ratio.xlsx')
+    #graph_index = (pd.read_excel(xls, 'Sheet1').to_numpy()[index, size_index]).astype(int)
+    graph_indices = np.array([189, 623, 354, 40, 323, 173, 661, 345, 813, 35, 162, 965, 336,
+                              667, 870, 1, 156, 901, 576, 346])
+    graph_index = graph_indices[index]
 
     graph_data = loadfile(graph_index, size)
     grid = graph_data['graph_mask']
@@ -291,3 +363,4 @@ if __name__ == '__main__':
     ratio, probs = find_ratio(tails_graph, graph, tf, graph_index=graph_index, size=size)
     print(ratio)
     print(probs)
+"""
