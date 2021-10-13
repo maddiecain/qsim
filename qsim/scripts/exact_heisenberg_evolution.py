@@ -10,10 +10,10 @@ def time_evolve(product_state, disorder, T, method='ED'):
 
     graph = line_graph(L)
     heisenberg = ham.HamiltonianHeisenberg(graph, energies=(1/4, 1/4), subspace=0)
-
-    index = np.argwhere(np.sum(heisenberg.states-product_state, axis=1) == 0)
+    index = np.argwhere(np.sum(np.abs(heisenberg.states-product_state), axis=1) == 0)[0,0]
     state = np.zeros((heisenberg.states.shape[0], 1))
     state[index] = 1
+    print(np.linalg.norm(state))
 
     if method == 'ED':
         disorder_hamiltonian_diag = np.sum((1 / 2 - heisenberg.states) * disorder, axis=1)
@@ -39,10 +39,11 @@ def test_time_evolve(L):
     disorder = np.random.uniform(low=-1, high=1, size=L)
     product_state = np.zeros(len(disorder))
     product_state[:len(disorder)//2] = 1
-    #res_ED = time_evolve(product_state, disorder, 1e2, method='ED')
+    res_ED = time_evolve(product_state, disorder, 1e2, method='ED')
+    print(np.linalg.norm(res_ED))
     res_expm = time_evolve(product_state, disorder, 1e2, method='expm')
     res_expm_multiply = time_evolve(product_state, disorder, 1e2, method='expm_multiply')
-    #print(np.sum(np.abs(res_ED-res_expm)))
+    print(np.sum(np.abs(res_ED-res_expm)))
     print(np.sum(np.abs(res_expm-res_expm_multiply)))
 
-test_time_evolve(14)
+test_time_evolve(10)
