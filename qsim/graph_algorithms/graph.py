@@ -46,47 +46,101 @@ class Graph(object):
         self.m = self.edges.size
         # Initialize attributes to be set in self.generate_independent_sets() or when generating mixer and
         # driver Hamiltonians.
+
+        self._num_independent_sets = None
+        self._degeneracy = None
+        self._independent_sets = None
+
+    @property
+    def degeneracy(self):
         num_independent_sets = 1
         mis_size = 0
         degeneracy = 0
-        for independent_set in enumerate_independent_sets(graph):
-            num_independent_sets += 1
-            length = len(independent_set)
-            if length > mis_size:
-                mis_size = length
-                degeneracy = 1
-            if length == mis_size:
-                degeneracy += 1
-        self.num_independent_sets = num_independent_sets
-        self.mis_size = mis_size
-        self.degeneracy = degeneracy
-        self.independent_sets = None
+        if self._degeneracy is None:
+            for independent_set in enumerate_independent_sets(self.graph):
+                num_independent_sets += 1
+                length = len(independent_set)
+                if length > mis_size:
+                    mis_size = length
+                    degeneracy = 0
+                if length == mis_size:
+                    degeneracy += 1
+            self._degeneracy = degeneracy
+            self._mis_size = mis_size
+            self.num_independent_sets = num_independent_sets
+            return self._degeneracy
+        else:
+            return self._degeneracy
 
-    def generate_independent_sets(self):
-        # Generate a list of integers corresponding to the independent sets in binary
-        # Construct generator containing independent sets
-        # Don't generate anything that depends on the entire Hilbert space as to save space
-        # Generate complement graph
-        # These are your independent sets of the original graphs, ordered by node and size
-        independent_sets, backup = tee(enumerate_independent_sets(self.graph))
-        # Generate a list of integers corresponding to the independent sets in binary
-        indices = np.zeros((self.num_independent_sets, self.n), dtype=int)
-        # All ones
-        indices[-1, ...] = np.ones(self.n)
-        k = self.num_independent_sets - 2
-        for i in independent_sets:
-            nary = np.ones(self.n)
-            for node in i:
-                nary[node] = 0
-            indices[k, ...] = nary
-            k -= 1
-        self.independent_sets = indices
-        return indices, self.num_independent_sets
+    @property
+    def mis_size(self):
+        num_independent_sets = 1
+        mis_size = 0
+        degeneracy = 0
+        if self._mis_size is None:
+            for independent_set in enumerate_independent_sets(self.graph):
+                num_independent_sets += 1
+                length = len(independent_set)
+                if length > mis_size:
+                    mis_size = length
+                    degeneracy = 0
+                if length == mis_size:
+                    degeneracy += 1
+            self._degeneracy = degeneracy
+            self._mis_size = mis_size
+            self.num_independent_sets = num_independent_sets
+            return self._mis_size
+        else:
+            return self._mis_size
+
+    @property
+    def num_independent_sets(self):
+        num_independent_sets = 1
+        mis_size = 0
+        degeneracy = 0
+        if self._num_independent_sets is None:
+            for independent_set in enumerate_independent_sets(self.graph):
+                num_independent_sets += 1
+                length = len(independent_set)
+                if length > mis_size:
+                    mis_size = length
+                    degeneracy = 0
+                if length == mis_size:
+                    degeneracy += 1
+            self._degeneracy = degeneracy
+            self._mis_size = mis_size
+            self._num_independent_sets = num_independent_sets
+            return self._num_independent_sets
+        else:
+            return self._num_independent_sets
+
+    @property
+    def independent_sets(self):
+        if self._independent_sets is None:
+            # Generate a list of integers corresponding to the independent sets in binary
+            # Construct generator containing independent sets
+            # Don't generate anything that depends on the entire Hilbert space as to save space
+            # Generate complement graph
+            # These are your independent sets of the original graphs, ordered by node and size
+            independent_sets, backup = tee(enumerate_independent_sets(self.graph))
+            # Generate a list of integers corresponding to the independent sets in binary
+            indices = np.zeros((self.num_independent_sets, self.n), dtype=int)
+            # All ones
+            indices[-1, ...] = np.ones(self.n)
+            k = self.num_independent_sets - 2
+            for i in independent_sets:
+                nary = np.ones(self.n)
+                for node in i:
+                    nary[node] = 0
+                indices[k, ...] = nary
+                k -= 1
+            self._independent_sets = indices
+            return self._independent_sets
+        else:
+            return self._independent_sets
 
     def generate_independent_sets_qudit(self, code):
         assert code is not qubit
-        if self.independent_sets is None:
-            self.generate_independent_sets()
         # You do NOT need to count the number in ground, this is just n-# excited
         # Count the number of elements in the ground space and map to their representation in ternary
         # Determine how large to make the array

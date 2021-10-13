@@ -101,7 +101,7 @@ def find_ratio(tails_graph, graph, tf, graph_index=None, size=None):
         cost.energies = (1,)
         ar = cost.approximation_ratio(states[-1])
         prob = cost.optimum_overlap(states[-1])
-        #np.savez_compressed('{}x{}_{}_{}.npz'.format(size, size, graph_index, i), state=states[-1])
+        # np.savez_compressed('{}x{}_{}_{}.npz'.format(size, size, graph_index, i), state=states[-1])
         print(tf[i], ar, prob)
         ars.append(ar)
         probs.append(prob)
@@ -112,11 +112,12 @@ def find_gap(graph, tails_graph, k=2, verbose=False):
     n_points = 7
     times_exp = 2 ** np.linspace(-2.5, 4.5 / 6 * (n_points - 1) - 2.5, n_points) + .312 * 2
     t_max = times_exp[4]
+    print('Starting cost')
     cost = hamiltonian.HamiltonianMIS(graph, IS_subspace=True)
-    # print('Starting driver')
+    print('Starting driver')
     driver = hamiltonian.HamiltonianDriver(IS_subspace=True, graph=graph)
-    # print('Starting rydberg')
     if tails_graph is not None:
+        print('Starting rydberg')
         rydberg = hamiltonian.HamiltonianRydberg(tails_graph, graph, IS_subspace=True, energies=(2 * np.pi,))
     pulse = np.loadtxt('for_AWG_{}.000000.txt'.format(6))
     t_pulse_max = np.max(pulse[:, 0]) - 2 * 0.312
@@ -168,6 +169,7 @@ def find_gap(graph, tails_graph, k=2, verbose=False):
             print(np.abs(eigval[1] - eigval[0]), t / t_max)
         # print(t/t_max, np.abs(eigval[1] - eigval[0]))
         return np.abs(eigval[1] - eigval[0])
+
     if tails_graph is None:
         eq = schrodinger_equation.SchrodingerEquation(hamiltonians=[cost, driver])
     else:
@@ -175,17 +177,95 @@ def find_gap(graph, tails_graph, k=2, verbose=False):
 
     # Do minimization
     schedule = schedule_exp_linear
-    upper = 0.66
-    lower = .55
-    res_linear = scipy.optimize.minimize(gap, np.array([.62]), bounds=[(lower, upper)], method='L-BFGS-B')
+    if tails_graph is None:
+        # Previously .67
+        upper = 0.8
+        # Previously .55
+        lower = .55
+        init = np.array([.7])
+    else:
+        # Default: .77
+        upper = 0.7860824  # 0.77
+        lower = 0.7856305  # 0.8161#.77#.6
+        # Default: .71
+        init = np.array([0.7860309])  # 0.74
+    print('Starting gap')
+    res_linear = scipy.optimize.minimize(gap, init, bounds=[(lower, upper)], method='L-BFGS-B')
     terminate = False
     while res_linear.x[0] == upper and not terminate:
         upper -= .01
         if upper <= lower:
             upper = .95
-        res_linear = scipy.optimize.minimize(gap, np.array([.62]), bounds=[(lower, upper)], tol=1e-2)
+        res_linear = scipy.optimize.minimize(gap, init, bounds=[(lower, upper)], tol=1e-2)
 
     return res_linear.fun, res_linear.x[0]
+
+
+def find_ground_first_excited(graph, tails_graph, t, k=2):
+    n_points = 7
+    times_exp = 2 ** np.linspace(-2.5, 4.5 / 6 * (n_points - 1) - 2.5, n_points) + .312 * 2
+    t_max = times_exp[4]
+    print('Starting cost')
+    cost = hamiltonian.HamiltonianMIS(graph, IS_subspace=True)
+    print('Starting driver')
+    driver = hamiltonian.HamiltonianDriver(IS_subspace=True, graph=graph)
+    if tails_graph is not None:
+        print('Starting rydberg')
+        rydberg = hamiltonian.HamiltonianRydberg(tails_graph, graph, IS_subspace=True, energies=(2 * np.pi,))
+    pulse = np.loadtxt('for_AWG_{}.000000.txt'.format(6))
+    t_pulse_max = np.max(pulse[:, 0]) - 2 * 0.312
+    max_detuning = np.max(pulse[:, 2])
+
+    def schedule_old(t, T):
+        # Linear ramp on the detuning, experiment-like ramp on the driver
+        k = 50
+        a = .95
+        b = 3.1
+        x = t / T
+        amplitude = (
+                            -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (1 - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                            (1 + np.e ** (-k * (1 / 2 - (1 - a)))) ** b) + 1)
+        cost.energies = (-2 * np.pi * 11 * 2 * (1 / 2 - t / T),)  # (2 * np.pi * (-(11 + 15) / T * t + 15),)
+        driver.energies = (2 * np.pi * 2 * amplitude,)  # (2 * np.pi * 2 * amplitude,)
+
+    def schedule_exp_optimized(t, T):
+        if t < .312:
+            driver.energies = (2 * np.pi * 2 * t / .312,)
+            cost.energies = (2 * np.pi * 15,)
+        elif .312 <= t <= T - .312:
+            t_pulse = (t - 0.312) / (T - 2 * 0.312) * t_pulse_max + 0.312
+            driver.energies = (2 * np.pi * np.interp(t_pulse, pulse[:, 0], pulse[:, 1] / 2),)
+            cost.energies = (2 * np.pi * np.interp(t_pulse, pulse[:, 0], -pulse[:, 2]),)
+        else:
+            driver.energies = (2 * np.pi * 2 * (T - t) / .312,)
+            cost.energies = (-2 * np.pi * max_detuning,)
+        # print(t, cost.energies)
+
+    def schedule_exp_linear(t, T):
+        if t < .312:
+            driver.energies = (2 * np.pi * 2 * t / .312,)
+            cost.energies = (2 * np.pi * 15,)
+        elif .312 <= t <= T - .312:
+            driver.energies = (2 * np.pi * 2,)
+            cost.energies = (2 * np.pi * (-(11 + 15) / (T - 2 * .312) * (t - .312) + 15),)
+        else:
+            driver.energies = (2 * np.pi * 2 * (T - t) / .312,)
+            cost.energies = (-2 * np.pi * 11,)
+
+    if tails_graph is None:
+        eq = schrodinger_equation.SchrodingerEquation(hamiltonians=[cost, driver])
+    else:
+        eq = schrodinger_equation.SchrodingerEquation(hamiltonians=[cost, driver, rydberg])
+
+    # Do minimization
+    schedule = schedule_exp_linear
+    t = t * t_max
+    schedule(t, t_max)
+    eigval, eigvec = eq.eig(which='S', k=k)
+    print(eigval[0], eigval[1])
+    return eigval, eigvec
+    # np.save('eigvec_{}.npy'.format(graph_index), eigvec)
 
 
 def collect_gap_statistics(size):
@@ -390,6 +470,7 @@ def track_eigenstate_populations(graph, tails_graph, grid, k=2):
         schedule_exp_linear(t, t_max)
         eigval, eigvec = eq.eig(which='S', k=k)
         return eigval - eigval[0], eigvec
+
     if tails_graph is not None:
         eq = schrodinger_equation.SchrodingerEquation(hamiltonians=[cost, driver, rydberg])
 
@@ -482,39 +563,113 @@ def track_eigenstate_populations(graph, tails_graph, grid, k=2):
     plt.show()
 
 
+size = 12
+index = 0
+size_indices = np.array([5, 6, 7, 8, 9, 10, 11, 12])
+size_index = np.argwhere(size == size_indices)[0, 0]
+xls = pd.ExcelFile('MIS_degeneracy_ratio.xlsx')
+print(repr(pd.read_excel(xls, 'Sheet1').to_numpy()[:10, size_index].astype(int)))
 gaps = []
 locs = []
 dts = []
-if __name__ == '__main__':
-    import sys
-    index = int(sys.argv[1])
-    size = 8
-    size_indices = np.array([5, 6, 7, 8, 9, 10])
-    size_index = np.argwhere(size == size_indices)[0, 0]
-    #xls = pd.ExcelFile('MIS_degeneracy_ratio.xlsx')
-    #print(repr(pd.read_excel(xls, 'Sheet1').to_numpy()[:20, 3].astype(int)))
-    #graph_index = int(pd.read_excel(xls, 'Sheet1').to_numpy()[index, size_index])
-    graphs = np.array([188, 970, 91, 100, 72, 316, 747, 216, 168, 852, 7, 743, 32,
-                       573, 991, 957, 555, 936, 342, 950])
+
+for index in range(20):
+    size = 7
+    locs_notails_6 = np.array(
+        [0.6354043718272815, 0.6353015471611612, 0.632269454494533, 0.6291213686378659, 0.6334695987119048,
+         0.6287726138498437, 0.6320992450429324, 0.6287303853367949, 0.6274379022570347, np.inf,
+         0.6170173651783496, 0.6308029057285616, np.inf, np.inf, 0.6157494497321381, 0.6246099627166594,
+         0.6201706053474059, 0.627601395447675, 0.6167364634091927, np.inf])
+    # xls = pd.ExcelFile('MIS_degeneracy_ratio.xlsx')
+    # print(repr(pd.read_excel(xls, 'Sheet1').to_numpy()[:20, size_index].astype(int)))
+    # graph_index = int(pd.read_excel(xls, 'Sheet1').to_numpy()[index, size_index])
+    locs_7 = np.array(
+        [0.7265036496277152, 0.7480795397419759, 0.7501160681277541, 0.7283436417782508, 0.7161896597170012,
+         0.750875468376516, 0.6499999999999999, 0.7376863465734378, 0.7357162761418884, 0.7405728347818966,
+         0.7231423513678857, 0.7210066666698024, 0.7107173688294144, 0.7240844082405429, 0.7595262897974576,
+         0.7253202079003382, 0.7194599463412628, 0.7604139611843566, 0.7102416075728506, 0.7285607609781394,
+         0.7310691332732819, 0.7471911433440447, 0.7390912620702788, 0.7184798282417322, 0.7337618912775123,
+         0.6962885788468285, 0.7218528272008484, 0.749878029970634, 0.7206609232120385, 0.6887485236896556,
+         0.7158657047278957, 0.7278519162920911, 0.735449028823428, 0.7016023773016111, 0.7361234146285848,
+         0.7351237755884046, 0.697861342950187, 0.7398546759713864])
+    graphs = np.array(
+        [667, 557, 78, 312, 807, 776, 485, 980, 71, 50, 521, 773, 549, 523, 374, 515, 669, 344, 21, 107, 201,
+         851, 736, 508, 286, 526, 385, 116, 20, 999, 357, 149, 872, 233, 528, 603, 912, 820])
+
+    graphs = np.array([189, 623, 354, 40, 323, 173, 661, 345, 813, 35, 162, 965, 336,
+                       667, 870, 1, 156, 901, 576, 346])
+
     graph_index = graphs[index]
+    t = locs_7[index]
+    # graph_index = 661
+    # graph_index = 189
     graph_data = loadfile(graph_index, size)
     grid = graph_data['graph_mask']
-    graph = unit_disk_grid_graph(grid, periodic=False)
+    print('Initializing graph')
+    graph = unit_disk_grid_graph(grid, periodic=False, radius=1.51)
+    tails_graph = rydberg_graph(grid, visualize=False)
+    # graph.generate_independent_sets()
+    if not np.isinf(t):
+        eigval, eigvec = find_ground_first_excited(graph, tails_graph, t, k=3)
+        np.save('{}x{}_eigvec_{}.npy'.format(size, size, graph_index), eigvec)
+
+"""for index in range(20):
+    import sys
+    #index = int(sys.argv[1])
+    size = 6
+    #size_indices = np.array([5, 6, 7, 8, 9, 10])
+    #size_index = np.argwhere(size == size_indices)[0, 0]
+    gaps_8 = np.array([0.018555264577685193, 0.3494778895114905, 1.7053519896727494, 1.7973674033959242,
+                       1.3194361160893777, 0.3789663220178454, 2.155533273799165, 4.454764452556901,
+                       0.677728932914647, 1.108900340765672, 1.674387563824439, np.inf,
+                       np.inf, np.inf, np.inf, np.inf,
+                       np.inf, np.inf, np.inf, np.inf])
+    locs_8 = np.array([0.827956322052554, 0.8040219184932881, 0.7305878228970192, 0.7585904125924001,
+                       0.732592062802305, 0.7737544889181655, 0.746496357369199, 0.7207227336013631,
+                       0.7766741959601992, 0.7508037254169446, 0.7442339359689708, np.inf,
+                       np.inf, np.inf, np.inf, np.inf,
+                       np.inf, np.inf, np.inf, np.inf])
+    locs_notails_6 = np.array(
+        [0.6354043718272815, 0.6353015471611612, 0.632269454494533, 0.6291213686378659, 0.6334695987119048,
+         0.6287726138498437, 0.6320992450429324, 0.6287303853367949, 0.6274379022570347, np.inf,
+         0.6170173651783496, 0.6308029057285616, np.inf, np.inf, 0.6157494497321381, 0.6246099627166594,
+         0.6201706053474059, 0.627601395447675, 0.6167364634091927, np.inf])
+    #xls = pd.ExcelFile('MIS_degeneracy_ratio.xlsx')
+    #print(repr(pd.read_excel(xls, 'Sheet1').to_numpy()[:20, size_index].astype(int)))
+    #graph_index = int(pd.read_excel(xls, 'Sheet1').to_numpy()[index, size_index])
+
+    graphs = np.array([188, 970, 91, 100, 72, 316, 747, 216, 168, 852, 7, 743, 32,
+                       573, 991, 957, 555, 936, 342, 950])
+    graphs = np.array(
+        [667, 557, 78, 312, 807, 776, 485, 980, 71, 50, 521, 773, 549, 523, 374, 515, 669, 344, 21, 107, 201,
+         851, 736, 508, 286, 526, 385, 116, 20, 999, 357, 149, 872, 233, 528, 603, 912, 820])
+
+    #graphs = np.array([189, 623, 354,  40, 323, 173, 661, 345, 813,  35, 162, 965, 336,
+    #   667, 870,   1, 156, 901, 576, 346])
+
+    graph_index = graphs[index]
+    t = locs_notails_6[index]
+    #graph_index = 661
+    #graph_index = 189
+    graph_data = loadfile(graph_index, size)
+    grid = graph_data['graph_mask']
+    print('Initializing graph')
+    graph = unit_disk_grid_graph(grid, periodic=False, radius=1.51)
+    #print(np.log(graph.num_independent_sets), graph.degeneracy)
+    #pass
+    #print('Initializing tails graph')
     #tails_graph = rydberg_graph(grid, visualize=False)
+
     #print('starting function')
     #track_eigenstate_populations(graph, tails_graph, grid, k=15)
-
-    gap, loc = find_gap(graph, None, k=2, verbose=True)
-    print('final', gap, loc)
+    if not np.isinf(t):
+        eigval, eigvec = find_ground_first_excited(graph, None, t, k=2)
+        np.save('{}x{}_eigvec_{}.npy'.format(size, size, graph_index), eigvec)
+    #print('Final', gap, loc)
     #gaps.append(gap)
     #locs.append(loc)
-    """times = np.linspace(10, 16, 7)
-    times_long = np.linspace(10, 16, 10000)
-    ratios, probs = find_ratio(None, graph, times)
-    print(ratios, probs)
-    dt = times_long[np.argmin(np.interp(times_long, times, np.abs(np.array(probs)-.9)))]
-    dts.append(dt)
-    print(dts)"""
+
     #print(gaps)
     #print(locs)
     #track_eigenstate_populations(graph, tails_graph, grid, 15)
+"""

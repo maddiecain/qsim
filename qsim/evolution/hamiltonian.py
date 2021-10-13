@@ -162,7 +162,6 @@ class HamiltonianDriver(object):
                                 entries.append(1)
                                 entries.append(1)
                         k -= 1
-
                     # Now, construct the Hamiltonian
                     self._csc_hamiltonian = sparse.csc_matrix((entries, (rows, columns)),
                                                               shape=(self.graph.num_independent_sets,
