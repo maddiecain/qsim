@@ -185,10 +185,10 @@ def find_gap(graph, tails_graph, k=2, verbose=False):
         init = np.array([.7])
     else:
         # Default: .77
-        upper = 0.7860824  # 0.77
-        lower = 0.7856305  # 0.8161#.77#.6
+        upper = 0.85  # 0.77
+        lower = 0.68  # 0.8161#.77#.6
         # Default: .71
-        init = np.array([0.7860309])  # 0.74
+        init = np.array([0.7660309])  # 0.74
     print('Starting gap')
     res_linear = scipy.optimize.minimize(gap, init, bounds=[(lower, upper)], method='L-BFGS-B')
     terminate = False
@@ -574,12 +574,7 @@ locs = []
 dts = []
 
 for index in range(20):
-    size = 7
-    locs_notails_6 = np.array(
-        [0.6354043718272815, 0.6353015471611612, 0.632269454494533, 0.6291213686378659, 0.6334695987119048,
-         0.6287726138498437, 0.6320992450429324, 0.6287303853367949, 0.6274379022570347, np.inf,
-         0.6170173651783496, 0.6308029057285616, np.inf, np.inf, 0.6157494497321381, 0.6246099627166594,
-         0.6201706053474059, 0.627601395447675, 0.6167364634091927, np.inf])
+    size = 6
     # xls = pd.ExcelFile('MIS_degeneracy_ratio.xlsx')
     # print(repr(pd.read_excel(xls, 'Sheet1').to_numpy()[:20, size_index].astype(int)))
     # graph_index = int(pd.read_excel(xls, 'Sheet1').to_numpy()[index, size_index])
@@ -608,9 +603,10 @@ for index in range(20):
     print('Initializing graph')
     graph = unit_disk_grid_graph(grid, periodic=False, radius=1.51)
     tails_graph = rydberg_graph(grid, visualize=False)
+    gap, loc = find_gap(graph, tails_graph)
     # graph.generate_independent_sets()
     if not np.isinf(t):
-        eigval, eigvec = find_ground_first_excited(graph, tails_graph, t, k=3)
+        eigval, eigvec = find_ground_first_excited(graph, tails_graph, loc, k=3)
         np.save('{}x{}_eigvec_{}.npy'.format(size, size, graph_index), eigvec)
 
 """for index in range(20):
