@@ -4,10 +4,6 @@ import numpy as np
 from qsim import tools
 from qsim.codes.quantum_state import State
 
-mixed_state = np.array([[.75, 0], [0, .25]])
-pure_state = np.array([[1, 0]]).T
-invalid_state = [[-1, 0], [0, 0]]
-
 
 class TestQubit(unittest.TestCase):
     def test_single_qubit_multiply_pauli(self):
@@ -15,7 +11,7 @@ class TestQubit(unittest.TestCase):
         N = 6
         # Initialize in |000000>
         psi0 = State(np.zeros((2 ** N, 1)))
-        psi0[0,0] = 1
+        psi0[0, 0] = 1
         # Apply sigma_y on the second qubit to get 1j|010000>
         # Check Typing
         psi0 = qubit.multiply(psi0, 1, 'Y')
@@ -59,7 +55,7 @@ class TestQubit(unittest.TestCase):
         self.assertTrue(psi0[2 ** (N - 2), 0] == -1j)
 
         # Apply sigma_x on qubits
-        psi0 = qubit.multiply(psi0, [0, 2, 3, 4, 5], tools.tensor_product([qubit.X]*(N-1)))
+        psi0 = qubit.multiply(psi0, [0, 2, 3, 4, 5], tools.tensor_product([qubit.X] * (N - 1)))
 
         # Vector is still normalized
         self.assertTrue(np.vdot(psi0, psi0) == 1)
@@ -150,8 +146,6 @@ class TestQubit(unittest.TestCase):
         self.assertTrue(np.allclose(psi1, psi2))
         self.assertTrue(np.allclose(psi2, psi3))
         self.assertTrue(np.allclose(psi3, psi4))
-
-
 
 
 if __name__ == '__main__':
