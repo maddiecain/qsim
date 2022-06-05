@@ -9,9 +9,8 @@ import scipy.stats
 import scipy.stats.distributions
 import pandas as pd
 from scipy.optimize import minimize
-from qsim.codes.quantum_state import State
-from qsim.evolution.hamiltonian import HamiltonianDriver, HamiltonianMIS
-from qsim.graph_algorithms.graph import Graph, unit_disk_grid_graph, enumerate_independent_sets
+#from qsim.evolution.hamiltonian import HamiltonianDriver, HamiltonianMIS
+from qsim.graph_algorithms.graph import  unit_disk_grid_graph, enumerate_independent_sets
 from scipy.linalg import expm
 import scipy.sparse as sparse
 from scipy.sparse.linalg import expm_multiply
@@ -59,7 +58,8 @@ ax[0].legend(frameon=False)
 #ax[0].loglog()
 #ax[1].semilogx()
 print(res)
-plt.show()
+plt.clf()
+#plt.show()
 #raise Exception
 
 class HamiltonianSpinExchange(object):
@@ -69,14 +69,14 @@ class HamiltonianSpinExchange(object):
         self.IS_subspace = True
         self.graph = graph
         # Generate sparse mixing Hamiltonian
-        assert isinstance(graph, Graph)
-        independent_sets = enumerate_independent_sets(graph.graph)
+        assert isinstance(graph, nx.Graph)
+        independent_sets = enumerate_independent_sets(graph)
 
         # Generate a list of integers corresponding to the independent sets in binary
 
         def free_node(n, n_init, sol):
             free = True
-            for neighbor in self.graph.graph[n]:
+            for neighbor in self.graph[n]:
                 if neighbor != n_init and (neighbor in sol):
                     free = False
             return free
@@ -85,12 +85,12 @@ class HamiltonianSpinExchange(object):
             sol = list(sol)
             candidate_sols = []
             for i in sol:
-                for n in self.graph.graph[i]:
+                for n in self.graph[i]:
                     if free_node(n, i, sol):
                         candidate_sol = sol.copy()
                         candidate_sol.append(n)
                         candidate_sol.remove(i)
-                        candidate_sols.append(tuple(candidate_sol))
+                        candidate_sols.append(tuple(sorted(candidate_sol)))
             return candidate_sols
 
         subspace_matrices = []
@@ -137,7 +137,7 @@ class HamiltonianSpinExchange(object):
         subspace_matrices.append(subspace_matrix)
         self.mis_size = current_size
         # Now, construct the Hamiltonian
-        self._csc_hamiltonian = sparse.block_diag(subspace_matrices, format='csc')
+        self._csc_hamiltonian = np.flip(sparse.block_diag(subspace_matrices, format='csc'), axis=(0,1))
         self._hamiltonian = self._csc_hamiltonian
 
     @property
@@ -148,36 +148,50 @@ class HamiltonianSpinExchange(object):
     def evolution_operator(self):
         return -1j * self.hamiltonian
 
-    def left_multiply(self, state: State):
-        return State(self.energies[0] * self._csc_hamiltonian @ state, is_ket=state.is_ket,
-                     IS_subspace=state.IS_subspace, code=state.code, graph=self.graph)
+    def left_multiply(self, state):
+        return self.energies[0] * self._csc_hamiltonian @ state
 
-    def right_multiply(self, state: State):
-        return State(state @ self.hamiltonian.T.conj(), is_ket=state.is_ket, IS_subspace=state.IS_subspace,
-                     code=state.code, graph=self.graph)
+    def right_multiply(self, state):
+        return state @ self.hamiltonian.T.conj()
 
-    def evolve(self, state: State, time):
+    def evolve(self, state, time):
         r"""
         Use reshape to efficiently implement evolution under :math:`H_B=\\sum_i X_i`
         """
         if state.is_ket:
             # Handle dimensions
             if self.hamiltonian.shape[1] == 1:
-                return State(np.exp(-1j * time * self.hamiltonian) * state, is_ket=state.is_ket,
-                             IS_subspace=state.IS_subspace, code=state.code, graph=self.graph)
+                return np.exp(-1j * time * self.hamiltonian) * state
             else:
-                return State(expm_multiply(-1j * time * self.hamiltonian, state),
-                             is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code, graph=self.graph)
+                return expm_multiply(-1j * time * self.hamiltonian, state)
         else:
             if self.hamiltonian.shape[1] == 1:
                 exp_hamiltonian = np.exp(-1j * time * self.hamiltonian)
-                return State(exp_hamiltonian * state * exp_hamiltonian.conj().T,
-                             is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code, graph=self.graph)
+                return exp_hamiltonian * state * exp_hamiltonian.conj().T
             else:
                 exp_hamiltonian = expm(-1j * time * self.hamiltonian)
-                return State(exp_hamiltonian @ state @ exp_hamiltonian.conj().T,
-                             is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code, graph=self.graph)
+                return exp_hamiltonian @ state @ exp_hamiltonian.conj().T
 
+
+def generate_spin_exchange(n, index):
+    graph_mask = np.reshape(np.loadtxt('configurations/mis_degeneracy_L%d.dat' % n)[index, 3:],
+                            (n, n), order='F')[::-1, ::-1].T.astype(bool)
+    graph = unit_disk_grid_graph(graph_mask, visualize=False)
+    print('beginning spin exchange')
+    spin_exchange = HamiltonianSpinExchange(graph)
+    print('finished spin exchange')
+    sparse.save_npz('spin_exchange_{}x{}_{}.npz'.format(n, n, index), spin_exchange._hamiltonian)
+    #print('beginning onsite term')
+    #onsite_term = HamiltonianOnsiteTerm(spin_exchange)
+    #print('finished onsite term')
+    #sparse.save_npz('onsite_term_{}x{}_{}.npz'.format(n, n, index), onsite_term._hamiltonian)
+    return spin_exchange._hamiltonian#, onsite_term._hamiltonian
+
+
+for i in range(20):
+    generate_spin_exchange(5, i)
+raise Exception
+#scipy.sparse.save_npz('spin_exchange_{}x{}_{}.npz'.format(n, n, i), HamiltonianSpinExchange.hamiltonian)
 
 class HamiltonianOnsiteTerm(object):
     def __init__(self, spin_exchange: HamiltonianSpinExchange, energies=(1,)):

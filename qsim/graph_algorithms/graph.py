@@ -7,8 +7,9 @@ from itertools import tee, product
 from collections import deque
 from itertools import chain, islice
 
+# TODO consider writing a function which returns the independence polynomial AND independent sets (as an option)
 
-def enumerate_independent_sets(graph):
+def enumerate_independent_sets(graph: nx.Graph):
     graph = nx.complement(graph)
     index = {}
     nbrs = {}
@@ -29,183 +30,120 @@ def enumerate_independent_sets(graph):
             queue.append((chain(base, [u]), filter(nbrs[u].__contains__, islice(cnbrs, i + 1, None))))
 
 
-class Graph(object):
-    def __init__(self, graph: nx.Graph):
-        # Initialize edge and node weights to one
-        for edge in graph.edges:
-            if not ('weight' in graph.edges[edge]):
-                graph.edges[edge]['weight'] = 1
-        for node in graph.nodes:
-            if not ('weight' in graph.nodes[node]):
-                graph.nodes[node]['weight'] = 1
-        self.graph = graph
-        # Nodes are assumed to be integers from zero to # nodes - 1
-        self.nodes = np.array([n for n in self.graph], dtype=int)
-        self.n = self.nodes.size
-        self.edges = np.array([m for m in self.graph.edges])
-        self.m = self.edges.size
-        # Initialize attributes to be set in self.generate_independent_sets() or when generating mixer and
-        # driver Hamiltonians.
+def independence_polynomial(graph: nx.Graph):
+    ip = [1]
+    num_independent_sets = 0
+    current_size = 1
+    for independent_set in enumerate_independent_sets(graph):
+        length = len(independent_set)
+        if length > current_size:
+            current_size = length
+            ip.append(num_independent_sets)
+            num_independent_sets = 0
+        num_independent_sets += 1
+    ip.append(num_independent_sets)
+    return ip
 
-        self._num_independent_sets = None
-        self._degeneracy = None
-        self._independent_sets = None
 
-    @property
-    def degeneracy(self):
-        num_independent_sets = 1
-        mis_size = 0
-        degeneracy = 0
-        if self._degeneracy is None:
-            for independent_set in enumerate_independent_sets(self.graph):
-                num_independent_sets += 1
-                length = len(independent_set)
-                if length > mis_size:
-                    mis_size = length
-                    degeneracy = 0
-                if length == mis_size:
-                    degeneracy += 1
-            self._degeneracy = degeneracy
-            self._mis_size = mis_size
-            self.num_independent_sets = num_independent_sets
-            return self._degeneracy
-        else:
-            return self._degeneracy
+def independent_sets(graph: nx.Graph, preallocate=False):
+    # Generate a list of integers corresponding to the independent sets in binary
+    # Construct generator containing independent sets
+    # Don't generate anything that depends on the entire Hilbert space as to save space
+    # Generate complement graph
+    # These are your independent sets of the original graphs, ordered by node and size
+    sets, backup = tee(enumerate_independent_sets(graph))
+    if preallocate:
+        # Generate a list of integers corresponding to the independent sets in binary
+        num_independent_sets = int(np.sum(independence_polynomial(graph)))
+        indices = np.zeros((num_independent_sets, graph.number_of_nodes()), dtype=bool)
+        # All ones
+        indices[-1, ...] = np.ones(graph.number_of_nodes(), dtype=bool)
+        k = num_independent_sets - 2
+        for i in sets:
+            nary = np.ones(graph.number_of_nodes(), dtype=bool)
+            for node in i:
+                nary[node] = False
+            indices[k, ...] = nary
+            k -= 1
+        return indices
+    else:
+        indices = [np.ones(graph.number_of_nodes(), dtype=bool)]
+        for i in sets:
+            nary = np.ones(graph.number_of_nodes(), dtype=bool)
+            for node in i:
+                nary[node] = False
+            indices.append(nary)
+        return np.flip(indices, axis=0)
 
-    @property
-    def mis_size(self):
-        num_independent_sets = 1
-        mis_size = 0
-        degeneracy = 0
-        if self._mis_size is None:
-            for independent_set in enumerate_independent_sets(self.graph):
-                num_independent_sets += 1
-                length = len(independent_set)
-                if length > mis_size:
-                    mis_size = length
-                    degeneracy = 0
-                if length == mis_size:
-                    degeneracy += 1
-            self._degeneracy = degeneracy
-            self._mis_size = mis_size
-            self.num_independent_sets = num_independent_sets
-            return self._mis_size
-        else:
-            return self._mis_size
 
-    @property
-    def num_independent_sets(self):
-        num_independent_sets = 1
-        mis_size = 0
-        degeneracy = 0
-        if self._num_independent_sets is None:
-            for independent_set in enumerate_independent_sets(self.graph):
-                num_independent_sets += 1
-                length = len(independent_set)
-                if length > mis_size:
-                    mis_size = length
-                    degeneracy = 0
-                if length == mis_size:
-                    degeneracy += 1
-            self._degeneracy = degeneracy
-            self._mis_size = mis_size
-            self._num_independent_sets = num_independent_sets
-            return self._num_independent_sets
-        else:
-            return self._num_independent_sets
-
-    @property
-    def independent_sets(self):
-        if self._independent_sets is None:
-            # Generate a list of integers corresponding to the independent sets in binary
-            # Construct generator containing independent sets
-            # Don't generate anything that depends on the entire Hilbert space as to save space
-            # Generate complement graph
-            # These are your independent sets of the original graphs, ordered by node and size
-            independent_sets, backup = tee(enumerate_independent_sets(self.graph))
-            # Generate a list of integers corresponding to the independent sets in binary
-            indices = np.zeros((self.num_independent_sets, self.n), dtype=int)
-            # All ones
-            indices[-1, ...] = np.ones(self.n)
-            k = self.num_independent_sets - 2
-            for i in independent_sets:
-                nary = np.ones(self.n)
-                for node in i:
-                    nary[node] = 0
-                indices[k, ...] = nary
-                k -= 1
-            self._independent_sets = indices
-            return self._independent_sets
-        else:
-            return self._independent_sets
-
-    def generate_independent_sets_qudit(self, code):
-        assert code is not qubit
-        # You do NOT need to count the number in ground, this is just n-# excited
-        # Count the number of elements in the ground space and map to their representation in ternary
-        # Determine how large to make the array
-        num_IS = np.sum((code.d - 1) ** np.sum(self.independent_sets, axis=1))
-        # Now, we need to generate a way to map between the restricted indices and the original
-        # indices
-        indices = np.zeros((num_IS, self.n))
-        indices[-1, ...] = np.ones(self.n)
-        counter = 0
-        for i in self.independent_sets:
-            # Generate binary representation of IS
-            # Count the number of ones and generate all combinations of 1's and 2's
-            where_excited = np.where(i == 0)[0]
-            # noinspection PyTypeChecker
-            states_generator = product(range(1, code.d), repeat=np.sum(i))
-            for j in states_generator:
-                ind = 0
-                bit_string = np.zeros(self.n)
-                # Construct the bit string itself
-                for k in range(self.n):
-                    if not np.any(where_excited == k):
-                        bit_string[k] = j[ind]
-                        ind += 1
-                indices[counter, :] = bit_string
-                counter += 1
-        return indices, num_IS
+def independent_sets_qudit(graph: nx.Graph, code):
+    assert code is not qubit
+    # You do NOT need to count the number in ground, this is just n-# excited
+    # Count the number of elements in the ground space and map to their representation in ternary
+    # Determine how large to make the array
+    sets = independent_sets(graph)
+    num_sets = np.sum((code.d - 1) ** np.sum(sets, axis=1))
+    # Now, we need to generate a way to map between the restricted indices and the original
+    # indices
+    indices = np.zeros((num_sets, graph.number_of_nodes()))
+    indices[-1, ...] = np.ones(graph.number_of_nodes())
+    counter = 0
+    for i in sets:
+        # Generate binary representation of IS
+        # Count the number of ones and generate all combinations of 1's and 2's
+        where_excited = np.where(i == 0)[0]
+        # noinspection PyTypeChecker
+        states_generator = product(range(1, code.d), repeat=np.sum(i))
+        for j in states_generator:
+            ind = 0
+            bit_string = np.zeros(graph.number_of_nodes())
+            # Construct the bit string itself
+            for k in range(graph.number_of_nodes()):
+                if not np.any(where_excited == k):
+                    bit_string[k] = j[ind]
+                    ind += 1
+            indices[counter, :] = bit_string
+            counter += 1
+    return indices, num_sets
 
 
 def line_graph(n):
     graph = nx.Graph()
     graph.add_nodes_from(np.arange(0, n), weight=1)
     if n == 1:
-        return Graph(graph)
+        return graph
     else:
         for i in range(n - 1):
             graph.add_edge(i, i + 1, weight=1)
-    return Graph(graph)
+    return graph
 
 
 def ring_graph(n):
     graph = nx.Graph()
     graph.add_nodes_from(np.arange(0, n))
     if n == 1:
-        return Graph(graph)
+        return graph
     else:
         for i in range(n - 1):
             graph.add_edge(i, i + 1)
         graph.add_edge(0, n - 1)
-    return Graph(graph)
+    return graph
 
 
 def degree_fails_graph():
     graph = nx.Graph()
     graph.add_weighted_edges_from(
         [(0, 1, 1), (0, 4, 1), (0, 5, 1), (4, 5, 1), (1, 4, 1), (1, 3, 1), (2, 4, 1)])
-    return Graph(graph)
+    return graph
 
 
-def IS_projector(graph, code):
+def independent_set_projector(graph: nx.Graph, code):
     """Returns a projector (represented as a column vector or matrix) into the space of independent sets for
     general codes."""
-    n = graph.n
+    n = graph.number_of_nodes()
     # Check if U is diagonal
     if tools.is_diagonal(code.U):
-        U = np.diag(code.U)
+        u = np.diag(code.U)
         proj = np.ones(code.d ** n)
         for i, j in graph.edges:
             if i > j:
@@ -214,7 +152,7 @@ def IS_projector(graph, code):
                 i = j
                 j = temp
             temp = tools.tensor_product(
-                [np.ones(code.d ** i), U, np.ones(code.d ** (j - i - 1)), U,
+                [np.ones(code.d ** i), u, np.ones(code.d ** (j - i - 1)), u,
                  np.ones(code.d ** (n - j - 1))])
             proj = proj * (np.ones(code.d ** n) - temp)
         return np.array([proj]).T
@@ -279,7 +217,7 @@ def unit_disk_grid_graph(grid, radius=np.sqrt(2) + 1e-5, periodic=False, visuali
         nx.draw_networkx_edges(graph, pos=pos, edge_color='black')
         plt.axis('off')
         plt.show()
-    graph = Graph(graph)
+    # TODO: assess whether it's an issue to add random nx.Graph attributes
     graph.positions = grid
     graph.radius = radius
     graph.periodic = periodic
@@ -328,7 +266,6 @@ def unit_disk_grid_graph_rydberg(grid, radius=np.sqrt(2) + 1e-5, B=863300 / 4.47
         nx.draw_networkx_edges(graph, pos=pos, edge_color='black')
         plt.axis('off')
         plt.show()
-    graph = Graph(graph)
     graph.positions = nodes
     graph.radius = radius
     graph.B = B
@@ -390,7 +327,6 @@ def rydberg_graph(points, B=863300 / 4.47 ** 6, alpha=6, threshold=1e-8, label_n
         nx.draw_networkx(graph, pos=pos,
                          labels={}, node_size=20, node_color='r')
         plt.show()
-    graph = Graph(graph)
     graph.positions = points
     graph.B = B
     graph.periodic = periodic
@@ -411,7 +347,6 @@ def unit_disk_graph(points, radius=1 + 1e-5, visualize=False):
         pos = {nodes[i]: points[i] for i in range(len(nodes))}
         nx.draw(graph, pos=pos)
         plt.show()
-    graph = Graph(graph)
     graph.positions = nodes
     return graph
 
@@ -432,4 +367,4 @@ def branching_tree_from_edge(n_branches, visualize=True):
     if visualize:
         nx.draw(graph, with_labels=True)
         plt.show()
-    return Graph(graph)
+    return graph

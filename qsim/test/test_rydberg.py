@@ -2,7 +2,6 @@ import unittest
 from qsim.codes import rydberg
 import numpy as np
 from qsim import tools
-from qsim.codes.quantum_state import State
 
 mixed_state = np.array([[.75, 0, 0],[0, 0, 0], [0, 0, .25]])
 pure_state = np.array([[1, 0, 0]]).T
@@ -14,7 +13,7 @@ class TestRydbergEIT(unittest.TestCase):
         # Tests single qubit operation given a pauli index
         N = 6
         # Initialize in |000000>
-        psi0 = State(np.zeros((rydberg.d ** N, 1)), code=rydberg)
+        psi0 = np.zeros((rydberg.d ** N, 1), dtype=np.complex128)
         psi0[0][0] = 1
 
         # Apply sigma_y on the second qubit to get 1j|020000>
@@ -35,8 +34,8 @@ class TestRydbergEIT(unittest.TestCase):
         self.assertTrue(psi0[-1, 0] == -1j)
 
         # Density matrix test
-        psi1 = np.array([tools.tensor_product([np.array([1, 0, 1]), np.array([1, 0, 0])]) / 2 ** (1 / 2)]).T
-        psi1 = State(tools.outer_product(psi1, psi1), code=rydberg)
+        psi1 = np.array([tools.tensor_product([np.array([1, 0, 1]), np.array([1, 0, 0])]) / 2 ** (1 / 2)], dtype=np.complex128).T
+        psi1 = tools.outer_product(psi1, psi1)
         # Apply sigma_Y to first qubit
         psi2 = np.array([np.kron([-1j, 0, 1j], [1, 0, 0]) / 2 ** (1 / 2)]).T
         rho2 = tools.outer_product(psi2, psi2)
@@ -48,7 +47,7 @@ class TestRydbergEIT(unittest.TestCase):
     def test_single_qubit_operation(self):
         N = 6
         # Test single qubit operation
-        psi0 = State(np.zeros((rydberg.d ** N, 1)), code=rydberg)
+        psi0 = np.zeros((rydberg.d ** N, 1), dtype=np.complex128)
         psi0[0][0] = 1
         # Apply sigma_y on the second qubit to get 1j|020000>
         psi0 = rydberg.multiply(psi0, [1], rydberg.Y)
@@ -68,8 +67,8 @@ class TestRydbergEIT(unittest.TestCase):
         self.assertTrue(psi0[-1, 0] == -1j)
 
         # Test rydberg operations with density matrices
-        psi1 = np.array([tools.tensor_product([np.array([1, 0, 1]), np.array([1, 0, 0])]) / 2 ** (1 / 2)]).T
-        psi1 = State(tools.outer_product(psi1, psi1), code=rydberg)
+        psi1 = np.array([tools.tensor_product([np.array([1, 0, 1]), np.array([1, 0, 0])]) / 2 ** (1 / 2)], dtype=np.complex128).T
+        psi1 = tools.outer_product(psi1, psi1)
 
         # Apply sigma_Y to first qubit
         psi2 = np.array([np.kron([1, 0, -1], [1, 0, 0]) * -1j / 2 ** (1 / 2)]).T
@@ -78,9 +77,9 @@ class TestRydbergEIT(unittest.TestCase):
         psi1 = rydberg.multiply(psi1, [0], ['Y'])
         self.assertTrue(np.linalg.norm(psi1 - rho2) <= 1e-10)
 
-        psi0 = np.array([tools.tensor_product([np.array([1, 0, 1]), np.array([1, 0, 0])]) / 2 ** (1 / 2)]).T
-        psi0 = State(tools.outer_product(psi0, psi0), code=rydberg)
-        psi1 = State(psi0.copy(), code=rydberg)
+        psi0 = np.array([tools.tensor_product([np.array([1, 0, 1]), np.array([1, 0, 0])]) / 2 ** (1 / 2)], dtype=np.complex128).T
+        psi0 = tools.outer_product(psi0, psi0)
+        psi1 = psi0.copy()
 
         # Apply sigma_Y to first qubit
         psi2 = np.array([np.kron([1, 0, -1], [1, 0, 0]) * -1j / 2 ** (1 / 2)]).T
@@ -97,25 +96,25 @@ class TestRydbergEIT(unittest.TestCase):
     def test_single_qubit_rotation(self):
         # Initialize in |000000>
         N = 6
-        psi0 = State(np.zeros((rydberg.d ** N, 1)), code=rydberg)
+        psi0 = np.zeros((rydberg.d ** N, 1), dtype=np.complex128)
         psi0[0, 0] = 1
-        psi1 = State(psi0, code=rydberg)
+        psi1 = psi0.copy()
         # Rotate by exp(-1i*pi/4*sigma_y) every qubit to get |++++++>
         for i in range(N):
-            psi0 = rydberg.rotation(psi0, [i], np.pi / 4, rydberg.Y, is_involutary=True)
+            psi0 = rydberg.rotation(psi0, [i], np.pi / 4, rydberg.Y, involutary=True)
         # noinspection PyTypeChecker
         self.assertAlmostEqual(np.vdot(psi0, np.ones((rydberg.d ** N, 1)) / 2 ** (N / 2)), 1)
 
         # Apply exp(-1i*pi/4*sigma_x)*exp(-1i*pi/4*sigma_z) on every qubit to get exp(-1j*N*pi/4)*|000000>
         for i in range(N):
-            psi0 = rydberg.rotation(psi0, [i], np.pi / 4, ['Z'], is_involutary=True)
-            psi0 = rydberg.rotation(psi0, [i], np.pi / 4, rydberg.X, is_involutary=True)
+            psi0 = rydberg.rotation(psi0, [i], np.pi / 4, ['Z'], involutary=True)
+            psi0 = rydberg.rotation(psi0, [i], np.pi / 4, rydberg.X, involutary=True)
 
         self.assertTrue(np.abs(np.vdot(psi1, psi0) * np.exp(1j * np.pi / 4 * N) - 1) <= 1e-10)
 
     def test_multi_qubit_operation(self):
         N = 6
-        psi0 = State(np.zeros((rydberg.d ** N, 1)), code=rydberg)
+        psi0 = np.zeros((rydberg.d ** N, 1), dtype=np.complex128)
         psi0[0, 0] = 1
         psi1 = psi0.copy()
         op = tools.tensor_product([rydberg.X, rydberg.Y, rydberg.Z])
@@ -127,7 +126,7 @@ class TestRydbergEIT(unittest.TestCase):
 
     def test_multi_qubit_pauli(self):
         N = 6
-        psi0 = State(np.zeros((rydberg.d ** N, 1)), code=rydberg)
+        psi0 = np.zeros((rydberg.d ** N, 1), dtype=np.complex128)
         psi0[0, 0] = 1
         psi1 = psi0.copy()
         psi2 = psi0.copy()

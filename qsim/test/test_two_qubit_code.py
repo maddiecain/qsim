@@ -2,15 +2,14 @@ import unittest
 from qsim.codes import two_qubit_code
 import numpy as np
 from qsim import tools
-from qsim.codes.quantum_state import State
 
 
 class TestTwoQubitCode(unittest.TestCase):
     def test_single_qubit(self):
-        psi0 = State(tools.tensor_product([two_qubit_code.logical_basis[0], two_qubit_code.logical_basis[0]]))
+        psi0 = tools.tensor_product([two_qubit_code.logical_basis[0], two_qubit_code.logical_basis[0]])
         psi1 = psi0.copy()
         # Density matrix test
-        psi2 = State(tools.outer_product(psi1, psi1))
+        psi2 = tools.outer_product(psi1, psi1)
         psi0 = two_qubit_code.multiply(psi0, [1], ['Y'])
         # Test non-pauli operation
         psi1 = two_qubit_code.multiply(psi1, [1], two_qubit_code.Y)
@@ -36,7 +35,7 @@ class TestTwoQubitCode(unittest.TestCase):
 
     def test_multi_qubit(self):
         N = 5
-        psi0 = State(tools.tensor_product([two_qubit_code.logical_basis[0]] * N))
+        psi0 = tools.tensor_product([two_qubit_code.logical_basis[0]] * N)
         psi1 = psi0.copy()
         op = tools.tensor_product([two_qubit_code.X, two_qubit_code.Y, two_qubit_code.Z])
         psi0 = two_qubit_code.multiply(psi0, [1, 3, 4], op)

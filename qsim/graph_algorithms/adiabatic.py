@@ -6,7 +6,6 @@ from qsim.tools.tools import outer_product, is_valid_state
 from qsim.codes import qubit
 from qsim.evolution.hamiltonian import HamiltonianMIS, HamiltonianDriver, HamiltonianMaxCut
 from qsim.graph_algorithms.graph import Graph
-from qsim.codes.quantum_state import State
 from qsim.schrodinger_equation import SchrodingerEquation
 from qsim.lindblad_master_equation import LindbladMasterEquation
 

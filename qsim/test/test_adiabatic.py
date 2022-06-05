@@ -6,7 +6,6 @@ from qsim.graph_algorithms.graph import line_graph
 import numpy as np
 import matplotlib.pyplot as plt
 from qsim.tools.tools import equal_superposition
-from qsim.codes.quantum_state import State
 from qsim.test.tools_test import sample_graph
 
 
@@ -48,12 +47,12 @@ class TestAdiabatic(unittest.TestCase):
         # First, compare the non-IS subspace results
         simulation = adiabatic_simulation(sample_graph(), IS_subspace=False)
         res_trotterize = simulation.performance_vs_total_time(np.arange(1, 5, 1), metric='optimum_overlap',
-                                                              initial_state=State(equal_superposition(6)),
+                                                              initial_state=equal_superposition(6),
                                                               schedule=lambda t, tf:
                                                               simulation.linear_schedule(t, tf, coefficients=[10, 10]),
                                                               plot=False, verbose=True, method='trotterize')
         res_RK45 = simulation.performance_vs_total_time(np.arange(1, 5, 1), metric='optimum_overlap',
-                                                        initial_state=State(equal_superposition(6)),
+                                                        initial_state=equal_superposition(6),
                                                         schedule=lambda t, tf:
                                                         simulation.linear_schedule(t, tf, coefficients=[10, 10]),
                                                         plot=False, verbose=True, method='RK45')

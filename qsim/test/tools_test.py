@@ -1,5 +1,4 @@
 import networkx as nx
-from qsim.graph_algorithms.graph import Graph
 
 def sample_graph():
     # Generate sample graph
@@ -14,4 +13,4 @@ def sample_graph():
     g.add_edge(1, 5, weight=1)
     g.add_edge(2, 5, weight=1)
     g.add_edge(3, 5, weight=1)
-    return Graph(g)
+    return g

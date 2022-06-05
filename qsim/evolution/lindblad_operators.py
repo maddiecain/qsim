@@ -1,7 +1,6 @@
 from qsim.tools import tools
 import numpy as np
 from qsim.codes import qubit
-from qsim.codes.quantum_state import State
 import scipy.sparse as sparse
 from qsim.graph_algorithms.graph import Graph
 from scipy.linalg import expm
@@ -56,7 +55,7 @@ class LindbladJumpOperator(object):
             raise NotImplementedError
         return self.rates[0] * self._evolution_operator
 
-    def liouvillian(self, state: State, apply_to=None):
+    def liouvillian(self, state: np.ndarray, apply_to=None):
         if apply_to is None:
             apply_to = list(range(state.number_physical_qudits))
         out = np.zeros(state.shape)
@@ -76,10 +75,10 @@ class LindbladJumpOperator(object):
                         state, [apply_to[i]],
                         self.jump_operators[j].T @
                         self.jump_operators[j])
-        return State(out, is_ket=state.is_ket, code=state.code, IS_subspace=state.IS_subspace, graph=self.graph)
+        return out
 
-    def jump_rate(self, state: State, apply_to=None):
-        assert state.is_ket
+    def jump_rate(self, state: np.ndarray, apply_to=None):
+        assert state.shape[1] == 1
         if apply_to is None:
             apply_to = list(range(state.number_physical_qudits))
         if isinstance(apply_to, int):
@@ -98,14 +97,13 @@ class LindbladJumpOperator(object):
                 out = self.jump_operators[j] @ state
                 jump_rates.append(np.vdot(out, out).real)
                 # IMPORTANT: add in a factor of sqrt(rates) for normalization purposes later
-                jumped_states.append(State(out, is_ket=state.is_ket, code=state.code,
-                                           IS_subspace=state.IS_subspace, graph=state.graph))
+                jumped_states.append(out)
 
         return np.asarray(jumped_states), np.asarray(jump_rates)
 
-    def left_multiply(self, state: State, apply_to=None):
+    def left_multiply(self, state: np.ndarray, apply_to=None):
         # Evolve under the non-Hermitian Hamiltonian
-        assert state.is_ket
+        assert state.shape[1] == 1
         if apply_to is None:
             apply_to = list(range(state.number_physical_qudits))
         if isinstance(apply_to, int):
@@ -122,23 +120,21 @@ class LindbladJumpOperator(object):
             for j in range(len(self.jump_operators)):
                 out = out - 1j * self.jump_operators[j].conj().T @ \
                       self.jump_operators[j] @ state
-        return State(out / 2, is_ket=state.is_ket, code=state.code, IS_subspace=state.IS_subspace, graph=self.graph)
+        return out / 2
 
-    def evolve(self, state: State, time):
+    def evolve(self, state: np.ndarray, time):
         state_shape = state.shape
         state = np.reshape(state, (state_shape[0] ** 2, 1))
         out = sparse.linalg.expm_multiply(time * self.liouville_evolution_operator, state)
         return np.reshape(out, state_shape)
 
-    def nh_evolve(self, state: State, time: float):
+    def nh_evolve(self, state: np.ndarray, time: float):
         """Non-hermitian time evolution."""
-        if state.is_ket:
-            return State(expm_multiply(-1j * time * self.nh_hamiltonian, state), is_ket=state.is_ket,
-                         IS_subspace=state.IS_subspace, code=state.code, graph=self.graph)
+        if state.shape[1] == 1:
+            return expm_multiply(-1j * time * self.nh_hamiltonian, state)
         else:
             temp = expm(-1j * time * self.nh_hamiltonian)
-            return State(temp @ state @ temp.conj().T, is_ket=state.is_ket, IS_subspace=state.IS_subspace,
-                         code=state.code, graph=self.graph)
+            return temp @ state @ temp.conj().T
 
 
 class SpontaneousEmission(LindbladJumpOperator):

@@ -3,7 +3,6 @@ from qsim import tools
 from qsim.codes import qubit
 from scipy.linalg import expm
 from typing import Union
-from qsim.codes.quantum_state import State
 
 """
 :class:`JordanFarhiShor` is an error detecting code which detects phase flip (Z-type) and bit flip (X-type) errors.
@@ -20,21 +19,21 @@ n = 4
 d = 2
 logical_basis = np.array([[[1], [0], [0], [1j], [0], [0], [0], [0], [0], [0], [0], [0], [1j], [0], [0], [1]],
                           [[0], [0], [0], [0], [0], [-1], [1j], [0], [0], [1j], [-1], [0], [0], [0], [0], [0]]]) / 2
-Q = 1/2*(np.identity(d**n)+Z)
-P = 1/2*(np.identity(d**n)-Z)
+Q = 1 / 2 * (np.identity(d ** n) + Z)
+P = 1 / 2 * (np.identity(d ** n) - Z)
 stabilizers = np.array(
     [tools.X(4), tools.Z(4), tools.tensor_product([tools.X(), tools.Y(), tools.Z(), tools.identity()])])
 code_space_projector = tools.outer_product(logical_basis[0], logical_basis[0]) + tools.outer_product(logical_basis[1],
                                                                                                      logical_basis[1])
 
 
-def rotation(state: State, apply_to: Union[int, list], angle: float, op, is_involutary=False, is_idempotent=False):
+def rotation(state: np.ndarray, apply_to: Union[int, list], angle: float, op, involutary=False, idempotent=False):
     """
     Apply a single qubit rotation :math:`e^{-i \\alpha A}` to the input ``codes``.
 
     :param apply_to:
-    :param is_idempotent:
-    :param is_involutary:
+    :param idempotent:
+    :param involutary:
     :param state: input wavefunction or density matrix
     :type state: np.ndarray
     :param angle: The angle :math:`\\alpha`` to rotate by.
@@ -67,17 +66,17 @@ def rotation(state: State, apply_to: Union[int, list], angle: float, op, is_invo
         temp = np.cos(angle) * np.identity(temp.shape[0]) - temp * 1j * np.sin(angle)
         return multiply(state, apply_to, temp)
     else:
-        if is_involutary:
+        if involutary:
             op = np.cos(angle) * np.identity(op.shape[0]) - op * 1j * np.sin(angle)
             return multiply(state, apply_to, op)
-        elif is_idempotent:
+        elif idempotent:
             op = (np.exp(-1j * angle) - 1) * op + np.identity(op.shape[0])
             return multiply(state, apply_to, op)
         else:
             return multiply(state, apply_to, expm(-1j * angle * op))
 
 
-def left_multiply(state: State, apply_to: Union[int, list], op):
+def left_multiply(state: np.ndarray, apply_to: Union[int, list], op):
     """
     Apply a multi-qubit operator on several qubits (indexed in apply_to) of the input codes.
     :param state: input wavefunction or density matrix
@@ -103,7 +102,7 @@ def left_multiply(state: State, apply_to: Union[int, list], op):
         if tools.is_sorted(apply_to):
             # Generate all shapes for left multiplication
             preshape = (d ** n) * np.ones((2, n_op), dtype=int)
-            preshape[1, 0] = int(state.dimension / ((d ** n) ** (1 + apply_to[n_op - 1])))
+            preshape[1, 0] = int(state.shape[0] / ((d ** n) ** (1 + apply_to[n_op - 1])))
             if n_op > 1:
                 preshape[1, 1:] = np.flip((d ** n) ** np.diff(apply_to)) / (d ** n)
 
@@ -128,7 +127,7 @@ def left_multiply(state: State, apply_to: Union[int, list], op):
             out = np.dot(op, out.reshape(((d ** n) ** n_op, -1), order='F'))
             out = out.reshape(shape2, order='F').transpose(order2)
             out = out.reshape(state.shape, order='F')
-            return State(out, is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code)
+            return out
         else:
             # Need to reshape the operator given
             new_shape = (d ** n) * np.ones(2 * n_op, dtype=int)
@@ -152,10 +151,10 @@ def left_multiply(state: State, apply_to: Union[int, list], op):
                 out = -1 * qubit.left_multiply(out, [n * apply_to[i] + 1, n * apply_to[i] + 2], ['X', 'X'])
             elif op[i] == 'Z':  # Sigma_Z
                 out = qubit.left_multiply(out, [n * apply_to[i], n * apply_to[i] + 1], ['Z', 'Z'])
-        return State(out, is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code)
+        return out
 
 
-def right_multiply(state: State, apply_to: Union[int, list], op):
+def right_multiply(state: np.ndarray, apply_to: Union[int, list], op):
     """
     Apply a multi-qubit operator on several qubits (indexed in apply_to) of the input codes.
     :param state: input wavefunction or density matrix
@@ -176,24 +175,24 @@ def right_multiply(state: State, apply_to: Union[int, list], op):
             pauli = True
         else:
             op = tools.tensor_product(op)
-    if state.is_ket:
+    if state.shape[1] == 1:
         print('Warning: right multiply functionality currently applies the operator and daggers the s.')
     n_op = len(apply_to)
     if not pauli:
         if tools.is_sorted(apply_to):
             # generate necessary shapes
             preshape = (d ** n) * np.ones((2, n_op), dtype=int)
-            preshape[0, 0] = int(state.dimension / ((d ** n) ** (1 + apply_to[n_op - 1])))
+            preshape[0, 0] = int(state.shape[0] / ((d ** n) ** (1 + apply_to[n_op - 1])))
             if n_op > 1:
                 preshape[0, 1:] = np.flip((d ** n) ** np.diff(apply_to)) / (d ** n)
 
             shape3 = np.zeros(2 * n_op + 2, dtype=int)
-            shape3[0] = state.dimension
+            shape3[0] = state.shape[0]
             shape3[1:-1] = np.reshape(preshape, (2 * n_op), order='F')
             shape3[-1] = -1
 
             shape4 = np.zeros(2 * n_op + 2, dtype=int)
-            shape4[0] = state.dimension
+            shape4[0] = state.shape[0]
             shape4[1:n_op + 1] = preshape[0]
             shape4[n_op + 1] = -1
             shape4[n_op + 2:] = preshape[1]
@@ -214,7 +213,7 @@ def right_multiply(state: State, apply_to: Union[int, list], op):
             out = np.dot(out.reshape((-1, (d ** n) ** n_op), order='F'), op.conj().T)
             out = out.reshape(shape4, order='F').transpose(order4)
             out = out.reshape(state.shape, order='F')
-            return State(out, is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code)
+            return out
         else:
             new_shape = 2 * np.ones(2 * n_op, dtype=int)
             permut = np.argsort(apply_to)
@@ -237,10 +236,10 @@ def right_multiply(state: State, apply_to: Union[int, list], op):
                 out = -1 * qubit.left_multiply(out, [n * apply_to[i] + 1, n * apply_to[i] + 2], ['X', 'X'])
             elif op[i] == 'Z':  # Sigma_Z
                 out = qubit.left_multiply(out, [n * apply_to[i], n * apply_to[i] + 1], ['Z', 'Z'])
-        return State(out, is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code)
+        return out
 
 
-def multiply(state: State, apply_to: Union[int, list], op):
+def multiply(state: np.ndarray, apply_to: Union[int, list], op):
     """
     Apply a multi-qubit operator on several qubits (indexed in apply_to) of the input codes.
     :param state: input wavefunction or density matrix
@@ -261,7 +260,7 @@ def multiply(state: State, apply_to: Union[int, list], op):
             pauli = True
         else:
             op = tools.tensor_product(op)
-    if not state.is_ket:
+    if state.shape[1] != 1:
         if pauli:
             out = state.copy()
             for i in range(len(apply_to)):
@@ -273,7 +272,7 @@ def multiply(state: State, apply_to: Union[int, list], op):
                     out = -1 * qubit.left_multiply(out, [n * apply_to[i] + 1, n * apply_to[i] + 2], ['X', 'X'])
                 elif op[i] == 'Z':  # Sigma_Z
                     out = qubit.left_multiply(out, [n * apply_to[i], n * apply_to[i] + 1], ['Z', 'Z'])
-            return State(out, is_ket=state.is_ket, IS_subspace=state.IS_subspace, code=state.code)
+            return out
         else:
             return right_multiply(left_multiply(state, apply_to, op), apply_to, op)
     else:

@@ -4,7 +4,6 @@ import scipy.integrate
 from odeintw import odeintw
 from scipy.sparse.linalg import LinearOperator, eigs, ArpackNoConvergence
 
-from qsim.codes.quantum_state import State
 from qsim.evolution.lindblad_operators import LindbladJumpOperator
 from qsim.evolution.quantum_channels import QuantumChannel
 from qsim.schrodinger_equation import SchrodingerEquation
@@ -31,15 +30,15 @@ class LindbladMasterEquation(object):
             ham = ham + self.hamiltonians[i].hamiltonian
         return ham
 
-    def evolution_generator(self, s: State):
-        res = State(np.zeros(s.shape), is_ket=s.is_ket, code=s.code, IS_subspace=s.IS_subspace, graph=s.graph)
+    def evolution_generator(self, s: np.ndarray):
+        res = np.zeros_like(s)
         for i in range(len(self.hamiltonians)):
             res = res - 1j * (self.hamiltonians[i].left_multiply(s) - self.hamiltonians[i].right_multiply(s))
         for i in range(len(self.jump_operators)):
             res = res + self.jump_operators[i].liouvillian(s)
         return res
 
-    def run_ode_solver(self, state: State, t0, tf, num=50, schedule=lambda t: None, times=None, method='RK45',
+    def run_ode_solver(self, state: np.ndarray, t0, tf, num=50, schedule=lambda t: None, times=None, method='RK45',
                        full_output=True, verbose=False, make_valid_state=False):
         """
 
@@ -54,12 +53,8 @@ class LindbladMasterEquation(object):
         :param tf:
         :return:
         """
-        assert not state.is_ket
+        assert (state.shape[1] != 1)
         # Save s properties
-        is_ket = state.is_ket
-        code = state.code
-        IS_subspace = state.IS_subspace
-        graph = state.graph
 
         def f(t, s):
             if method == 'odeint':
@@ -67,7 +62,6 @@ class LindbladMasterEquation(object):
             if method != 'odeint':
                 s = np.reshape(np.expand_dims(s, axis=0), state_shape)
             schedule(t)
-            s = State(s, is_ket=is_ket, code=code, IS_subspace=IS_subspace, graph=graph)
             return np.asarray(self.evolution_generator(s)).flatten()
 
         # s is a ket or density matrix
@@ -204,7 +198,6 @@ class LindbladMasterEquation(object):
                 t, state = state, t
             if method != 'odeint':
                 state = np.reshape(np.expand_dims(state, axis=0), state_shape)
-            state = State(state, is_ket=is_ket, code=code, IS_subspace=IS_subspace)
             return np.asarray(schrodinger_equation.evolution_generator(state)).flatten()
 
         assert len(times) > 1
@@ -245,14 +238,13 @@ class LindbladMasterEquation(object):
                     jump_index = np.random.choice(list(range(len(jump_probabilities))),
                                                   p=jump_probabilities / np.sum(jump_probabilities))
                     jump_indices_iter.append(jump_index)
-                    out = State(jumped_states[jump_index, ...] * np.sqrt(dt / jump_probabilities[jump_index]),
-                                is_ket=is_ket, code=code, IS_subspace=IS_subspace, graph=graph)
+                    out = jumped_states[jump_index, ...] * np.sqrt(dt / jump_probabilities[jump_index])
                     # Normalization factor
                 else:
                     state_asarray = np.asarray(out)
                     if method == 'odeint':
                         z = odeintw(f, state_asarray, [0, dt], full_output=False)
-                        out = State(z[-1], code=code, IS_subspace=IS_subspace, is_ket=is_ket, graph=graph)
+                        out = z[-1]
 
                     else:
                         for hamiltonian in self.hamiltonians:
@@ -264,7 +256,6 @@ class LindbladMasterEquation(object):
                                 out = jump_operator.nh_evolve(out, dt)
                             elif isinstance(jump_operator, QuantumChannel):
                                 out = jump_operator.evolve(out, dt)
-                        out = State(out, code=code, IS_subspace=IS_subspace, is_ket=is_ket, graph=graph)
 
                     # Normalize the output
                     out = out / np.linalg.norm(out)
@@ -280,18 +271,14 @@ class LindbladMasterEquation(object):
 
         return outputs, {'t': times, 'jump_times':jump_times, 'num_jumps':num_jumps, 'jump_indices':jump_indices}
 
-    def eig(self, state: State, k=6, which='SM', use_initial_guess=False, plot=False):
+    def eig(self, state: np.ndarray, k=6, which='SM', use_initial_guess=False, plot=False):
         """Returns a list of the eigenvalues and the corresponding valid density matrix.
         Functionality only for if input is a density matrix."""
-        assert not state.is_ket
-        is_ket = state.is_ket
-        code = state.code
-        IS_subspace = state.IS_subspace
-        graph = state.graph
+        assert (state.shape[1] != 1)
         state_shape = state.shape
 
         def f(flattened):
-            s = State(flattened.reshape(state_shape))
+            s = flattened.reshape(state_shape)
             res = self.evolution_generator(s)
             return res.reshape(flattened.shape)
 
@@ -327,13 +314,13 @@ class LindbladMasterEquation(object):
         else:
             return None, None
 
-    def steady_state(self, state: State, k=6, which='LR', use_initial_guess=False, plot=False, tol=1e-8, verbose=False):
+    def steady_state(self, state: np.ndarray, k=6, which='LR', use_initial_guess=False, plot=False, tol=1e-8, verbose=False):
         """Returns a list of the eigenvalues and the corresponding valid density matrix."""
         assert not state.is_ket
         state_shape = state.shape
 
         def f(flattened):
-            s = State(flattened.reshape(state_shape))
+            s = flattened.reshape(state_shape)
             res = self.evolution_generator(s)
             return res.reshape(flattened.shape)
 
@@ -376,15 +363,15 @@ class LindbladMasterEquation(object):
         else:
             return None, None
 
-    def dg(self, state: State, k=6, which='LR', use_initial_guess=False, tol=1e-8):
+    def dg(self, state: np.ndarray, k=6, which='LR', use_initial_guess=False, tol=1e-8):
         eigval, eigvec = self.eig(state, k=k, which=which, use_initial_guess=use_initial_guess, plot=False)
         nonzero = eigval[eigval.real < -1 * tol].real
         where_max = np.argmax(nonzero)
         min_eigval = np.abs(nonzero[where_max])
         return min_eigval
 
-    def edg(self, state: State, k=6, which='LR', use_initial_guess=False, tol=1e-8):
-        dim = state.dimension
+    def edg(self, state: np.ndarray, k=6, which='LR', use_initial_guess=False, tol=1e-8):
+        dim = state.shape[0]
         eigval, eigvec = self.steady_state(state, k=k, which=which, use_initial_guess=use_initial_guess, plot=False)
         steady_state = eigvec[np.argwhere(eigval[np.abs(eigval) <= tol])[0, 0], :, :]
         steady_state = steady_state / np.trace(steady_state)
@@ -400,7 +387,7 @@ class LindbladMasterEquation(object):
         state_shape = state.shape
 
         def f(flattened):
-            s = State(flattened.reshape(state_shape))
+            s = flattened.reshape(state_shape)
             res = P @ self.evolution_generator(P @ s @ P) @ P + Q @ self.evolution_generator(Q @ s @ P) @ P + \
                   P @ self.evolution_generator(P @ s @ Q) @ Q
             return res.reshape(flattened.shape)

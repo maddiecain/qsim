@@ -485,6 +485,7 @@ def find_ground_first_excited_preloaded(n, index, graph, tails_graph, t, k=2):
         else:
             driver_energy = 2 * np.pi * 2 * (T - t) / .312
             cost_energy = -2 * np.pi * 11
+
         eigval, eigvec = scipy.sparse.linalg.eigsh(cost_energy*cost + driver_energy*driver + rydberg, k=2, which='SA')
         return eigval, eigvec
     # Do minimization
@@ -493,6 +494,85 @@ def find_ground_first_excited_preloaded(n, index, graph, tails_graph, t, k=2):
     print('gap', (eigval[1]-eigval[0])/(2*np.pi))
     return eigval, eigvec
     #np.save('eigvec_{}.npy'.format(graph_index), eigvec)
+
+
+def find_detuning_and_rabi(n, index, graph, tails_graph, t, k=2):
+    n_points = 7
+    times_exp = 2 ** np.linspace(-2.5, 4.5 / 6 * (n_points - 1) - 2.5, n_points) + .312 * 2
+    t_max = times_exp[4]
+    try:
+        # raise Exception
+        cost = scipy.sparse.load_npz('detuning_{}x{}_{}.npz'.format(n, n, index))
+    except Exception as e:
+        print('Starting cost')
+        cost = hamiltonian.HamiltonianMIS(graph, IS_subspace=True).hamiltonian
+        scipy.sparse.save_npz('detuning_{}x{}_{}.npz'.format(n, n, index), cost)
+    try:
+        # raise Exception
+        driver = scipy.sparse.load_npz('spin_flip_{}x{}_{}.npz'.format(n, n, index))
+    except:
+        print('Starting driver')
+        driver = hamiltonian.HamiltonianDriver(IS_subspace=True, graph=graph).hamiltonian
+        scipy.sparse.save_npz('spin_flip_{}x{}_{}.npz'.format(n, n, index), cost)
+    if tails_graph is not None:
+        try:
+            # raise Exception
+            rydberg = scipy.sparse.load_npz('rydberg_{}x{}_{}.npz'.format(n, n, index))
+        except:
+            print('Starting rydberg')
+            rydberg = hamiltonian.HamiltonianRydberg(tails_graph, graph, IS_subspace=True,
+                                                     energies=(2 * np.pi,)).hamiltonian
+            scipy.sparse.save_npz('rydberg_{}x{}_{}.npz'.format(n, n, index), rydberg)
+    pulse = np.loadtxt('for_AWG_{}.000000.txt'.format(6))
+    # rydberg = scipy.sparse.csr_matrix(rydberg)
+    t_pulse_max = np.max(pulse[:, 0]) - 2 * 0.312
+    max_detuning = np.max(pulse[:, 2])
+
+    def schedule_old(t, T):
+        # Linear ramp on the detuning, experiment-like ramp on the driver
+        k = 50
+        a = .95
+        b = 3.1
+        x = t / T
+        amplitude = (
+                            -1 / (1 + np.e ** (k * (x - a))) ** b - 1 / (1 + np.e ** (-k * (x - (1 - a)))) ** b + 1) / \
+                    (-1 / ((1 + np.e ** (k * (1 / 2 - a))) ** b) - 1 / (
+                            (1 + np.e ** (-k * (1 / 2 - (1 - a)))) ** b) + 1)
+        cost.energies = (-2 * np.pi * 11 * 2 * (1 / 2 - t / T),)  # (2 * np.pi * (-(11 + 15) / T * t + 15),)
+        driver.energies = (2 * np.pi * 2 * amplitude,)  # (2 * np.pi * 2 * amplitude,)
+
+    def schedule_exp_optimized(t, T):
+        if t < .312:
+            driver.energies = (2 * np.pi * 2 * t / .312,)
+            cost.energies = (2 * np.pi * 15,)
+        elif .312 <= t <= T - .312:
+            t_pulse = (t - 0.312) / (T - 2 * 0.312) * t_pulse_max + 0.312
+            driver.energies = (2 * np.pi * np.interp(t_pulse, pulse[:, 0], pulse[:, 1] / 2),)
+            cost.energies = (2 * np.pi * np.interp(t_pulse, pulse[:, 0], -pulse[:, 2]),)
+        else:
+            driver.energies = (2 * np.pi * 2 * (T - t) / .312,)
+            cost.energies = (-2 * np.pi * max_detuning,)
+        # print(t, cost.energies)
+
+    def gap(t, T):
+        if t < .312:
+            driver_energy = 2 * np.pi * 2 * t / .312
+            cost_energy = 2 * np.pi * 15
+        elif .312 <= t <= T - .312:
+            driver_energy = 2 * np.pi * 2
+            cost_energy = 2 * np.pi * (-(11 + 15) / (T - 2 * .312) * (t - .312) + 15)
+        else:
+            driver_energy = 2 * np.pi * 2 * (T - t) / .312
+            cost_energy = -2 * np.pi * 11
+        return driver_energy, cost_energy
+
+
+    # Do minimization
+    t = t * t_max
+    eigval, eigvec = gap(t, t_max)
+    return gap(t, t_max)
+    # np.save('eigvec_{}.npy'.format(graph_index), eigvec)
+
 
 """size = 8
 index = 0
@@ -521,9 +601,10 @@ find_ratio(tails_graph, graph, [t_max])
 if __name__ == '__main__':
     # Evolve
     import sys
-
+    r = []
+    d = []
     n_points = 10
-    for index in range(0, 20):
+    for index in range(1, 20):
         #tf = 2 ** np.linspace(-2.5, 4.5 / 6 * (n_points - 1) - 2.5, n_points) + .312 * 2
 
         #index = int(sys.argv[1])
@@ -567,8 +648,14 @@ if __name__ == '__main__':
                  0.6962885788468285, 0.7218528272008484, 0.749878029970634, 0.7206609232120385, 0.6887485236896556,
                  0.7158657047278957, 0.7278519162920911, 0.735449028823428, 0.7016023773016111, 0.7361234146285848,
                  0.7351237755884046, 0.697861342950187, 0.7398546759713864])
-        eigval, eigvec = find_ground_first_excited_preloaded(size, graph_index, graph, tails_graph, locs[index])
-        np.save('eigvec_{}x{}_{}.npy'.format(size, size, graph_index), eigvec)
+
+        rabi, detuning = find_detuning_and_rabi(size, graph_index, graph, tails_graph, locs[index])
+        r.append(rabi)
+        d.append(detuning)
+        print(r)
+        print(d)
+        #eigval, eigvec = find_ground_first_excited_preloaded(size, graph_index, graph, tails_graph, locs[index])
+        #np.save('eigvec_{}x{}_{}.npy'.format(size, size, graph_index), eigvec)
         #res = visualize_low_energy_subspace(graph, tails_graph, k=2)
         #print(res)
         #ratio, probs = find_ratio(tails_graph, graph, tf, graph_index=graph_index, size=size)

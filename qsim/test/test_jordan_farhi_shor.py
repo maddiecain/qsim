@@ -2,15 +2,14 @@ import unittest
 from qsim.codes import jordan_farhi_shor
 import numpy as np
 from qsim import tools
-from qsim.codes.quantum_state import State
-
 
 class TestJordanFarhiShor(unittest.TestCase):
     def test_single_qubit(self):
-        psi0 = State(tools.tensor_product([jordan_farhi_shor.logical_basis[0], jordan_farhi_shor.logical_basis[0]]))
+        psi0 = tools.tensor_product([jordan_farhi_shor.logical_basis[0], jordan_farhi_shor.logical_basis[0]])
+        psi0 = psi0.astype(np.complex128)
         psi1 = psi0.copy()
         # Density matrix test
-        psi2 = State(tools.outer_product(psi1[:], psi1[:]))
+        psi2 = tools.outer_product(psi1.copy(), psi1.copy())
         psi0 = jordan_farhi_shor.multiply(psi0, [1], ['Y'])
         # Test non-pauli operation
         psi1 = jordan_farhi_shor.multiply(psi1, [1], jordan_farhi_shor.Y)
@@ -36,7 +35,7 @@ class TestJordanFarhiShor(unittest.TestCase):
 
     def test_multi_qubit(self):
         n = 5
-        psi0 = State(tools.tensor_product([jordan_farhi_shor.logical_basis[0]] * n))
+        psi0 = tools.tensor_product([jordan_farhi_shor.logical_basis[0]] * n)
         psi1 = psi0.copy()
         op = tools.tensor_product([jordan_farhi_shor.X, jordan_farhi_shor.Y, jordan_farhi_shor.Z])
         psi0 = jordan_farhi_shor.multiply(psi0, [1, 3, 4], op)

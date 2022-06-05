@@ -1,4 +1,3 @@
-from qsim.codes.quantum_state import State
 from odeintw import odeintw
 import numpy as np
 import scipy.integrate
@@ -22,30 +21,24 @@ class SchrodingerEquation(object):
             ham = ham + self.hamiltonians[i].hamiltonian
         return ham
 
-    def evolution_generator(self, state: State):
-        res = State(np.zeros(state.shape), is_ket=state.is_ket, code=state.code, IS_subspace=state.IS_subspace,
-                    graph=state.graph)
+    def evolution_generator(self, state: np.ndarray):
+        res = np.zeros_like(state)
         for i in range(len(self.hamiltonians)):
-            #print(self.hamiltonians[i].left_multiply(state)[:10], state[:10], self.hamiltonians[i])
             res = res - 1j * self.hamiltonians[i].left_multiply(state)
         return res
 
-    def evolve(self, state: State, time):
-        assert state.is_ket
-        sparse_hamiltonian = csr_matrix((state.dimension, state.dimension))
+    def evolve(self, state: np.ndarray, time):
+        assert state.shape[1] == 1
+        sparse_hamiltonian = csr_matrix((state.shape[0], state.shape[0]))
         for i in range(len(self.hamiltonians)):
             sparse_hamiltonian = sparse_hamiltonian + self.hamiltonians[i].hamiltonian
         return expm_multiply(-1j * time * sparse_hamiltonian, state)
 
-    def run_ode_solver(self, state: State, t0, tf, num=50, schedule=lambda t: None, times=None, method='odeint',
+    def run_ode_solver(self, state: np.ndarray, t0, tf, num=50, schedule=lambda t: None, times=None, method='odeint',
                        full_output=True, verbose=False):
         """Numerically integrates the Schrodinger equation"""
-        assert state.is_ket
+        assert state.shape[1] == 1
         # Save s properties
-        is_ket = state.is_ket
-        code = state.code
-        IS_subspace = state.IS_subspace
-        graph = state.graph
 
         def f(t, s):
             global state
@@ -54,7 +47,6 @@ class SchrodingerEquation(object):
             if method != 'odeint':
                 s = np.reshape(np.expand_dims(s, axis=0), state_shape)
             schedule(t)
-            s = State(s, is_ket=is_ket, code=code, IS_subspace=IS_subspace, graph=graph)
             return np.asarray(self.evolution_generator(s)).flatten()
 
         # s is a ket specifying the initial codes
@@ -113,10 +105,10 @@ class SchrodingerEquation(object):
             res.y = res.y / norms
             return res.y, res
 
-    def run_trotterized_solver(self, state: State, t0, tf, num=50, schedule=lambda t: None, times=None,
+    def run_trotterized_solver(self, state: np.ndarray, t0, tf, num=50, schedule=lambda t: None, times=None,
                                full_output=True, verbose=False):
         """Trotterized approximation of the Schrodinger equation"""
-        assert state.is_ket
+        assert state.shape[1] == 1
 
         # s is a ket specifying the initial codes
         # tf is the total simulation time
@@ -251,6 +243,6 @@ class SchrodingerEquation(object):
             # Construct a LinearOperator from the Hamiltonians
             raise NotImplementedError
         if which == 'S':
-            return eigvals[0], State(eigvecs[0, np.newaxis].T, is_ket=True)
+            return eigvals[0], eigvecs[0, np.newaxis].T
         elif which == 'L':
-            return eigvals[-1], State(eigvecs[-1, np.newaxis].T, is_ket=True)
+            return eigvals[-1], eigvecs[-1, np.newaxis].T
