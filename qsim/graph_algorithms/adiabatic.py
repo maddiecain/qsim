@@ -5,13 +5,13 @@ from scipy.integrate._ivp.ivp import OdeResult
 from qsim.tools.tools import outer_product, is_valid_state
 from qsim.codes import qubit
 from qsim.evolution.hamiltonian import HamiltonianMIS, HamiltonianDriver, HamiltonianMaxCut
-from qsim.graph_algorithms.graph import Graph
 from qsim.schrodinger_equation import SchrodingerEquation
 from qsim.lindblad_master_equation import LindbladMasterEquation
+import networkx as nx
 
 
 class SimulateAdiabatic(object):
-    def __init__(self, graph: Graph, hamiltonian=None, noise_model=None, noise=None, code=None, cost_hamiltonian=None,
+    def __init__(self, graph: nx.Graph, hamiltonian=None, noise_model=None, noise=None, code=None, cost_hamiltonian=None,
                  IS_subspace=False):
         """Noise_model is one of channel, continuous, monte_carlo, or None."""
         self.graph = graph
@@ -19,7 +19,7 @@ class SimulateAdiabatic(object):
         self.hamiltonian = hamiltonian
         self.noise_model = noise_model
         self.noise = noise
-        self.N = self.graph.n
+        self.N = self.graph.number_of_nodes()
         # Depth of circuit
         if code is None:
             self.code = qubit
@@ -90,13 +90,11 @@ class SimulateAdiabatic(object):
             num = self._num_from_time(time, method=method)
         if initial_state is None:
             # Begin with all qudits in the ground s
-            initial_state = State(np.zeros((self.cost_hamiltonian.hamiltonian.shape[0], 1)), code=self.code,
-                                  IS_subspace=self.IS_subspace, graph=self.graph)
+            initial_state = np.zeros((self.cost_hamiltonian.hamiltonian.shape[0], 1))
             initial_state[-1, -1] = 1
 
         if self.noise_model is not None and self.noise_model != 'monte_carlo':
-            initial_state = State(outer_product(initial_state, initial_state), IS_subspace=self.IS_subspace,
-                                  code=self.code, graph=self.graph)
+            initial_state = outer_product(initial_state, initial_state)
 
         if self.noise_model == 'continuous':
             # Initialize master equation
@@ -135,10 +133,10 @@ class SimulateAdiabatic(object):
 
         if len(results.shape) == 2:
             # The algorithm has output a single state
-            out = [State(results, IS_subspace=self.IS_subspace, code=self.code, graph=self.graph)]
+            out = [results]
         elif len(results.shape) == 3:
             # The algorithm has output an array of states
-            out = [State(res, IS_subspace=self.IS_subspace, code=self.code, graph=self.graph) for res in results]
+            out = [res for res in results]
         else:
             assert len(results.shape) == 4
             if self.noise_model != 'monte_carlo':
@@ -149,8 +147,7 @@ class SimulateAdiabatic(object):
                 res = []
                 for j in range(results.shape[1]):
                     # For all times
-                    res.append(
-                        State(results[i, j, ...], IS_subspace=self.IS_subspace, code=self.code, graph=self.graph))
+                    res.append(results[i, j, ...])
                 out.append(res)
         return out, info
 
@@ -303,7 +300,7 @@ class SimulateAdiabatic(object):
 
                         else:
                             if errorbar:
-                                if results[-1].is_ket:
+                                if results[-1].shape[1] == 1:
                                     probabilities = (np.abs(results[-1]) ** 2).flatten().real
                                 else:
                                     probabilities = np.diag(results[-1]).real
@@ -428,7 +425,7 @@ class SimulateAdiabatic(object):
             if not self.noise_model == 'monte_carlo':
                 res = np.zeros(int(np.max(self.cost_hamiltonian.hamiltonian.real)) -
                                int(np.min(self.cost_hamiltonian.hamiltonian.real)) + 1)
-                if results[-1].is_ket:
+                if results[-1].shape[1] == 1:
                     probabilities = (np.abs(results[-1]) ** 2).flatten().real
                 else:
                     probabilities = np.diag(results[-1]).real
@@ -443,7 +440,7 @@ class SimulateAdiabatic(object):
                 res = np.zeros(int(np.max(self.cost_hamiltonian.hamiltonian.real) - np.min(
                     self.cost_hamiltonian.hamiltonian.real) + 1))
                 for k in range(iterations):
-                    if results[k].is_ket:
+                    if results[k].shape[1] == 1:
                         probabilities = (np.abs(results[k]) ** 2).flatten().real
                     else:
                         probabilities = np.diag(results[k]).real

@@ -8,22 +8,19 @@ from qsim.evolution.hamiltonian import HamiltonianMIS
 
 
 class SimulateQAOA(object):
-    def __init__(self, graph: nx.Graph, hamiltonian=None, noise_model=None, noise=None, code=None, cost_hamiltonian=None):
+    def __init__(self, graph: nx.Graph, hamiltonian=None, cost_hamiltonian=None, noise_model=None, noise=None, code=None):
         """Noise_model is one of channel, continuous, monte_carlo, or None."""
         self.graph = graph
         self.hamiltonian = hamiltonian
         self.noise_model = noise_model
         self.noise = noise
-        self.N = self.graph.number_of_nodes()
+        self.n = self.graph.number_of_nodes()
         # Depth of circuit
         self.depth = len(self.hamiltonian)
         if code is None:
             self.code = qubit
         else:
             self.code = code
-        # TODO: revisit if this is the right cost function default
-        if cost_hamiltonian is None:
-            cost_hamiltonian = HamiltonianMIS(graph, code=self.code)
         self.cost_hamiltonian = cost_hamiltonian
 
     # Code for auto-updating depth when Hamiltonian is updated
@@ -61,7 +58,7 @@ class SimulateQAOA(object):
         # gradient
         if self.code.logical_code and initial_state is None:
             if isinstance(self.cost_hamiltonian, HamiltonianMIS):
-                initial_state = tensor_product([self.code.logical_basis[1]] * self.N)
+                initial_state = tensor_product([self.code.logical_basis[1]] * self.n)
         elif initial_state is None:
             if isinstance(self.cost_hamiltonian, HamiltonianMIS):
                 initial_state = np.zeros((self.cost_hamiltonian.hamiltonian.shape[0], 1))
@@ -142,7 +139,7 @@ class SimulateQAOA(object):
 
     def run(self, param, initial_state=None):
         if self.code.logical_code and initial_state is None:
-            initial_state = tensor_product([self.code.logical_basis[1]] * self.N)
+            initial_state = tensor_product([self.code.logical_basis[1]] * self.n)
         elif initial_state is None:
             if isinstance(self.cost_hamiltonian, HamiltonianMIS):
                 initial_state = np.zeros((self.cost_hamiltonian.hamiltonian.shape[0], 1))
@@ -236,7 +233,7 @@ class SimulateQAOA(object):
             f = lambda param: -1 * self.run(param, initial_state=initial_state)
 
         # check if the node degrees are always odd or even
-        degree_list = np.array([(self.graph.graph.degree[i], i) for i in range(self.N)]) % 2
+        degree_list = np.array([(self.graph.graph.degree[i], i) for i in range(self.n)]) % 2
         parity = None
         if np.all(degree_list % 2 == 0):
             parity = 0

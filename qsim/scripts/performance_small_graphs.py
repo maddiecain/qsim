@@ -344,6 +344,7 @@ def collect_gap_statistics(size):
         # print(index, graph_index, gap, loc, ratio, graph.degeneracy)
         # visualize_low_energy_subspace(graph)
 
+
 def find_ground_first_excited(graph, tails_graph, t, k=2):
     n_points = 7
     times_exp = 2 ** np.linspace(-2.5, 4.5 / 6 * (n_points - 1) - 2.5, n_points) + .312 * 2
@@ -485,15 +486,19 @@ def find_ground_first_excited_preloaded(n, index, graph, tails_graph, t, k=2):
         else:
             driver_energy = 2 * np.pi * 2 * (T - t) / .312
             cost_energy = -2 * np.pi * 11
-
-        eigval, eigvec = scipy.sparse.linalg.eigsh(cost_energy*cost + driver_energy*driver + rydberg, k=2, which='SA')
+        if tails_graph is None:
+            eigval, eigvec = scipy.sparse.linalg.eigsh(cost_energy*cost + driver_energy*driver, k=1, which='SA')
+        else:
+            eigval, eigvec = scipy.sparse.linalg.eigsh(cost_energy*cost + driver_energy*driver + rydberg, k=1, which='SA')
         return eigval, eigvec
     # Do minimization
     t = t * t_max
+    #print(t, t_max)
     eigval, eigvec = gap(t, t_max)
-    print('gap', (eigval[1]-eigval[0])/(2*np.pi))
+    print(eigval)
+    #print('gap', (eigval[1]-eigval[0])/(2*np.pi))
+    np.save('eigvec_notails_{}x{}_{}.npy'.format(n, n, graph_index), eigvec)
     return eigval, eigvec
-    #np.save('eigvec_{}.npy'.format(graph_index), eigvec)
 
 
 def find_detuning_and_rabi(n, index, graph, tails_graph, t, k=2):
@@ -604,7 +609,7 @@ if __name__ == '__main__':
     r = []
     d = []
     n_points = 10
-    for index in range(1, 20):
+    for index in range(0, 20):
         #tf = 2 ** np.linspace(-2.5, 4.5 / 6 * (n_points - 1) - 2.5, n_points) + .312 * 2
 
         #index = int(sys.argv[1])
@@ -630,7 +635,6 @@ if __name__ == '__main__':
             indices.append(np.argmin(np.abs(deltas-delta)))
         relevant_times = relevant_times[indices]/t_max
         print(relevant_times)"""
-        #find_ground_first_excited(graph, tails_graph, .5)
         #for t in relevant_times:
         if size == 8:
             locs = np.array([0.827956322052554, 0.8040219184932881, 0.7305878228970192, 0.7585904125924001,
@@ -638,6 +642,11 @@ if __name__ == '__main__':
                                0.7766741959601992, 0.7508037254169446, 0.7442339359689708, np.inf,
                                np.inf, np.inf, np.inf, np.inf,
                                np.inf, np.inf, np.inf, np.inf])
+            locs = np.array(
+        [0.6756331736528155, 0.673559188194453, 0.6520545561475296, 0.6535855146230148, 0.6335919441833188,
+         0.643352614980982, 0.6375174707386954, 0.6427808306669142, 0.6444931526556567, np.inf,
+         np.inf, np.inf, 0.6389080234944017, np.inf, np.inf, 0.6361250205114898, np.inf, 0.633457541218651,
+         np.inf, 0.633622380006075])
         if size == 7:
             locs = np.array(
                 [0.7265036496277152, 0.7480795397419759, 0.7501160681277541, 0.7283436417782508, 0.7161896597170012,
@@ -648,12 +657,19 @@ if __name__ == '__main__':
                  0.6962885788468285, 0.7218528272008484, 0.749878029970634, 0.7206609232120385, 0.6887485236896556,
                  0.7158657047278957, 0.7278519162920911, 0.735449028823428, 0.7016023773016111, 0.7361234146285848,
                  0.7351237755884046, 0.697861342950187, 0.7398546759713864])
+            locs = np.array(
+        [0.634771639096185, 0.6403615396636326, 0.641613989617083, 0.6341051390952442, 0.6307422977356634,
+         0.6288295362367593, 0.6336761539706376, 0.6281708373983768, 0.6299414020451287, 0.6280893145909536,
+         0.6221691829849975, 0.6280840933544501, 0.6274324392700706, 0.6271154144277437, 0.6235223101019526,
+         0.6269695772908302, 0.6242386131714195, 0.6277666080807623, 0.625658209900449, 0.6258125437012494]) #notails
+        print(locs[index])
+        find_ground_first_excited_preloaded(size, graph_index, graph, None, locs[index])
 
-        rabi, detuning = find_detuning_and_rabi(size, graph_index, graph, tails_graph, locs[index])
-        r.append(rabi)
-        d.append(detuning)
-        print(r)
-        print(d)
+        #rabi, detuning = find_detuning_and_rabi(size, graph_index, graph, tails_graph, locs[index])
+        #r.append(rabi)
+        #d.append(detuning)
+        #print(r)
+        #print(d)
         #eigval, eigvec = find_ground_first_excited_preloaded(size, graph_index, graph, tails_graph, locs[index])
         #np.save('eigvec_{}x{}_{}.npy'.format(size, size, graph_index), eigvec)
         #res = visualize_low_energy_subspace(graph, tails_graph, k=2)

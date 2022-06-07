@@ -414,29 +414,56 @@ class HamiltonianMaxCut(object):
             if cost_function:
                 if use_Z2_symmetry:
                     if a == min(self.graph.nodes):
-                        c = c - 1 / 2 * graph[a][b]['weight'] * (tools.tensor_product(
-                            [my_eye(b - 1), z, my_eye(self.n - b - 1)]) - my_eye(self.n - 1))
+                        if hasattr(graph[a][b], 'weight'):
+                            c = c - 1 / 2 * graph[a][b]['weight'] * (tools.tensor_product(
+                                [my_eye(b - 1), z, my_eye(self.n - b - 1)]) - my_eye(self.n - 1))
+                        else:
+                            c = c - 1 / 2 * (tools.tensor_product(
+                                [my_eye(b - 1), z, my_eye(self.n - b - 1)]) - my_eye(self.n - 1))
                     else:
-                        c = c - 1 / 2 * graph[a][b]['weight'] * (tools.tensor_product(
-                            [my_eye(a - 1), z, my_eye(b - a - 1), z, my_eye(self.n - b - 1)]) - my_eye(self.n - 1))
+                        if hasattr(graph[a][b], 'weight'):
+                            c = c - 1 / 2 * graph[a][b]['weight'] * (tools.tensor_product(
+                                [my_eye(a - 1), z, my_eye(b - a - 1), z, my_eye(self.n - b - 1)]) - my_eye(self.n - 1))
+                        else:
+                            c = c - 1 / 2 * (tools.tensor_product(
+                                [my_eye(a - 1), z, my_eye(b - a - 1), z, my_eye(self.n - b - 1)]) - my_eye(self.n - 1))
                 else:
-                    c = c - 1 / 2 * graph[a][b]['weight'] * (tools.tensor_product(
-                        [my_eye(a), z, my_eye(b - a - 1), z, my_eye(self.n - b - 1)],
-                        sparse=(not self._is_diagonal)) - my_eye(
-                        self.n))
+                    if hasattr(graph[a][b], 'weight'):
+                        c = c - 1 / 2 * graph[a][b]['weight'] * (tools.tensor_product(
+                            [my_eye(a), z, my_eye(b - a - 1), z, my_eye(self.n - b - 1)],
+                            sparse=(not self._is_diagonal)) - my_eye(
+                            self.n))
+                    else:
+                        c = c - 1 / 2 * (tools.tensor_product(
+                            [my_eye(a), z, my_eye(b - a - 1), z, my_eye(self.n - b - 1)],
+                            sparse=(not self._is_diagonal)) - my_eye(
+                            self.n))
             else:
                 if use_Z2_symmetry:
                     if a == min(self.graph.nodes):
-                        c = c + graph[a][b]['weight'] * (tools.tensor_product(
-                            [my_eye(b - 1), z, my_eye(self.n - b - 1)]))
+                        if hasattr(graph[a][b], 'weight'):
+                            c = c + graph[a][b]['weight'] * (tools.tensor_product(
+                                [my_eye(b - 1), z, my_eye(self.n - b - 1)]))
+                        else:
+                            c = c + (tools.tensor_product(
+                                [my_eye(b - 1), z, my_eye(self.n - b - 1)]))
                     else:
-                        c = c + graph[a][b]['weight'] * (tools.tensor_product(
-                            [my_eye(a - 1), z, my_eye(b - a - 1), z, my_eye(self.n - b - 1)]))
+                        if hasattr(graph[a][b], 'weight'):
+                            c = c + graph[a][b]['weight'] * (tools.tensor_product(
+                                [my_eye(a - 1), z, my_eye(b - a - 1), z, my_eye(self.n - b - 1)]))
+                        else:
+                            c = c + (tools.tensor_product(
+                                [my_eye(a - 1), z, my_eye(b - a - 1), z, my_eye(self.n - b - 1)]))
 
                 else:
-                    c = c + graph[a][b]['weight'] * (tools.tensor_product(
-                        [my_eye(a), z, my_eye(b - a - 1), z, my_eye(self.n - b - 1)],
-                        sparse=(not self._is_diagonal)))
+                    if hasattr(graph[a][b], 'weight'):
+                        c = c + graph[a][b]['weight'] * (tools.tensor_product(
+                            [my_eye(a), z, my_eye(b - a - 1), z, my_eye(self.n - b - 1)],
+                            sparse=(not self._is_diagonal)))
+                    else:
+                        c = c + (tools.tensor_product(
+                            [my_eye(a), z, my_eye(b - a - 1), z, my_eye(self.n - b - 1)],
+                            sparse=(not self._is_diagonal)))
         if self._is_diagonal:
             self._diagonal_hamiltonian = c
             self._optimum = np.max(c).real

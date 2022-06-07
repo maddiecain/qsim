@@ -121,10 +121,10 @@ class LindbladMasterEquation(object):
                     res.y[i, ...] = tools.make_valid_state(res.y[i, ...], is_ket=False)
             return res.y, res
 
-    def run_trotterized_solver(self, state: State, t0, tf, num=50, schedule=lambda t: None, times=None,
+    def run_trotterized_solver(self, state: np.ndarray, t0, tf, num=50, schedule=lambda t: None, times=None,
                                full_output=True, verbose=False):
         """Trotterized approximation of the Schrodinger equation"""
-        assert not state.is_ket
+        assert not (state.shape[1] == 1)
 
         # s is a ket specifying the initial codes
         # tf is the total simulation time

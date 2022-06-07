@@ -2,10 +2,9 @@ from qsim.tools import tools
 import numpy as np
 from qsim.codes import qubit
 import scipy.sparse as sparse
-from qsim.graph_algorithms.graph import Graph
 from scipy.linalg import expm
 from scipy.sparse.linalg import expm_multiply
-
+import networkx as nx
 
 class LindbladJumpOperator(object):
     def __init__(self, jump_operators: np.ndarray, rates, code=qubit, graph=None, IS_subspace=False):
@@ -229,7 +228,7 @@ class SpontaneousEmission(LindbladJumpOperator):
                     raise NotImplementedError
             return 1j * self.rates[0] / 2 * self._evolution_operator
 
-    def liouvillian(self, state: State, apply_to=None):
+    def liouvillian(self, state: np.ndarray, apply_to=None):
         if apply_to is None:
             apply_to = list(range(state.number_physical_qudits))
         out = np.zeros(state.shape)
@@ -248,10 +247,10 @@ class SpontaneousEmission(LindbladJumpOperator):
                       self.code.left_multiply(state, [apply_to[i]], self.jump_operators[0].T @ self.jump_operators[0]) \
                       - 1 / 2 * self.code.right_multiply(state, [apply_to[i]],
                                                          self.jump_operators[0].T @ self.jump_operators[0])
-        return State(out, is_ket=state.is_ket, code=state.code, IS_subspace=state.IS_subspace, graph=state.graph)
+        return out
 
-    def jump_rate(self, state: State, apply_to=None):
-        assert state.is_ket
+    def jump_rate(self, state: np.ndarray, apply_to=None):
+        assert state.shape[1] == 1
         if apply_to is None:
             apply_to = list(range(state.number_physical_qudits))
         if isinstance(apply_to, int):
@@ -274,9 +273,9 @@ class SpontaneousEmission(LindbladJumpOperator):
 
         return np.asarray(jumped_states), np.asarray(jump_rates)
 
-    def left_multiply(self, state: State, apply_to=None):
+    def left_multiply(self, state: np.ndarray, apply_to=None):
         # Left multiply by the non-Hermitian Hamiltonian
-        assert state.is_ket
+        assert state.shape[1] == 1
         if apply_to is None:
             apply_to = list(range(state.number_physical_qudits))
         if isinstance(apply_to, int):
@@ -291,7 +290,7 @@ class SpontaneousEmission(LindbladJumpOperator):
         else:
             for j in range(len(self.jump_operators)):
                 out = out - 1j * self.jump_operators[j].conj().T @ (self.jump_operators[j] @ state)
-        return State(out / 2, is_ket=state.is_ket, code=state.code, IS_subspace=state.IS_subspace)
+        return out / 2
 
 
 class LindbladPauliOperator(LindbladJumpOperator):
@@ -425,7 +424,7 @@ class LindbladPauliOperator(LindbladJumpOperator):
                     raise NotImplementedError
             return 1j * self.rates[0] / 2 * self._evolution_operator
 
-    def liouvillian(self, state: State, apply_to=None):
+    def liouvillian(self, state: np.ndarray, apply_to=None):
         if apply_to is None:
             apply_to = list(range(state.number_physical_qudits))
         out = np.zeros(state.shape)
@@ -444,10 +443,10 @@ class LindbladPauliOperator(LindbladJumpOperator):
                       self.code.left_multiply(state, [apply_to[i]], self.jump_operators[0].T @ self.jump_operators[0]) \
                       - 1 / 2 * self.code.right_multiply(state, [apply_to[i]],
                                                          self.jump_operators[0].T @ self.jump_operators[0])
-        return State(out, is_ket=state.is_ket, code=state.code, IS_subspace=state.IS_subspace, graph=state.graph)
+        return out
 
-    def jump_rate(self, state: State, apply_to=None):
-        assert state.is_ket
+    def jump_rate(self, state: np.ndarray, apply_to=None):
+        assert state.shape[1] == 1
         if apply_to is None:
             apply_to = list(range(state.number_physical_qudits))
         if isinstance(apply_to, int):
@@ -470,9 +469,9 @@ class LindbladPauliOperator(LindbladJumpOperator):
 
         return np.asarray(jumped_states), np.asarray(jump_rates)
 
-    def left_multiply(self, state: State, apply_to=None):
+    def left_multiply(self, state: np.ndarray, apply_to=None):
         # Left multiply by the non-Hermitian Hamiltonian
-        assert state.is_ket
+        assert state.shape[1] == 1
         if apply_to is None:
             apply_to = list(range(state.number_physical_qudits))
         if isinstance(apply_to, int):
@@ -487,5 +486,5 @@ class LindbladPauliOperator(LindbladJumpOperator):
         else:
             for j in range(len(self.jump_operators)):
                 out = out - 1j * self.jump_operators[j].conj().T @ (self.jump_operators[j] @ state)
-        return State(out / 2, is_ket=state.is_ket, code=state.code, IS_subspace=state.IS_subspace)
+        return out / 2
 
