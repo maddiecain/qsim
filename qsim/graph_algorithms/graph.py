@@ -212,7 +212,7 @@ def unit_disk_grid_graph(grid, radius=np.sqrt(2) + 1e-5, periodic=False, visuali
 
     if visualize:
         pos = {nodes[i]: nodes_geometric[i] for i in range(len(nodes))}
-        nx.draw_networkx_nodes(graph, pos=pos, node_color='cornflowerblue', node_size=40,
+        nx.draw_networkx_nodes(graph, pos=pos, node_color='white', node_size=120,
                                edgecolors='black')  # edgecolors='black',
         nx.draw_networkx_edges(graph, pos=pos, edge_color='black')
         plt.axis('off')

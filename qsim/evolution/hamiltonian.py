@@ -712,8 +712,7 @@ class HamiltonianMIS(object):
                 for i in sets:
                     C[k] = np.sum([node_weights[j] for j in i])
                     k -= 1
-                self._hamiltonian = sparse.csr_matrix((C, (np.arange(self.graph.num_independent_sets),
-                                                           np.arange(self.graph.num_independent_sets))))
+                self._hamiltonian = sparse.csr_matrix((C, (np.arange(num_sets), np.arange(num_sets))))
 
                 C = np.expand_dims(C, axis=0).T
 
@@ -871,6 +870,117 @@ class HamiltonianMIS(object):
     def approximation_ratio(self, state: np.ndarray):
         # Returns <s|C|s>/optimum
         return self.cost_function(state) / self.optimum
+
+
+class HamiltonianSpinExchange(object):
+    def __init__(self, graph, energies=(1,)):
+        """Default is that the first element in transition is the higher energy s."""
+        self.energies = energies
+        self.IS_subspace = True
+        self.graph = graph
+        # Generate sparse mixing Hamiltonian
+        assert isinstance(graph, nx.Graph)
+        independent_sets = enumerate_independent_sets(graph)
+
+        # Generate a list of integers corresponding to the independent sets in binary
+
+        def free_node(n, n_init, sol):
+            free = True
+            for neighbor in self.graph[n]:
+                if neighbor != n_init and (neighbor in sol):
+                    free = False
+            return free
+
+        def neighbors(sol):
+            sol = list(sol)
+            candidate_sols = []
+            for i in sol:
+                for n in self.graph[i]:
+                    if free_node(n, i, sol):
+                        candidate_sol = sol.copy()
+                        candidate_sol.append(n)
+                        candidate_sol.remove(i)
+                        candidate_sols.append(tuple(sorted(candidate_sol)))
+            return candidate_sols
+
+        subspace_matrices = []
+        configuration_graph = nx.Graph()
+        current_size = 0
+        order = 1
+        rows = []
+        columns = []
+        entries = []
+        independent_sets_dict = {}
+        for i in independent_sets:
+            if current_size != len(i):
+                # We are incrementing in independent set size
+                # First, we need to convert our current configuration graph to an adjacency matrix and update the
+                # relevant Hamiltonian block
+                if current_size != 0:
+                    subspace_matrix = sparse.csc_matrix((entries, (rows, columns)), shape=(order, order))
+                else:
+                    subspace_matrix = sparse.csr_matrix((1, 1))
+                subspace_matrices.append(subspace_matrix)
+
+                # Now, we need to reset our configuration graph
+                current_size = len(i)
+                independent_sets_dict = {}
+                rows = []
+                columns = []
+                entries = []
+                order = 0
+
+            independent_sets_dict[tuple(i)] = order
+            # Now we need to add its neighbors
+
+            neighbors_sol = neighbors(i)
+            for neighbor_config in neighbors_sol:
+                if neighbor_config in independent_sets_dict:
+                    entries.append(1)
+                    entries.append(1)
+                    rows.append(independent_sets_dict[neighbor_config])
+                    columns.append(order)
+                    columns.append(independent_sets_dict[neighbor_config])
+                    rows.append(order)
+            order += 1
+        subspace_matrix = sparse.csc_matrix((entries, (rows, columns)), shape=(order, order))
+        subspace_matrices.append(subspace_matrix)
+        self.mis_size = current_size
+        # Now, construct the Hamiltonian
+        self._csr_hamiltonian = np.flip(sparse.block_diag(subspace_matrices, format='csr'), axis=(0,1))
+        self._hamiltonian = self._csr_hamiltonian
+
+    @property
+    def hamiltonian(self):
+        return self.energies[0] * self._hamiltonian
+
+    @property
+    def evolution_operator(self):
+        return -1j * self.hamiltonian
+
+    def left_multiply(self, state):
+        return self.energies[0] * self._csr_hamiltonian @ state
+
+    def right_multiply(self, state):
+        return state @ self.hamiltonian.T.conj()
+
+    def evolve(self, state, time):
+        r"""
+        Use reshape to efficiently implement evolution under :math:`H_B=\\sum_i X_i`
+        """
+        if state.is_ket:
+            # Handle dimensions
+            if self.hamiltonian.shape[1] == 1:
+                return np.exp(-1j * time * self.hamiltonian) * state
+            else:
+                return expm_multiply(-1j * time * self.hamiltonian, state)
+        else:
+            if self.hamiltonian.shape[1] == 1:
+                exp_hamiltonian = np.exp(-1j * time * self.hamiltonian)
+                return exp_hamiltonian * state * exp_hamiltonian.conj().T
+            else:
+                exp_hamiltonian = expm(-1j * time * self.hamiltonian)
+                return exp_hamiltonian @ state @ exp_hamiltonian.conj().T
 
 
 class HamiltonianBookatzPenalty(object):
@@ -1133,7 +1243,6 @@ class HamiltonianEnergyShift(object):
         if self.IS_subspace:
             # Generate sparse mixing Hamiltonian
             assert graph is not None
-            assert isinstance(graph, Graph)
             if code is not qubit:
                 IS, num_IS = graph.independent_sets_qudit(self.code)
                 self._diagonal_hamiltonian = np.zeros((num_IS, 1), dtype=float)
