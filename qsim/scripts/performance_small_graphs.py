@@ -493,6 +493,7 @@ def find_ground_first_excited_preloaded(n, index, graph, tails_graph, t, k=2):
         return eigval, eigvec
     # Do minimization
     t = t * t_max
+    #print(t_max)
     #print(t, t_max)
     eigval, eigvec = gap(t, t_max)
     print(eigval)
@@ -618,8 +619,11 @@ if __name__ == '__main__':
         size = 8
         size_indices = np.array([5, 6, 7, 8, 9, 10])
         size_index = np.argwhere(size == size_indices)[0, 0]
-        xls = pd.ExcelFile('MIS_degeneracy_ratio.xlsx')
-        graph_index = (pd.read_excel(xls, 'Sheet1').to_numpy()[index, size_index]).astype(int)
+        #xls = pd.ExcelFile('MIS_degeneracy_ratio.xlsx')
+        graph_indices = [188, 970, 91, 100, 72, 316, 747, 216, 168, 852, 7, 743, 32, 573, 991, 957, 555, 936, 342, 950]
+        graph_index = graph_indices[index]
+        #print(list(np.array(pd.read_excel(xls, 'Sheet1').to_numpy()[:20, size_index]).astype(int)))
+        #graph_index = (pd.read_excel(xls, 'Sheet1').to_numpy()[index, size_index]).astype(int)
         print(size, graph_index)
         times_exp = 2 ** np.linspace(-2.5, 4.5 / 6 * (n_points - 1) - 2.5, n_points) + .312 * 2
         t_max = times_exp[4]
