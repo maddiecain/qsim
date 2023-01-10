@@ -4,11 +4,8 @@ import networkx as nx
 import matplotlib.pyplot as plt
 from qsim.tools.tools import equal_superposition
 from qsim.evolution import hamiltonian
-from qsim.codes.quantum_state import State
 from qsim.graph_algorithms import qaoa
-from qsim.graph_algorithms.graph import Graph
 import re
-
 
 
 def multiply_pauli(p1, p2):
@@ -57,31 +54,41 @@ def fmt_coeff(coeff):
     if coeff == 1:
         return ''
     elif coeff == 1j:
-        return '(1j)'
+        return '[1j]'
     elif coeff == -1j:
-        return '(-1j)'
+        return '[-1j]'
     elif coeff == -1:
-        return '(-1)'
+        return '[-1]'
     else:
         return str(coeff)
 
 
 def heisenberg_operator(edge, graph, depth):
-    initial_string = 'i' * edge[0] + 'z' + 'i' * (edge[1] - edge[0] - 1) + 'z' + (graph.n - edge[1] - 1) * 'i'
+    initial_string = 'i' * edge[0] + 'z' + 'i' * (edge[1] - edge[0] - 1) + 'z' + (
+            graph.number_of_nodes() - edge[1] - 1) * 'i'
+
     terms = {initial_string: ''}
 
     def increment_power(matchobj):
         return matchobj.group()[:3] + str(int(matchobj.group()[3]) + 1) + matchobj.group()[4:]
 
+    def commute_with_cost(term):
+        z_and_i = (term[edge[0]] == 'z' or term[edge[0]] == 'i') and (term[edge[1]] == 'z' or term[edge[1]] == 'i')
+        x_and_y = (term[edge[0]] == 'x' or term[edge[0]] == 'y') and (term[edge[1]] == 'x' or term[edge[1]] == 'y')
+        return z_and_i or x_and_y
+
     subscript = 0
-    for p in range(1, depth + 1):
-        if p % 2 == 1:
+
+    for p in range(1, depth+1):
+        if p % 2 == 1:  # If current depth is odd
             subscript += 1
             # Apply mixer Hamiltonian
             for node in graph.nodes:
                 new_terms = {key: '' for key in terms}
+                #print(new_terms)
+                #print(terms)
                 for term in terms:
-                    if term[node] != 'x' and term[node] != 'i':
+                    if term[node] != 'x' and term[node] != 'i':  # Operator does not commute with x
                         new_term_cos = ''
                         for subterm in terms[term].split('+'):
                             # Implement cos
@@ -126,12 +133,10 @@ def heisenberg_operator(edge, graph, depth):
             # Apply cost Hamiltonian
             for edge in graph.edges:
                 new_terms = {key: '' for key in terms}
+
                 for term in terms:
                     # If it doesn't commute
-                    if not ((term[edge[0]] == 'z' or term[edge[0]] == 'i') and
-                            (term[edge[1]] == 'z' or term[edge[1]] == 'i')) and not \
-                            ((term[edge[0]] == 'x' or term[edge[0]] == 'y') and
-                             (term[edge[1]] == 'x' or term[edge[1]] == 'y')):
+                    if not commute_with_cost(term):
                         # Implement cos
                         new_term_cos = ''
                         for subterm in terms[term].split('+'):
@@ -167,7 +172,7 @@ def heisenberg_operator(edge, graph, depth):
                                 new_term_sin = new_term_sin + '+' + subterm
                         if new_term in new_terms:
                             if new_terms[new_term] != '':
-                                new_terms[new_term] = new_terms[new_term] +'+'+ new_term_sin
+                                new_terms[new_term] = new_terms[new_term] + '+' + new_term_sin
                             else:
                                 new_terms[new_term] = new_term_sin
                         else:
@@ -178,15 +183,85 @@ def heisenberg_operator(edge, graph, depth):
 
     return terms
 
+
+def format_to_latex(terms, basis='z'):
+    def format_term(term):
+        formatted_term = ''
+        for (_, t) in enumerate(term):
+            if t == 'x':
+                formatted_term += ('X_'+str(_))
+            elif t == 'y':
+                formatted_term += ('Y_' + str(_))
+            elif t == 'z':
+                formatted_term += ('Z_' + str(_))
+        return formatted_term
+
+    def format_sine_gamma(matchobj):
+        if int(matchobj.group()[3]) == 1:
+            return "\\" + matchobj.group()[:3] + '(2\gamma_{' + \
+                   matchobj.group()[-2] + '})'
+        return "\\" +matchobj.group()[:3] + '^{'+ str(int(matchobj.group()[3]))+'}' + '(2\gamma_{'+matchobj.group()[-2]+'})'
+
+    def format_sine_beta(matchobj):
+        if int(matchobj.group()[3]) == 1:
+            return "\\" + matchobj.group()[:3] + '(2\\beta_{' + \
+                   matchobj.group()[-2] + '})'
+        return "\\" + matchobj.group()[:3] + '^{' + str(int(matchobj.group()[3])) + '}' + '(2\\beta_{' + \
+               matchobj.group()[-2] + '})'
+
+    def format_cosine_beta(matchobj):
+        if int(matchobj.group()[3]) == 1:
+            return "\\" + matchobj.group()[:3]+ '(2\\beta_{' + \
+                   matchobj.group()[-2] + '})'
+        return "\\" + matchobj.group()[:3] + '^{' + str(int(matchobj.group()[3])) + '}' + '(2\\beta_{' + \
+               matchobj.group()[-2] + '})'
+
+    def format_cosine_gamma(matchobj):
+        if int(matchobj.group()[3]) == 1:
+            return "\\" + matchobj.group()[:3] + '(2\gamma_{' + \
+                   matchobj.group()[-2] + '})'
+        return "\\" +matchobj.group()[:3] + '^{'+ str(int(matchobj.group()[3]))+'}' + '(2\gamma_{'+matchobj.group()[-2]+'})'
+
+    def print_formatted_term(term):
+        values = terms[term].split('+')
+        for (v, value) in enumerate(values):
+            coeff = ''
+            if value.count('[-1]') % 2 == 1:
+                coeff = '-'
+            else:
+                if v != 0:
+                    coeff = '+'
+            value = value.replace('[-1]', '')
+            value, n = re.subn(r'sin[0-9]\(2g[0-9]\)', format_sine_gamma, value)
+            value, n = re.subn(r'sin[0-9]\(2b[0-9]\)', format_sine_beta, value)
+            value, n = re.subn(r'cos[0-9]\(2g[0-9]\)', format_cosine_gamma, value)
+            value, n = re.subn(r'cos[0-9]\(2b[0-9]\)', format_cosine_beta, value)
+            values[v] = coeff + value
+
+        formatted_value = '&['
+        for value in values:
+            formatted_value += value
+        formatted_value += ']' + format_term(term)
+        print(formatted_value + ' \\nonumber \\\\')
+        print('+')
+
+    for term in terms:
+        if basis == 'z':
+            if terms[term] != '' and 'y' not in term and 'x' not in term:
+                print_formatted_term(term)
+
+        elif basis == 'x':
+            if terms[term] != '' and 'y' not in term and 'z' not in term:
+                print_formatted_term(term)
+
+
+
 from qsim.graph_algorithms.graph import branching_tree_from_edge
-graph = branching_tree_from_edge([4], visualize=True)
-terms = heisenberg_operator((0, 1), graph, 3)
-#print(terms)
-for term in terms:
-    if terms[term] != '' and 'y' not in term and 'x' not in term:
-        count = 0
-        for i in term:
-            if i == 'z':
-                count += 1
-        print(term, count, terms[term])
+
+graph = branching_tree_from_edge([2, 2], visualize=False)
+terms = heisenberg_operator((0, 1), graph, 6)
+
+format_to_latex(terms, basis='x')
+
+
 

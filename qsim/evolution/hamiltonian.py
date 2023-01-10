@@ -11,8 +11,7 @@ import networkx as nx
 
 class HamiltonianDriver(object):
     def __init__(self, transition: tuple = (0, 1), energies: tuple = (1,), pauli='X', code=qubit,
-                 graph: nx.Graph = None,
-                 IS_subspace=False):
+                 graph: nx.Graph = None, IS_subspace=False):
         """Default is that the first element in transition is the higher energy s."""
         self.transition = transition
         self.energies = energies
@@ -1323,7 +1322,7 @@ class HamiltonianEnergyShift(object):
             return self.energies[0] * self._diagonal_hamiltonian * state
 
     def right_multiply(self, state: np.ndarray):
-        if state.is_ket:
+        if state.shape[1] == 1:
             print('Warning: right multiply functionality currently applies the operator and daggers the state.')
             return self.left_multiply(state).conj().T
         elif not self.IS_subspace:
@@ -1388,7 +1387,7 @@ class HamiltonianRydberg(object):
         if self.IS_subspace:
             # Generate sparse mixing Hamiltonian
             assert hard_constraint_graph is not None
-            assert isinstance(hard_constraint_graph, Graph)
+            assert isinstance(hard_constraint_graph, nx.Graph)
             if code is not qubit:
                 IS, num_IS = hard_constraint_graph.generate_independent_sets_qudit(self.code)
                 self._diagonal_hamiltonian = np.zeros((num_IS, 1), dtype=float)

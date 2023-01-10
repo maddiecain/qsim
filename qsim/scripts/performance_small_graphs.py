@@ -269,7 +269,7 @@ def find_gap(graph, tails_graph, k=2, verbose=False):
         if verbose:
             print(np.abs(eigval[1] - eigval[0]), t / t_max)
         # print(t/t_max, np.abs(eigval[1] - eigval[0]))
-        return np.abs(eigval[1] - eigval[0])
+        return np.abs(eigval[-1] - eigval[0])
     if tails_graph is None:
         eq = schrodinger_equation.SchrodingerEquation(hamiltonians=[cost, driver])
     else:
@@ -602,35 +602,49 @@ print('HS size', graph.num_independent_sets)
 tails_graph = rydberg_graph(grid, visualize=False)
 find_ratio(tails_graph, graph, [t_max])
 #visualize_low_energy_subspace(graph, tails_graph, k=5)"""
+from qsim.graph_algorithms.graph import independence_polynomial
 
-
+import pandas as pd
 if __name__ == '__main__':
     # Evolve
     import sys
     r = []
     d = []
     n_points = 10
-    for index in range(0, 20):
+    for index in range(0, 100):
         #tf = 2 ** np.linspace(-2.5, 4.5 / 6 * (n_points - 1) - 2.5, n_points) + .312 * 2
 
         #index = int(sys.argv[1])
         # time_index = index % len(tf)
         # index = index #/ len(tf)
-        size = 8
-        size_indices = np.array([5, 6, 7, 8, 9, 10])
-        size_index = np.argwhere(size == size_indices)[0, 0]
+
+        #size_indices = np.array([5, 6, 7, 8, 9, 10])
+        #size_index = np.argwhere(size == size_indices)[0, 0]
         #xls = pd.ExcelFile('MIS_degeneracy_ratio.xlsx')
-        graph_indices = [188, 970, 91, 100, 72, 316, 747, 216, 168, 852, 7, 743, 32, 573, 991, 957, 555, 936, 342, 950]
-        graph_index = graph_indices[index]
+        #graph_indices = [188, 970, 91, 100, 72, 316, 747, 216, 168, 852, 7, 743, 32, 573, 991, 957, 555, 936, 342, 950]
+        #graph_index = graph_indices[index]
         #print(list(np.array(pd.read_excel(xls, 'Sheet1').to_numpy()[:20, size_index]).astype(int)))
         #graph_index = (pd.read_excel(xls, 'Sheet1').to_numpy()[index, size_index]).astype(int)
-        print(size, graph_index)
+        #print(size, graph_index)
         times_exp = 2 ** np.linspace(-2.5, 4.5 / 6 * (n_points - 1) - 2.5, n_points) + .312 * 2
         t_max = times_exp[4]
-        graph_data = loadfile(graph_index, size)
-        grid = graph_data['graph_mask']
-        graph = unit_disk_grid_graph(grid, periodic=False, visualize=False, radius=1.5)
-        tails_graph = rydberg_graph(grid, visualize=False)
+        #graph_data = loadfile(graph_index, size)
+        #grid = graph_data['graph_mask']
+        size = 4
+        grid = np.zeros(size**2)
+        grid[:int(.8*size**2)] = 1
+        degeneracy = np.inf
+        while degeneracy >= 7:
+            grid = grid.flatten()
+            np.random.shuffle(grid)
+            #print(grid)
+            grid = np.reshape(grid, (size, size))
+            graph = unit_disk_grid_graph(grid, periodic=False, visualize=False, radius=1.5)
+            tails_graph = rydberg_graph(grid, visualize=False)
+            ip = independence_polynomial(graph)
+            degeneracy = ip[-1]
+            print(degeneracy)
+        print(ip)
         """relevant_times = np.linspace(0.312, t_max-0.312, 10000)
         deltas = np.linspace(15, -11, 10000)
         relevant_deltas = -np.array([2, 4, 6, 8])
@@ -666,9 +680,14 @@ if __name__ == '__main__':
          0.6288295362367593, 0.6336761539706376, 0.6281708373983768, 0.6299414020451287, 0.6280893145909536,
          0.6221691829849975, 0.6280840933544501, 0.6274324392700706, 0.6271154144277437, 0.6235223101019526,
          0.6269695772908302, 0.6242386131714195, 0.6277666080807623, 0.625658209900449, 0.6258125437012494]) #notails
-        print(locs[index])
-        find_ground_first_excited_preloaded(size, graph_index, graph, None, locs[index])
-
+        gaps_notails_4 = [1.72, 1.87, 1.88, 1.89, 1.9, 1.71, 1.88, 1.71, 2, 2.07, 2.28, 2.22, 2.02, 2.10]
+        #print(locs[index])
+        #find_ground_first_excited_preloaded(size, graph_index, graph, None, locs[index])
+        visualize_low_energy_subspace(graph, None, k=40)
+        gap,loc = find_gap(graph, None, k=2)
+        r.append(gap)
+        print(loc)
+        print(r)
         #rabi, detuning = find_detuning_and_rabi(size, graph_index, graph, tails_graph, locs[index])
         #r.append(rabi)
         #d.append(detuning)

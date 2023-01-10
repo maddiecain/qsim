@@ -1,5 +1,5 @@
 # This has way more stuff in it than we need, but better safe than sorry!
-qsim/scripts/
+# qsim/scripts/
 
 # PyCharm directory
 .idea/*

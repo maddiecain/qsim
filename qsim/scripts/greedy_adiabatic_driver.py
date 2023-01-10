@@ -363,6 +363,7 @@ def degree_inverse_weighted(graph:nx.Graph):
     return graph
 
 
+
 def gap(graph):
     #grid = np.concatenate([np.ones(int(.8 * s ** 2)), np.zeros(s ** 2 - int(.8 * s ** 2))])
     #np.random.shuffle(grid)
@@ -398,10 +399,10 @@ def gap(graph):
         eigvals, eigvec = eigsh(driver_weighted.hamiltonian + cost.hamiltonian, k=4, which='SA')
         eigvals_uw, eigvec_uw = eigsh(driver_unweighted.hamiltonian + cost.hamiltonian, k=4, which='SA')
         eigvals_iw, eigvec_iw = eigsh(driver_inverse_weighted.hamiltonian + cost.hamiltonian, k=4, which='SA')
-        print(t/t_pulse_max, (eigvals-eigvals[0])[1], (eigvals_uw-eigvals_uw[0])[1], (eigvals_iw-eigvals_iw[0])[1])
+        print(t/t_pulse_max, (eigvals-eigvals[0]), (eigvals_uw-eigvals_uw[0]), (eigvals_iw-eigvals_iw[0]))
         return eigvals, eigvals_uw, eigvals_iw
 
-    for t in np.linspace(.5, .8, 40):
+    for t in np.linspace(.59, .638, 15):
         eigvals, eigvals_uw, eigvals_iw = gap(t*t_pulse_max, t_pulse_max)
         plt.scatter(np.ones_like(eigvals)*t, eigvals-eigvals[0], color='navy')
         plt.scatter(np.ones_like(eigvals_uw) * t, eigvals_uw - eigvals_uw[0], color='red')
@@ -409,17 +410,162 @@ def gap(graph):
     plt.show()
 
 
-i = 0
-indices_7 = np.array([189, 623, 354, 40, 323, 173, 661, 345, 813, 35, 162, 965, 336,
+def plot_gap_comparison():
+    indices_7 = np.array([189, 623, 354, 40, 323, 173, 661, 345, 813, 35, 162, 965, 336,
                           667, 870, 1, 156, 901, 576, 346])
-n = 7
-index = indices_7[i]
-degeneracy = np.loadtxt('configurations/mis_degeneracy_L%d.dat' % n)[index, 1].astype(int)
-graph_mask = np.reshape(np.loadtxt('configurations/mis_degeneracy_L%d.dat' % n)[index, 3:],
-                            (n, n), order='F')[::-1, ::-1].T.astype(bool)
-graph = unit_disk_grid_graph(graph_mask, visualize=False)
+    # Make gap versus time for index 11
+    # Index 13 is missing
+    gaps_w = [3.07369267, 0.7997628786946791, 2.1675841082177953, 2.1253520369009493, 4.309313368845096, 2.2317719264289337,
+              0.5193467104457454, 2.299485250760398, 1.2479513064002674, 2.21549904, 1.21399118531275, 1.9420168483179054,
+              2.840399814459488, 1.32231326, 3.92540512, 2.080244206261966, 3.118883101700476, 2.0192117362381126,
+              2.662482302170957, 4.540769230744644]
+    gaps_uw = [4.56936324001083, 2.6145769634239855, 3.8546449021378635, 3.2976290309781575, 7.6352054367060305,
+               3.047684688475499, 4.235761318318964, 4.73206514036724, 5.548418035039845, 4.916611855574843,
+               4.083427945869687, 4.527584097629926, 5.661544183688875, np.nan, 4.744154990219442, 6.396735466018242,
+               6.29724196992748, 4.786929435072295, 4.4903107014519605, 5.3712550200274904]
+    gaps_uw = [4.540475532206926, 2.5962464057099055, 3.791400840772212, 3.2823958497687045, 7.61270615882205,
+         2.985803086834892, 4.229070246544325, 4.729398079830389, 5.48824186638393, 4.914594522153266,
+         4.049635008459461, 4.508709780217259, 5.655959812129765, 5.651419961222871, 4.674079725691058,
+         6.396142420017668, 6.263203536870094, 4.78611564972357, 4.4851563016854925, 5.368011667861197]
+    gaps_iw = [2.7957177190187394, 1.002581659191634, 1.9497817620639921, 0.5819694723383861, 4.54188055, 1.1076250014139077,
+               4.12203255, 2.9258664394723723, 3.058463974880965, 2.331162241511933, 2.1157606582937944, 2.145586095388637,
+               3.175439273882546, 3.0595218, 1.2268509520877018, 1.7052730446500846, 2.072969740148323, 2.7920897302073513,
+               1.016325451284473, 2.105973087228051]
 
-gap(graph)
+    rescaling_iw = [1.4857142857142858, 1.452127659574468, 1.6595744680851063, 1.6082474226804124, 1.5, 1.5, 1.6082474226804124, 1.467741935483871, 1.5918367346938775, 1.6082474226804124, 1.5757575757575757, 1.5757575757575757, 1.6595744680851063, 1.625, 1.5445544554455446, 1.6774193548387097, 1.471698113207547, 1.5757575757575757, 1.5445544554455446, 1.6082474226804124]
+    rescaling_w = [2.379430563625798, 2.112458086149084, 2.0858270724563854, 2.178481181008112, 2.351083680206688, 1.6435881998795903, 4.152617568766635, 2.149606299212598, 2.2352620087336237, 4.084278768233387, 2.313559322033898, 2.2928331466965277, 2.151017728168089, 4.233652106487464, 2.213513513513513, 3.8217452169855344, 1.621621621621621, 4.143688337971159, 2.3561565017261206, 2.254645560908465]
+    gaps_w = np.array(gaps_w)*np.array(rescaling_w)/(2*np.pi*2)
+    gaps_iw = np.array(gaps_iw)*np.array(rescaling_iw)/(2*np.pi*2)
+    gaps_uw = np.array(gaps_uw)/(2*np.pi*2)
+    print(len(gaps_w),len(gaps_iw),len(gaps_uw))
+    ratios = np.load('ordered_ratios_max.npy')[0, :len(indices_7)]
+    plt.bar(np.arange(len(gaps_w)), gaps_w, color='red', label='Inverse degree weighted')
+    plt.bar(np.arange(len(gaps_iw))+len(gaps_w), gaps_iw, color='maroon', label='Degree weighted')
+    plt.bar(np.arange(len(gaps_uw))+len(gaps_w)+len(gaps_iw), gaps_uw, color='black', label='Unweighted')
+    where_x = np.arange(len(gaps_w)+len(gaps_iw)+len(gaps_uw))[np.isnan(np.concatenate([gaps_w, gaps_iw, gaps_uw]))]
+    #plt.bar(where_x, np.ones_like(where_x)*11/(2*np.pi*2), color='lightgrey', label='No data')
+    plt.ylim(0, 11/(2*np.pi*2))
+    plt.xlabel('Graph number')
+    plt.ylabel('Minimum spectral gap')
+    plt.legend(frameon=True, loc='upper right')
+    plt.show()
+
+    plt.bar(np.arange(len(gaps_w)), (gaps_w-gaps_uw)/gaps_uw, color='red', label='Inverse degree weighted')
+    plt.bar(np.arange(len(gaps_iw)) + len(gaps_w), (gaps_iw-gaps_uw)/gaps_uw, color='maroon', label='Degree weighted')
+    #plt.bar(np.arange(len(gaps_uw)) + len(gaps_w) + len(gaps_iw), gaps_uw, color='black',
+    #        label='Unweighted')
+    where_x = np.arange(len(gaps_w) + len(gaps_iw))[np.isnan(np.concatenate([gaps_w, gaps_iw]))]
+    #plt.bar(where_x, np.ones_like(where_x) * 13 / (2 * np.pi * 2), color='lightgrey', label='No data')
+    plt.ylim(- 13 / (2 * np.pi * 2), 13 / (2 * np.pi * 2))
+    plt.xlabel('Graph number')
+    plt.ylabel('(Gap - UW gap)/UW gap')
+    plt.legend(frameon=True, loc='upper right')
+    plt.show()
+
+def compute_rescaling():
+    indices_7 = np.array([189, 623, 354, 40, 323, 173, 661, 345, 813, 35, 162, 965, 336,
+                         667, 870, 1, 156, 901, 576, 346])
+    n = 7
+    rescaling_iw = []
+    rescaling_w = []
+    for i in range(len(indices_7)):
+        index = indices_7[i]
+        degeneracy = np.loadtxt('configurations/mis_degeneracy_L%d.dat' % n)[index, 1].astype(int)
+        graph_mask = np.reshape(np.loadtxt('configurations/mis_degeneracy_L%d.dat' % n)[index, 3:],
+                                (n, n), order='F')[::-1, ::-1].T.astype(bool)
+        graph = unit_disk_grid_graph(graph_mask, visualize=False)
+        to_remove = []
+        for node in graph:
+            if len(graph[node]) == 0:
+                to_remove.append(node)
+        for node in to_remove:
+            graph.remove_node(node)
+        graph = nx.relabel_nodes(graph, {node: i for (i, node) in enumerate(graph.nodes)})
+        max_degree = 0
+        min_degree = np.inf
+        total_degree = 0
+        total_inv_degree = 0
+        size = int(n**2*.8)
+        for node in graph:
+            degree = len(graph[node])
+
+            if degree > max_degree:
+                max_degree = degree
+            if degree < min_degree:
+                min_degree = degree
+            total_degree += degree
+            total_inv_degree += 1/degree
+        rescaling_iw.append(max_degree*size/total_degree)
+        rescaling_w.append(size/min_degree/total_inv_degree)
+
+        print(rescaling_iw)
+        print(rescaling_w)
+#compute_rescaling()
+
+
+def gap_weighted(graph):
+    #grid = np.concatenate([np.ones(int(.8 * s ** 2)), np.zeros(s ** 2 - int(.8 * s ** 2))])
+    #np.random.shuffle(grid)
+    #grid = grid.reshape((s, s))
+    cost = HamiltonianMIS(graph=graph, IS_subspace=True)
+    driver_weighted = HamiltonianWeightedDriver(graph=degree_weighted(graph), IS_subspace=True)
+    driver_inverse_weighted = HamiltonianWeightedDriver(graph=degree_inverse_weighted(graph), IS_subspace=True)
+
+    pulse = np.loadtxt('for_AWG_{}.000000.txt'.format(6))
+    t_pulse_max = np.max(pulse[:, 0]) - 2 * 0.312
+    print('Finished Hamiltonians')
+
+    def schedule_exp_linear(t, T):
+        if t < .312:
+            driver_weighted.energies = (2 * np.pi * 2 * t / .312,)
+            driver_inverse_weighted.energies = (2 * np.pi * 2 * t / .312,)
+            cost.energies = (2 * np.pi * 15,)
+        elif .312 <= t <= T - .312:
+            driver_weighted.energies = (2 * np.pi * 2,)
+            driver_inverse_weighted.energies = (2 * np.pi * 2,)
+            cost.energies = (2 * np.pi * (-(11 + 15) / (T - 2 * .312) * (t - .312) + 15),)
+        else:
+            driver_weighted.energies = (2 * np.pi * 2 * (T - t) / .312,)
+            driver_inverse_weighted.energies = (2 * np.pi * 2 * (T - t) / .312,)
+            cost.energies = (-2 * np.pi * 11,)
+
+    def gap(t, T):
+        schedule_exp_linear(t, T)
+        eigvals, eigvec = eigsh(driver_weighted.hamiltonian + cost.hamiltonian, k=4, which='SA')
+        eigvals_iw, eigvec_iw = eigsh(driver_inverse_weighted.hamiltonian + cost.hamiltonian, k=4, which='SA')
+        print(t/t_pulse_max, (eigvals-eigvals[0]), (eigvals_iw-eigvals_iw[0]))
+        return eigvals, eigvals_iw
+
+    for t in np.linspace(.40, .90, 50):
+        eigvals, eigvals_iw = gap(t*t_pulse_max, t_pulse_max)
+        plt.scatter(np.ones_like(eigvals)*t, eigvals-eigvals[0], color='navy')
+        plt.scatter(np.ones_like(eigvals_iw) * t, eigvals_iw - eigvals_iw[0], color='goldenrod')
+    plt.show()
+
+
+plot_gap_comparison()
+if __name__ == '__main__':
+    import sys
+    i = int(sys.argv[1])
+    indices_7 = np.array([189, 623, 354, 40, 323, 173, 661, 345, 813, 35, 162, 965, 336,
+                              667, 870, 1, 156, 901, 576, 346])
+    n = 7
+    index = indices_7[i]
+    degeneracy = np.loadtxt('configurations/mis_degeneracy_L%d.dat' % n)[index, 1].astype(int)
+    graph_mask = np.reshape(np.loadtxt('configurations/mis_degeneracy_L%d.dat' % n)[index, 3:],
+                                (n, n), order='F')[::-1, ::-1].T.astype(bool)
+    graph = unit_disk_grid_graph(graph_mask, visualize=False)
+    # Remove free nodes
+    to_remove = []
+    for node in graph:
+        if len(graph[node]) == 0:
+            to_remove.append(node)
+    for node in to_remove:
+        graph.remove_node(node)
+    graph = nx.relabel_nodes(graph, {node: i for (i, node) in enumerate(graph.nodes)})
+    #nx.draw(graph)
+    #plt.show()
+    gap_weighted(graph)
 
 
 
